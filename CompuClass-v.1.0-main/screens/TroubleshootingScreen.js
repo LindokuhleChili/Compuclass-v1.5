@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { LAB_CATEGORIES, LAB_DIFFICULTIES, TROUBLESHOOTING_SCENARIOS } from '../data/troubleshootingScenarios';
@@ -16,12 +15,11 @@ import {
   takeHint,
 } from '../utils/troubleshootingLab';
 
-const RED = '#B91C1C';
 const GREEN = '#166534';
-const BLUE = '#1D4ED8';
+const BLUE = '#0A66FF';
 const WHITE = '#FFFFFF';
-const BG = '#F3F4F6';
-const TEXT = '#111827';
+const BG = '#F7FBFD';
+const TEXT = '#0B1B3A';
 const MUTED = '#374151';
 const BORDER = '#D1D5DB';
 const CARD = '#FFFFFF';
@@ -92,11 +90,11 @@ export default function TroubleshootingScreen({ navigation }) {
   if (!scenario) {
     return (
       <ScrollView style={[styles.container, { backgroundColor: BG }]} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
-        <LinearGradient colors={[RED, '#7F1D1D']} style={[styles.header, { paddingTop: insets.top + 16 }]}>
-          <View style={styles.headerIcon}><Ionicons name="bug" size={28} color={WHITE} /></View>
-          <Text style={styles.headerTitle}>Troubleshooting Lab</Text>
+        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+          <View style={styles.headerIcon}><Ionicons name="bug" size={28} color={'#0A66FF'} /></View>
+          <Text style={styles.headerTitle} accessibilityRole="header">Troubleshooting Lab</Text>
           <Text style={styles.headerSubtitle}>Pick a case, run the checks, then commit a diagnosis.</Text>
-        </LinearGradient>
+        </View>
         <View style={styles.statsRow}>
           <View style={styles.statCard}><Text style={styles.statValue}>{completedCount}</Text><Text style={styles.statLabel}>Completed</Text></View>
           <View style={styles.statCard}><Text style={styles.statValue}>{TROUBLESHOOTING_SCENARIOS.length}</Text><Text style={styles.statLabel}>Cases</Text></View>
@@ -148,9 +146,9 @@ export default function TroubleshootingScreen({ navigation }) {
   if (attempt?.committed) {
     return (
       <ScrollView style={[styles.container, { backgroundColor: BG }]} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
-        <LinearGradient colors={[RED, '#7F1D1D']} style={[styles.playHeader, { paddingTop: insets.top + 12 }]}>
-          <Text style={styles.playTitle}>{scenario.title}</Text>
-        </LinearGradient>
+        <View style={[styles.playHeader, { paddingTop: insets.top + 12 }]}>
+          <Text style={styles.playTitle} accessibilityRole="header">{scenario.title}</Text>
+        </View>
         <View style={styles.card}>
           <Text style={styles.resultHeading}>{attempt.correct ? 'Diagnosis correct' : 'Diagnosis missed'}</Text>
           <Text style={styles.score}>{attempt.score} points</Text>
@@ -173,12 +171,12 @@ export default function TroubleshootingScreen({ navigation }) {
   const node = currentNode(scenario, attempt);
   return (
     <ScrollView style={[styles.container, { backgroundColor: BG }]} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
-      <LinearGradient colors={[RED, '#7F1D1D']} style={[styles.playHeader, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.playHeader, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => setScenario(null)} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Back to cases">
-          <Ionicons name="arrow-back" size={20} color={WHITE} />
+          <Ionicons name="arrow-back" size={20} color={TEXT} />
         </TouchableOpacity>
-        <Text style={styles.playTitle}>{scenario.title}</Text>
-      </LinearGradient>
+        <Text style={styles.playTitle} accessibilityRole="header">{scenario.title}</Text>
+      </View>
       <View style={styles.card}>
         <Text style={styles.body}>{scenario.summary}</Text>
         <Text style={styles.blockLabel}>Symptoms</Text>
@@ -246,10 +244,10 @@ export default function TroubleshootingScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingBottom: 20 },
-  headerIcon: { width: 48, height: 48, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  headerTitle: { color: WHITE, fontSize: 22, fontWeight: '900' },
-  headerSubtitle: { color: WHITE, fontSize: 14, marginTop: 4, lineHeight: 20 },
+  header: { paddingHorizontal: 16, paddingBottom: 20, backgroundColor: WHITE, borderBottomWidth: 1, borderBottomColor: BORDER },
+  headerIcon: { width: 48, height: 48, borderRadius: 14, backgroundColor: '#EDF4FF', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  headerTitle: { color: TEXT, fontSize: 22, fontWeight: '800' },
+  headerSubtitle: { color: MUTED, fontSize: 14, marginTop: 4, lineHeight: 20 },
   statsRow: { flexDirection: 'row', gap: 8, padding: 12 },
   statCard: { flex: 1, backgroundColor: CARD, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
   statValue: { color: TEXT, fontSize: 20, fontWeight: '900' },
@@ -269,14 +267,14 @@ const styles = StyleSheet.create({
   badge: { overflow: 'hidden', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, fontSize: 12, fontWeight: '800', textTransform: 'capitalize' },
   best: { color: MUTED, fontWeight: '700', fontSize: 13 },
   empty: { color: MUTED, marginHorizontal: 12, fontSize: 14 },
-  playHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingBottom: 16 },
-  backBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
-  playTitle: { color: WHITE, fontSize: 18, fontWeight: '900', flex: 1 },
+  playHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingBottom: 16, backgroundColor: WHITE, borderBottomWidth: 1, borderBottomColor: BORDER },
+  backBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EDF4FF', alignItems: 'center', justifyContent: 'center' },
+  playTitle: { color: TEXT, fontSize: 18, fontWeight: '800', flex: 1 },
   blockLabel: { color: TEXT, fontSize: 13, fontWeight: '800', marginTop: 8, marginBottom: 4 },
   body: { color: MUTED, fontSize: 15, lineHeight: 22 },
   choice: { minHeight: 44, borderWidth: 2, borderColor: BORDER, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, justifyContent: 'center', marginTop: 8 },
   choiceText: { color: TEXT, fontSize: 15, fontWeight: '700' },
-  primary: { minHeight: 48, backgroundColor: RED, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginHorizontal: 12, marginTop: 12 },
+  primary: { minHeight: 48, backgroundColor: BLUE, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginHorizontal: 12, marginTop: 12, maxWidth: 400 },
   primaryOff: { opacity: 0.45 },
   primaryText: { color: WHITE, fontSize: 16, fontWeight: '800' },
   secondary: { minHeight: 44, borderRadius: 12, borderWidth: 2, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', marginHorizontal: 12, marginTop: 8, backgroundColor: CARD },

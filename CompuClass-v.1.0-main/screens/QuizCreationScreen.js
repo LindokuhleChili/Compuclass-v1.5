@@ -352,7 +352,7 @@ export default function QuizCreationScreen({ navigation, route }) {
     <View style={[styles.container, { backgroundColor: theme.surface }]}>
       <LinearGradient colors={theme.gradient} style={styles.header}>
         <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="Go back">
             <Ionicons name="arrow-back" size={24} color={theme.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.text }]}>Quiz Creation</Text>
@@ -360,7 +360,7 @@ export default function QuizCreationScreen({ navigation, route }) {
             <TouchableOpacity onPress={pickDocumentForAI} style={styles.aiButton}>
               <Ionicons name="sparkles" size={20} color={theme.primary} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setShowCreateQuiz(true)}>
+            <TouchableOpacity onPress={() => setShowCreateQuiz(true)} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="New quiz">
               <Ionicons name="add" size={24} color={theme.primary} />
             </TouchableOpacity>
           </View>
@@ -369,7 +369,7 @@ export default function QuizCreationScreen({ navigation, route }) {
 
       <View style={styles.createSection}>
         <TouchableOpacity style={styles.aiCreateButton} onPress={pickDocumentForAI}>
-          <LinearGradient colors={['#8B5CF6', '#A855F7']} style={styles.aiCreateGradient}>
+                <LinearGradient colors={theme.primaryGradient} style={styles.aiCreateGradient}>
             <Ionicons name="sparkles" size={24} color="#fff" />
             <Text style={styles.aiCreateText}>AI Generate Quiz</Text>
             <Text style={styles.aiCreateSubtext}>Upload document to auto-generate</Text>
@@ -483,7 +483,7 @@ export default function QuizCreationScreen({ navigation, route }) {
                 onPress={generateQuizWithAI}
                 disabled={aiGenerating}
               >
-                <LinearGradient colors={['#8B5CF6', '#A855F7']} style={styles.generateGradient}>
+                <LinearGradient colors={theme.primaryGradient} style={styles.generateGradient}>
                   <Text style={styles.generateText}>
                     {aiGenerating ? 'Generating...' : 'Generate Quiz'}
                   </Text>
@@ -617,6 +617,7 @@ export default function QuizCreationScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { paddingTop: 50, paddingBottom: 20 },
+  iconHit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -625,7 +626,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 20, fontWeight: 'bold' },
   headerActions: { flexDirection: 'row', gap: 12 },
-  aiButton: { padding: 4 },
+  aiButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   createSection: { padding: 16, gap: 12 },
   aiCreateButton: {},
   aiCreateGradient: {
@@ -791,8 +792,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   classIcon: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',

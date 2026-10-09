@@ -1,37 +1,26 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, Pressable, RefreshControl } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { supabase } from '../config/supabase';
+import { authService } from '../services/authService';
+import { gamificationService } from '../services/gamificationservice';
+import { useTheme } from '../context/ThemeContext';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  RefreshControl,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect } from "@react-navigation/native";
-import * as Haptics from "expo-haptics";
-import { supabase } from "../config/supabase";
-import { authService } from "../services/authService";
-import { gamificationService } from "../services/gamificationservice";
+  Page, Heading, Body, Card, Badge, Segmented, Avatar, initials, Skeleton, font, useLayout,
+} from '../components/ui/kit';
 
-const BLUE = "#2563EB";
-const PURPLE = "#8B5CF6";
-const WHITE = "#FFFFFF";
-const BG = "#F3F4F6";
-const TEXT = "#111827";
-const MUTED = "#4B5563";
-const BORDER = "#E5E7EB";
-
-const MEDAL_COLORS = { 1: "#FFD700", 2: "#C0C0C0", 3: "#CD7F32" };
+function ordinal(n) {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
+}
 
 export default function LeaderboardScreen({ navigation }) {
-  const insets = useSafeAreaInsets();
+  const { theme } = useTheme();
+  const { laptop } = useLayout();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [scope, setScope] = useState("class"); // 'class' | 'global'
+  const [scope, setScope] = useState('class');
   const [classes, setClasses] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState(null);
   const [rows, setRows] = useState([]);
@@ -39,8 +28,6 @@ export default function LeaderboardScreen({ navigation }) {
 
   useFocusEffect(useCallback(() => { init(); }, []));
 
-  // Fires once init() finishes (loading -> false) and again whenever
-  // the person switches scope or picks a different class.
   useEffect(() => {
     if (loading) return;
     loadLeaderboard();
@@ -51,32 +38,21 @@ export default function LeaderboardScreen({ navigation }) {
     try {
       const user = await authService.getCurrentUser();
       setMyId(user?.id || null);
-
-      const { data } = await supabase
-        .from("class_students")
-        .select("class_id, classes(name)")
-        .eq("student_id", user.id);
-
-      const myClasses = (data || [])
-        .filter((c) => c.classes)
-        .map((c) => ({ id: c.class_id, name: c.classes.name }));
-
+      const { data } = await supabase.from('class_students').select('class_id, classes(name)').eq('student_id', user.id);
+      const myClasses = (data || []).filter((c) => c.classes).map((c) => ({ id: c.class_id, name: c.classes.name }));
       setClasses(myClasses);
       setSelectedClassId(myClasses[0]?.id || null);
-      setScope(myClasses.length > 0 ? "class" : "global");
+      setScope(myClasses.length > 0 ? 'class' : 'global');
     } catch {
-      setScope("global");
+      setScope('global');
     } finally {
       setLoading(false);
     }
   };
 
   const loadLeaderboard = async () => {
-    const classId = scope === "class" ? selectedClassId : null;
-    if (scope === "class" && !classId) {
-      setRows([]);
-      return;
-    }
+    const classId = scope === 'class' ? selectedClassId : null;
+    if (scope === 'class' && !classId) { setRows([]); return; }
     const data = await gamificationService.getLeaderboard(classId);
     setRows(data);
   };
@@ -87,285 +63,121 @@ export default function LeaderboardScreen({ navigation }) {
     setRefreshing(false);
   };
 
-  const switchScope = (next) => {
-    if (next === scope) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setScope(next);
-  };
+  const myIndex = rows.findIndex((row) => row.id === myId);
+  const myRank = myIndex >= 0 ? myIndex + 1 : null;
+  const ahead = myIndex > 0 ? rows[myIndex - 1] : null;
+  const gap = ahead && myIndex >= 0 ? Math.max((ahead.xp || 0) - (rows[myIndex].xp || 0), 0) : 0;
+  const className = classes.find((c) => c.id === selectedClassId)?.name;
+  const top = rows.slice(0, 3);
+  const rest = rows.slice(3);
+  const podiumOrder = [top[1], top[0], top[2]].filter(Boolean);
 
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={PURPLE} />
+  const podium = top.length > 0 && (
+    <Card style={{ paddingTop: 24, paddingHorizontal: 12, marginBottom: 24, overflow: 'hidden', backgroundColor: '#F4F8FF' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 12 }}>
+        {podiumOrder.map((row) => {
+          const rank = rows.indexOf(row) + 1;
+          const first = rank === 1;
+          const height = rank === 1 ? 128 : rank === 2 ? 88 : 64;
+          return (
+            <View key={row.id} style={{ flex: 1, maxWidth: 160, alignItems: 'center' }}>
+              <Avatar label={initials(row.full_name)} size={first ? 64 : 52} tone={rank === 2 ? 'teal' : rank === 3 ? 'neutral' : 'blue'} />
+              <Text style={[{ marginTop: 8, fontSize: 14, color: theme.text }, font(theme, 'semibold')]} numberOfLines={1}>{(row.full_name || 'Learner').split(' ')[0]}</Text>
+              {first ? <Badge label={`${(row.xp || 0).toLocaleString()} pts`} kind="yellowStrong" /> : <Text style={[{ fontSize: 12, color: theme.textSecondary }, font(theme, 'body')]}>{(row.xp || 0).toLocaleString()}</Text>}
+              <View style={{ marginTop: 12, width: '100%', height, borderTopLeftRadius: 16, borderTopRightRadius: 16, backgroundColor: first ? theme.primary : '#E6EEF6', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={[{ fontSize: 24, color: first ? '#fff' : theme.textSecondary }, font(theme, 'display')]}>{rank}</Text>
+              </View>
+            </View>
+          );
+        })}
       </View>
-    );
-  }
+    </Card>
+  );
+
+  const position = myRank && (
+    <Card style={{ padding: 20, marginBottom: 24 }}>
+      <Text style={[{ fontSize: 14, color: theme.textSecondary }, font(theme, 'semibold')]}>Your position</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginVertical: 8 }}>
+        <Text style={[{ fontSize: 32, lineHeight: 40, color: theme.text }, font(theme, 'display')]}>{ordinal(myRank)}</Text>
+        <Body variant="small">of {rows.length} learners</Body>
+      </View>
+      <View style={{ height: 6, borderRadius: 3, backgroundColor: '#E6EDF4', overflow: 'hidden' }}>
+        <View style={{ width: `${Math.max(8, Math.round(((rows.length - myRank + 1) / rows.length) * 100))}%`, height: '100%', backgroundColor: theme.primary }} />
+      </View>
+      <Body variant="small" style={{ marginTop: 12 }}>
+        {gap > 0 ? `${gap.toLocaleString()} points to reach ${ordinal(myRank - 1)} place.` : 'You are at the top of this board.'}
+      </Body>
+    </Card>
+  );
+
+  const list = (
+    <Card>
+      {(top.length ? rest : rows).map((row, index) => {
+        const rank = top.length ? index + 4 : index + 1;
+        const isMe = row.id === myId;
+        return (
+          <View key={row.id || rank} style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, minHeight: 72, backgroundColor: isMe ? theme.tint : 'transparent', borderTopWidth: index === 0 ? 0 : 1, borderTopColor: theme.borderLight }}>
+            <Text style={[{ width: 28, textAlign: 'center', color: theme.textSecondary, fontSize: 16 }, font(theme, 'display')]}>{rank}</Text>
+            <Avatar label={initials(row.full_name)} />
+            <View style={{ flex: 1 }}>
+              <Text style={[{ color: theme.text }, font(theme, 'h3')]} numberOfLines={1}>
+                {row.full_name || 'Learner'}{isMe ? '  ' : ''}
+              </Text>
+              {isMe ? <Badge label="You" kind="info" /> : null}
+            </View>
+            <Text style={[{ fontSize: 16, color: isMe ? theme.primaryInk : theme.text }, font(theme, 'display')]}>{(row.xp || 0).toLocaleString()}</Text>
+          </View>
+        );
+      })}
+    </Card>
+  );
 
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={[PURPLE, "#7C3AED"]}
-        style={[styles.header, { paddingTop: insets.top + 12 }]}
-      >
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backBtn}
-        >
-          <Ionicons name="arrow-back" size={20} color={WHITE} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Leaderboard</Text>
-        <View style={{ width: 36 }} />
-      </LinearGradient>
-
-      <View style={styles.scopeToggle}>
-        <TouchableOpacity
-          style={[styles.scopeBtn, scope === "class" && styles.scopeBtnActive, classes.length === 0 && styles.scopeBtnDisabled]}
-          onPress={() => switchScope("class")}
-          disabled={classes.length === 0}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: classes.length === 0 }}
-          accessibilityHint={classes.length === 0 ? 'Join a class to see this' : undefined}
-          activeOpacity={0.75}
-        >
-          <Text
-            style={[
-              styles.scopeBtnText,
-              scope === "class" && styles.scopeBtnTextActive,
-            ]}
-          >
-            My Class
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.scopeBtn, scope === "global" && styles.scopeBtnActive]}
-          onPress={() => switchScope("global")}
-          activeOpacity={0.75}
-        >
-          <Text
-            style={[
-              styles.scopeBtnText,
-              scope === "global" && styles.scopeBtnTextActive,
-            ]}
-          >
-            Global
-          </Text>
-        </TouchableOpacity>
+    <Page refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}>
+      <View style={{ marginTop: 8, marginBottom: 8 }}>
+        <Heading level={1}>Leaderboard</Heading>
+        <Body style={{ marginTop: 4 }}>{scope === 'class' && className ? className : 'Everyone'}{rows.length ? ` · ${rows.length} learners` : ''}</Body>
+      </View>
+      <View style={{ marginVertical: 16 }}>
+        <Segmented
+          value={scope}
+          onChange={(next) => { if (next === 'class' && classes.length === 0) return; setScope(next); }}
+          options={[
+            { value: 'class', label: 'My class' },
+            { value: 'global', label: 'Everyone' },
+          ]}
+        />
       </View>
       {classes.length === 0 && (
-        <TouchableOpacity onPress={() => navigation.navigate('JoinClass')} accessibilityRole="button" accessibilityLabel="Join a class">
-          <Text style={styles.scopeHint}>Join a class to see this</Text>
-        </TouchableOpacity>
+        <Pressable onPress={() => navigation.navigate('JoinClass')} accessibilityRole="button" accessibilityLabel="Join a class" style={{ minHeight: 44, justifyContent: 'center', marginBottom: 8 }}>
+          <Text style={[{ color: theme.primary, fontSize: 14 }, font(theme, 'semibold')]}>Join a class to see your class board</Text>
+        </Pressable>
       )}
-
-      {scope === "class" && classes.length > 1 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.classChipsRow}
-          contentContainerStyle={styles.classChipsContent}
-        >
-          {classes.map((c) => (
-            <TouchableOpacity
-              key={c.id}
-              style={[
-                styles.classChip,
-                selectedClassId === c.id && styles.classChipActive,
-              ]}
-              onPress={() => setSelectedClassId(c.id)}
-              activeOpacity={0.75}
-            >
-              <Text
-                style={[
-                  styles.classChipText,
-                  selectedClassId === c.id && styles.classChipTextActive,
-                ]}
-              >
-                {c.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
-
-      <ScrollView
-        style={styles.list}
-        contentContainerStyle={{
-          padding: 16,
-          paddingBottom: 40 + insets.bottom,
-        }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[BLUE]}
-            tintColor={BLUE}
-          />
-        }
-      >
-        {scope === "class" && classes.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="school-outline" size={56} color={BORDER} />
-            <Text style={styles.emptyText}>You&apos;re not in a class yet</Text>
-            <Text style={styles.emptySubtext}>
-              Ask your lecturer to add you to see a class leaderboard
-            </Text>
-          </View>
-        ) : rows.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="trophy-outline" size={56} color={BORDER} />
-            <Text style={styles.emptyText}>No rankings yet</Text>
-            <Text style={styles.emptySubtext}>
-              Complete a quiz to appear on the leaderboard
-            </Text>
-          </View>
-        ) : (
-          rows.map((row, index) => {
-            const rank = index + 1;
-            const isMe = row.id === myId;
+      {scope === 'class' && classes.length > 1 && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+          {classes.map((c) => {
+            const on = c.id === selectedClassId;
             return (
-              <View key={row.id} style={[styles.row, isMe && styles.rowMe]}>
-                <View
-                  style={[
-                    styles.rankWrap,
-                    rank <= 3 && { backgroundColor: MEDAL_COLORS[rank] },
-                  ]}
-                >
-                  {rank <= 3 ? (
-                    <Ionicons name="trophy" size={16} color={WHITE} />
-                  ) : (
-                    <Text style={styles.rankText}>{rank}</Text>
-                  )}
-                </View>
-                <View style={styles.avatarCircle}>
-                  <Text style={styles.avatarInitial}>
-                    {(row.full_name || "?").charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-                <View style={styles.rowInfo}>
-                  <Text style={styles.rowName} numberOfLines={1}>
-                    {row.full_name || "Student"}
-                    {isMe ? " (You)" : ""}
-                  </Text>
-                  <Text style={styles.rowMeta}>
-                    Level {row.level} · 🔥 {row.current_streak}
-                  </Text>
-                </View>
-                <Text style={styles.rowXp}>{row.xp} XP</Text>
-              </View>
+              <Pressable key={c.id} onPress={() => setSelectedClassId(c.id)} accessibilityRole="button" style={{ height: 44, paddingHorizontal: 16, borderRadius: 999, justifyContent: 'center', backgroundColor: on ? theme.tint : theme.surface, borderWidth: 1, borderColor: on ? theme.primary : theme.border }}>
+                <Text style={[{ color: on ? theme.primary : theme.textSecondary, fontSize: 14 }, font(theme, 'semibold')]}>{c.name}</Text>
+              </Pressable>
             );
-          })
-        )}
-      </ScrollView>
-    </View>
+          })}
+        </View>
+      )}
+      {loading ? (
+        <Card style={{ padding: 20, gap: 12 }}><Skeleton height={120} /><Skeleton height={56} /><Skeleton height={56} /></Card>
+      ) : rows.length === 0 ? (
+        <Card style={{ padding: 32, alignItems: 'center' }}>
+          <Heading level={3}>No rankings yet</Heading>
+          <Body variant="small" style={{ marginTop: 8, textAlign: 'center' }}>Complete a quiz to appear on the leaderboard.</Body>
+        </Card>
+      ) : (
+        <View style={laptop ? { flexDirection: 'row', gap: 40, alignItems: 'flex-start' } : undefined}>
+          <View style={laptop ? { width: 380 } : undefined}>{podium}{position}</View>
+          <View style={laptop ? { flex: 1 } : { marginTop: 8 }}>{list}</View>
+        </View>
+      )}
+    </Page>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
-  centered: {
-    flex: 1,
-    backgroundColor: BG,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingBottom: 16,
-    paddingHorizontal: 16,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: { fontSize: 16, fontWeight: "800", color: WHITE },
-  scopeToggle: {
-    flexDirection: "row",
-    backgroundColor: WHITE,
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 12,
-    padding: 4,
-    gap: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  scopeBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 9,
-    alignItems: "center",
-  },
-  scopeBtnActive: { backgroundColor: PURPLE },
-  scopeBtnDisabled: { opacity: 0.45 },
-  scopeHint: { marginTop: 8, marginHorizontal: 16, fontSize: 13, color: MUTED, fontWeight: "600" },
-  scopeBtnText: { fontSize: 13, fontWeight: "700", color: MUTED },
-  scopeBtnTextActive: { color: WHITE },
-  classChipsRow: { marginTop: 12, flexGrow: 0 },
-  classChipsContent: { paddingHorizontal: 16, gap: 8 },
-  classChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 16,
-    backgroundColor: WHITE,
-    borderWidth: 1,
-    borderColor: BORDER,
-  },
-  classChipActive: { backgroundColor: PURPLE, borderColor: PURPLE },
-  classChipText: { fontSize: 12, fontWeight: "700", color: TEXT },
-  classChipTextActive: { color: WHITE },
-  list: { flex: 1, marginTop: 4 },
-  emptyState: { alignItems: "center", paddingVertical: 60 },
-  emptyText: { fontSize: 16, fontWeight: "700", color: TEXT, marginTop: 16 },
-  emptySubtext: {
-    fontSize: 13,
-    color: MUTED,
-    marginTop: 6,
-    textAlign: "center",
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: WHITE,
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 10,
-    gap: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  rowMe: { borderWidth: 2, borderColor: PURPLE },
-  rankWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: BG,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rankText: { fontSize: 12, fontWeight: "800", color: MUTED },
-  avatarCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: BLUE + "15",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarInitial: { fontSize: 15, fontWeight: "800", color: BLUE },
-  rowInfo: { flex: 1 },
-  rowName: { fontSize: 14, fontWeight: "700", color: TEXT },
-  rowMeta: { fontSize: 12, color: MUTED, marginTop: 2 },
-  rowXp: { fontSize: 14, fontWeight: "800", color: PURPLE },
-});

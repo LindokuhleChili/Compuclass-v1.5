@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
 
-const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const GREEN = '#22C55E'; const PURPLE = '#8B5CF6';
-const WHITE = '#FFFFFF'; const BG = '#F3F4F6'; const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
+const BLUE = '#0A66FF'; const YELLOW = '#FFE680'; const GREEN = '#1F9D55'; const PURPLE = '#0A6F79';
+const WHITE = '#FFFFFF'; const BG = '#F7FBFD'; const TEXT = '#0B1B3A'; const MUTED = '#44526F'; const BORDER = '#DCE6EF';
 
 export default function ClassManagementScreen({ navigation }) {
   const [classes, setClasses] = useState([]);
@@ -98,15 +97,15 @@ export default function ClassManagementScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={[PURPLE, '#7C3AED']} style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={20} color={WHITE} />
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
+          <Ionicons name="arrow-back" size={20} color={TEXT} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Class Management</Text>
+        <Text style={styles.headerTitle} accessibilityRole="header">Class Management</Text>
         <TouchableOpacity onPress={() => setShowCreateClass(true)} style={styles.addBtn} accessibilityRole="button" accessibilityLabel="Create class">
-          <Ionicons name="add" size={22} color={WHITE} />
+          <Ionicons name="add" size={22} color={BLUE} />
         </TouchableOpacity>
-      </LinearGradient>
+      </View>
 
       <View style={styles.statsRow}>
         <View style={[styles.statCard, { borderLeftColor: BLUE }]}>
@@ -138,7 +137,7 @@ export default function ClassManagementScreen({ navigation }) {
       <Modal visible={showCreateClass} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Create New Class 🏫</Text>
+            <Text style={styles.modalTitle}>Create New Class </Text>
             <TextInput style={styles.input} placeholder="Class Name" placeholderTextColor={MUTED} value={className} onChangeText={setClassName} />
             <TextInput style={[styles.input, styles.textArea]} placeholder="Description (optional)" placeholderTextColor={MUTED} value={classDescription} onChangeText={setClassDescription} multiline />
             <View style={styles.modalBtns}>
@@ -180,10 +179,10 @@ export default function ClassManagementScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
-  header: { flexDirection: 'row', alignItems: 'center', paddingTop: 52, paddingBottom: 16, paddingHorizontal: 16, gap: 12 },
-  backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, fontSize: 18, fontWeight: '900', color: WHITE },
-  addBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingTop: 52, paddingBottom: 16, paddingHorizontal: 16, gap: 12, backgroundColor: WHITE, borderBottomWidth: 1, borderBottomColor: '#DCE6EF' },
+  backBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EDF4FF', alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { flex: 1, fontSize: 18, fontWeight: '800', color: TEXT },
+  addBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EDF4FF', alignItems: 'center', justifyContent: 'center' },
   statsRow: { flexDirection: 'row', padding: 16, gap: 12 },
   statCard: { flex: 1, backgroundColor: WHITE, borderRadius: 14, padding: 16, alignItems: 'center', borderLeftWidth: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
   statValue: { fontSize: 26, fontWeight: '900' },
@@ -220,7 +219,7 @@ const styles = StyleSheet.create({
   studentsList: { maxHeight: 300, padding: 16 },
   studentItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: BG, borderWidth: 2, borderColor: BORDER, borderRadius: 12, padding: 12, marginBottom: 8 },
   studentItemSelected: { borderColor: BLUE, backgroundColor: BLUE + '08' },
-  studentAvatar: { width: 36, height: 36, borderRadius: 12, backgroundColor: YELLOW, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  studentAvatar: { width: 44, height: 44, borderRadius: 12, backgroundColor: YELLOW, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   avatarText: { color: TEXT, fontSize: 14, fontWeight: '900' },
   studentDetails: { flex: 1 },
   studentName: { fontSize: 13, fontWeight: '700', color: TEXT },

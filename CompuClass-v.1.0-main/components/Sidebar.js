@@ -1,37 +1,82 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, Animated, PanResponder, useWindowDimensions } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, Pressable, ScrollView, StyleSheet, Modal, Animated, PanResponder, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
+import { useTheme } from '../context/ThemeContext';
+import { Icon } from './ui/Icon';
+import { Glass, Mark, Wordmark, Avatar, initials, font } from './ui/kit';
 
-// 78% of the screen on phones, capped so it isn't enormous on tablets/desktop web.
 const SIDEBAR_MAX_WIDTH = 360;
 export const getSidebarWidth = (windowWidth) => Math.min(windowWidth * 0.78, SIDEBAR_MAX_WIDTH);
-// Fully off-screen, including the drop shadow.
 export const getSidebarHiddenX = (windowWidth) => -(getSidebarWidth(windowWidth) + 24);
 
-const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const RED = '#EF4444';
-const GREEN = '#22C55E'; const PURPLE = '#8B5CF6'; const ORANGE = '#F97316';
-const WHITE = '#FFFFFF';
-const TEXT = '#111827'; const MUTED = '#4B5563';
-
-const menuItems = [
-  { icon: 'book',        title: 'Learning Materials', screen: 'Materials',    color: PURPLE },
-  { icon: 'desktop',     title: 'PC Lab',             screen: 'PC Lab',       color: GREEN  },
-  { icon: 'construct',   title: 'PC Assembly',        screen: 'PC Assembly',  color: ORANGE },
-  { icon: 'laptop',      title: 'Windows 11',         screen: 'Windows 11',   color: BLUE   },
-  { icon: 'help-circle', title: 'Quiz',               screen: 'Quiz',         color: YELLOW },
-  { icon: 'podium',      title: 'Leaderboard',        screen: 'Leaderboard',  color: PURPLE },
-  { icon: 'bug',         title: 'Troubleshooting',    screen: 'Troubleshoot', color: RED    },
-  { icon: 'chatbubble-ellipses', title: 'AI Assistant', screen: 'Chatbot',   color: PURPLE },
-  { icon: 'settings',    title: 'Settings',           screen: 'Settings',     color: MUTED  },
+export const PRIMARY_NAV = [
+  { icon: 'home', title: 'Home', screen: 'Home' },
+  { icon: 'book', title: 'Learning materials', screen: 'Materials' },
+  { icon: 'quiz', title: 'Quizzes', screen: 'Quiz' },
+  { icon: 'trophy', title: 'Leaderboard', screen: 'Leaderboard' },
+  { icon: 'user', title: 'Profile', screen: 'Profile' },
+  { icon: 'sliders', title: 'Settings', screen: 'Settings' },
 ];
 
-export default function Sidebar({ visible, onClose, onNavigate, onHomePress, translateX: externalTranslateX, currentScreen }) {
+export const EXPLORE_NAV = [
+  { icon: 'monitor', title: 'PC Lab', screen: 'PC Lab' },
+  { icon: 'cpu', title: 'PC Assembly', screen: 'PC Assembly' },
+  { icon: 'windows', title: 'Windows 11', screen: 'Windows 11' },
+  { icon: 'wrench', title: 'Troubleshooting', screen: 'Troubleshoot' },
+  { icon: 'bot', title: 'CompuBot', screen: 'Chatbot' },
+];
+
+function NavList({ currentScreen, onPress, user }) {
+  const { theme } = useTheme();
+  const name = user?.user_metadata?.full_name || user?.profile?.full_name || 'Learner';
+  const points = user?.profile?.xp;
+  return (
+    <>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator={false}>
+        {PRIMARY_NAV.map((item) => {
+          const active = currentScreen === item.screen || (item.screen === 'Home' && (currentScreen === 'Dashboard' || currentScreen === 'Lecturer' || currentScreen === 'LecturerDashboard'));
+          return (
+            <Pressable
+              key={item.screen}
+              onPress={() => onPress(item)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              style={[styles.nav, active && { backgroundColor: '#fff', shadowColor: '#0B1B3A', shadowOpacity: 0.12, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } }]}
+            >
+              <Icon name={item.icon} size={20} color={active ? theme.primary : theme.textSecondary} />
+              <Text style={[{ flex: 1, fontSize: 14, lineHeight: 20, color: active ? theme.primary : theme.textSecondary }, font(theme, 'semibold')]}>{item.title}</Text>
+            </Pressable>
+          );
+        })}
+        <Text style={[{ fontSize: 12, lineHeight: 16, color: theme.textTertiary, paddingHorizontal: 12, paddingTop: 24, paddingBottom: 8 }, font(theme, 'semibold')]}>Explore</Text>
+        {EXPLORE_NAV.map((item) => {
+          const active = currentScreen === item.screen;
+          return (
+            <Pressable key={item.screen} onPress={() => onPress(item)} accessibilityRole="button" style={[styles.nav, active && { backgroundColor: '#fff' }]}>
+              <Icon name={item.icon} size={20} color={active ? theme.primary : theme.textSecondary} />
+              <Text style={[{ flex: 1, fontSize: 14, lineHeight: 20, color: active ? theme.primary : theme.textSecondary }, font(theme, 'semibold')]}>{item.title}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+      <Pressable onPress={() => onPress({ screen: 'Profile' })} accessibilityRole="button" accessibilityLabel="Open profile" style={[styles.user, { borderColor: theme.border, backgroundColor: 'rgba(255,255,255,0.7)' }]}>
+        <Avatar label={initials(name)} size={40} />
+        <View style={{ flex: 1 }}>
+          <Text style={[{ fontSize: 14, color: theme.text }, font(theme, 'semibold')]} numberOfLines={1}>{name}</Text>
+          <Text style={[{ fontSize: 12, color: theme.textTertiary }, font(theme, 'body')]} numberOfLines={1}>
+            {typeof points === 'number' ? `${points.toLocaleString()} pts` : 'CompuClass'}
+          </Text>
+        </View>
+      </Pressable>
+    </>
+  );
+}
+
+export default function Sidebar({ visible, docked, onClose, onNavigate, onHomePress, translateX: externalTranslateX, currentScreen, user }) {
+  const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
-  const sidebarWidth = getSidebarWidth(windowWidth);
+  const sidebarWidth = docked ? 256 : getSidebarWidth(windowWidth);
   const hiddenX = getSidebarHiddenX(windowWidth);
   const hiddenXRef = React.useRef(hiddenX);
   hiddenXRef.current = hiddenX;
@@ -40,17 +85,15 @@ export default function Sidebar({ visible, onClose, onNavigate, onHomePress, tra
   const [modalVisible, setModalVisible] = React.useState(visible);
 
   React.useEffect(() => {
+    if (docked) return undefined;
     if (visible) {
       setModalVisible(true);
       Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
     } else {
-      Animated.spring(translateX, { toValue: hiddenXRef.current, useNativeDriver: true }).start(() => {
-        setModalVisible(false);
-      });
+      Animated.spring(translateX, { toValue: hiddenXRef.current, useNativeDriver: true }).start(() => setModalVisible(false));
     }
-    // translateX is a stable Animated.Value ref (internal or external prop); re-running on its identity isn't needed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [visible, docked]);
 
   const panResponder = React.useRef(PanResponder.create({
     onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 10,
@@ -61,56 +104,38 @@ export default function Sidebar({ visible, onClose, onNavigate, onHomePress, tra
     },
   })).current;
 
+  const onPress = (item) => {
+    if (item.screen === 'Home') onHomePress?.();
+    else onNavigate?.(item.screen);
+    onClose?.();
+  };
+
+  const body = (
+    <View style={{ flex: 1, paddingTop: docked ? 24 : insets.top + 16, paddingHorizontal: 16, paddingBottom: 16 }}>
+      <Pressable onPress={() => { onHomePress?.(); onClose?.(); }} accessibilityRole="link" accessibilityLabel="CompuClass home" style={styles.brand}>
+        <Mark size={48} />
+        <Wordmark />
+      </Pressable>
+      <NavList currentScreen={currentScreen} onPress={onPress} user={user} />
+    </View>
+  );
+
+  if (docked) {
+    return (
+      <Glass sidebar radius={0} style={[styles.dock, { width: 256, borderRightColor: 'rgba(220,230,239,0.9)', backgroundColor: theme.glassSidebar }]}>
+        {body}
+      </Glass>
+    );
+  }
+
   if (!modalVisible) return null;
 
   return (
-    <Modal visible={modalVisible} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
+    <Modal visible={modalVisible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} accessibilityLabel="Close menu" />
-        <Animated.View style={[styles.sidebar, { width: sidebarWidth, transform: [{ translateX }] }]} {...panResponder.panHandlers}>
-
-          <LinearGradient colors={[BLUE, '#1D4ED8']} style={[styles.header, { paddingTop: insets.top + 16 }]}>
-            <TouchableOpacity
-              style={styles.headerLeft}
-              onPress={() => { onHomePress?.(); onClose(); }}
-              activeOpacity={0.8}
-              accessibilityRole="link"
-              accessibilityLabel="CompuClass home"
-            >
-              <View style={styles.headerIconWrap}>
-                <Ionicons name="desktop" size={22} color={BLUE} />
-              </View>
-              <Text style={styles.headerTitle}>CompuClass</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close menu">
-              <Ionicons name="close" size={24} color={WHITE} />
-            </TouchableOpacity>
-          </LinearGradient>
-
-          <ScrollView style={styles.menuScroll} contentContainerStyle={styles.menuContent} showsVerticalScrollIndicator={false}>
-            {menuItems.map((item, index) => {
-              const isActive = currentScreen === item.screen;
-              return (
-                <TouchableOpacity
-                  key={index}
-                  style={[styles.menuItem, isActive && styles.menuItemActive]}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onNavigate(item.screen); onClose(); }}
-                  activeOpacity={0.75}
-                >
-                  <View style={[styles.menuIconWrap, { backgroundColor: item.color }]}>
-                    <Ionicons name={item.icon} size={20} color={item.color === YELLOW ? TEXT : WHITE} />
-                  </View>
-                  <Text style={[styles.menuTitle, isActive && styles.menuTitleActive]}>{item.title}</Text>
-                  {isActive && <View style={styles.activeIndicator} />}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
-            <Text style={styles.footerText}>CompuClass v1.0 · © {new Date().getFullYear()}</Text>
-          </View>
-
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close menu" />
+        <Animated.View style={[styles.drawer, { width: sidebarWidth, backgroundColor: theme.background, transform: [{ translateX }] }]} {...panResponder.panHandlers}>
+          {body}
         </Animated.View>
       </View>
     </Modal>
@@ -118,20 +143,10 @@ export default function Sidebar({ visible, onClose, onNavigate, onHomePress, tra
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-  sidebar: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: WHITE, elevation: 20, shadowColor: '#000', shadowOffset: { width: 4, height: 0 }, shadowOpacity: 0.2, shadowRadius: 12 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 20 },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headerIconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: WHITE, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20, fontWeight: '900', color: WHITE },
-  menuScroll: { flex: 1 },
-  menuContent: { paddingTop: 12, paddingHorizontal: 16, paddingBottom: 12 },
-  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 12, borderRadius: 14, marginBottom: 4, gap: 14 },
-  menuItemActive: { backgroundColor: BLUE + '12' },
-  menuIconWrap: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  menuTitle: { fontSize: 15, fontWeight: '700', color: TEXT, flex: 1 },
-  menuTitleActive: { color: BLUE },
-  activeIndicator: { width: 6, height: 6, borderRadius: 3, backgroundColor: BLUE },
-  footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
-  footerText: { fontSize: 12, color: MUTED, textAlign: 'center' },
+  overlay: { flex: 1, backgroundColor: 'rgba(11,27,58,0.45)' },
+  drawer: { position: 'absolute', left: 0, top: 0, bottom: 0 },
+  dock: { position: 'relative', height: '100%', borderRadius: 0, borderTopWidth: 0, borderBottomWidth: 0, borderLeftWidth: 0, shadowOpacity: 0, elevation: 0 },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingBottom: 24 },
+  nav: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 44, paddingHorizontal: 12, borderRadius: 12 },
+  user: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 16, borderWidth: 1, marginTop: 8 },
 });

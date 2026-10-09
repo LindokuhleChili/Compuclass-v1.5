@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
 
-const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const RED = '#EF4444'; const GREEN = '#22C55E';
-const WHITE = '#FFFFFF'; const BG = '#F3F4F6'; const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
+const BLUE = '#0A66FF'; const RED = '#D92D4A'; const GREEN = '#1F9D55';
+const WHITE = '#FFFFFF'; const BG = '#F7FBFD'; const TEXT = '#0B1B3A'; const MUTED = '#44526F'; const BORDER = '#DCE6EF';
 
 export default function QuizDetailScreen({ navigation, route }) {
   const { quizId } = route.params;
@@ -40,20 +39,20 @@ export default function QuizDetailScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={[YELLOW, '#EAB308']} style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
           <Ionicons name="arrow-back" size={20} color={TEXT} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: TEXT }]}>Quiz Details</Text>
-        <TouchableOpacity onPress={handleDeleteQuiz} style={styles.deleteBtn}>
+        <Text style={[styles.headerTitle, { color: TEXT }]} accessibilityRole="header">Quiz Details</Text>
+        <TouchableOpacity onPress={handleDeleteQuiz} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete quiz">
           <Ionicons name="trash" size={18} color={RED} />
         </TouchableOpacity>
-      </LinearGradient>
+      </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.quizHeaderCard}>
           <View style={styles.quizIconWrap}>
-            <Ionicons name="document-text" size={28} color={WHITE} />
+            <Ionicons name="document-text" size={28} color={BLUE} />
           </View>
           <Text style={styles.quizTitle}>{quiz.title}</Text>
           <View style={styles.metaRow}>
@@ -83,8 +82,8 @@ export default function QuizDetailScreen({ navigation, route }) {
                 const isCorrect = question.correct_answer === option;
                 return (
                   <View key={optIndex} style={[styles.optionItem, isCorrect && styles.optionCorrect]}>
-                    <View style={[styles.optionLetter, isCorrect && { backgroundColor: GREEN }]}>
-                      <Text style={[styles.optionLetterText, isCorrect && { color: WHITE }]}>
+                    <View style={[styles.optionLetter, isCorrect && { backgroundColor: '#E3F5EA' }]}>
+                      <Text style={[styles.optionLetterText, isCorrect && { color: '#17743F' }]}>
                         {String.fromCharCode(65 + optIndex)}
                       </Text>
                     </View>
@@ -106,13 +105,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
   centered: { flex: 1, backgroundColor: BG, justifyContent: 'center', alignItems: 'center' },
   loadingText: { color: MUTED, fontSize: 14, marginTop: 12, fontWeight: '600' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingTop: 52, paddingBottom: 16, paddingHorizontal: 16, gap: 12 },
-  backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.1)', alignItems: 'center', justifyContent: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingTop: 52, paddingBottom: 16, paddingHorizontal: 16, gap: 12, backgroundColor: WHITE, borderBottomWidth: 1, borderBottomColor: BORDER },
+  backBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EDF4FF', alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, fontSize: 18, fontWeight: '900' },
-  deleteBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: RED + '20', alignItems: 'center', justifyContent: 'center' },
+  deleteBtn: { width: 44, height: 44, borderRadius: 10, backgroundColor: RED + '20', alignItems: 'center', justifyContent: 'center' },
   content: { flex: 1, padding: 16 },
   quizHeaderCard: { backgroundColor: WHITE, borderRadius: 16, padding: 20, marginBottom: 20, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 3 },
-  quizIconWrap: { width: 60, height: 60, borderRadius: 18, backgroundColor: YELLOW, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  quizIconWrap: { width: 60, height: 60, borderRadius: 18, backgroundColor: '#EDF4FF', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   quizTitle: { fontSize: 20, fontWeight: '900', color: TEXT, marginBottom: 14, textAlign: 'center' },
   metaRow: { flexDirection: 'row', gap: 10 },
   metaBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: BLUE + '15', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, gap: 5 },

@@ -1,18 +1,17 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Alert } from 'react-native';
 import { supabase } from '../config/supabase';
 import { limiters, RateLimitError } from '../utils/rateLimiter';
 import { getErrorMessage } from '../utils/errorMessages';
 import { logSecurityEvent, maskEmail } from '../utils/securityLog';
 import { validateNewPassword, PASSWORD_HINT, PASSWORD_MAX_LENGTH } from '../utils/passwordPolicy';
 import { passwordResetSendOutcome } from '../utils/passwordResetNotice';
-
-const BLUE = '#2563EB'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
-const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
+import { useTheme } from '../context/ThemeContext';
+import AuthLayout from '../components/ui/AuthLayout';
+import { Button, Field } from '../components/ui/kit';
 
 export default function ForgotPasswordScreen({ onBackToLogin }) {
+  const { theme } = useTheme();
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -78,8 +77,7 @@ export default function ForgotPasswordScreen({ onBackToLogin }) {
           Alert.alert('Error', 'Invalid or expired code. Please try again.');
         }
       }
-    }
-    finally { setLoading(false); }
+    } finally { setLoading(false); }
   };
 
   const handleResetPassword = async () => {
@@ -104,97 +102,40 @@ export default function ForgotPasswordScreen({ onBackToLogin }) {
     onBackToLogin();
   };
 
-  const stepLabels = ['Enter your email to receive a reset code', 'Enter the 6-digit code sent to your email', 'Enter your new password'];
+  const subtitles = [
+    'Enter your email to receive a reset code.',
+    'Enter the 6-digit code sent to your email.',
+    'Choose a new password.',
+  ];
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <LinearGradient colors={[BLUE, '#1D4ED8']} style={styles.topBanner}>
-          <TouchableOpacity style={styles.backBtn} onPress={leave}>
-            <Ionicons name="arrow-back" size={20} color={WHITE} />
-          </TouchableOpacity>
-          <View style={styles.iconWrap}>
-            <Ionicons name="lock-closed" size={32} color={BLUE} />
-          </View>
-          <Text style={styles.title}>Reset Password</Text>
-          <Text style={styles.subtitle}>{stepLabels[step - 1]}</Text>
-        </LinearGradient>
-
-        <View style={styles.card}>
-          <View style={styles.stepRow}>
-            {[1, 2, 3].map((s) => (
-              <View key={s} style={[styles.stepDot, step >= s && { backgroundColor: BLUE }]} />
-            ))}
-          </View>
-
-          {step === 1 && (
-            <>
-              <View style={styles.inputWrap}>
-                <Ionicons name="mail-outline" size={18} color={MUTED} />
-                <TextInput style={styles.input} placeholder="Email address" placeholderTextColor={MUTED} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-              </View>
-              <TouchableOpacity style={styles.ctaBtn} onPress={handleSendCode} disabled={loading} activeOpacity={0.85}>
-                <Text style={styles.ctaText}>{loading ? 'Sending...' : 'Send Code'}</Text>
-              </TouchableOpacity>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              <View style={styles.inputWrap}>
-                <Ionicons name="key-outline" size={18} color={MUTED} />
-                <TextInput style={styles.input} placeholder="6-digit code" placeholderTextColor={MUTED} value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6} />
-              </View>
-              <TouchableOpacity style={styles.ctaBtn} onPress={handleVerifyCode} disabled={loading} activeOpacity={0.85}>
-                <Text style={styles.ctaText}>{loading ? 'Verifying...' : 'Verify Code'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.resendBtn} onPress={() => { setStep(1); setCode(''); }}>
-                <Text style={styles.resendText}>Resend Code</Text>
-              </TouchableOpacity>
-            </>
-          )}
-
-          {step === 3 && (
-            <>
-              <View style={styles.inputWrap}>
-                <Ionicons name="lock-closed-outline" size={18} color={MUTED} />
-                <TextInput style={styles.input} placeholder="New Password" placeholderTextColor={MUTED} value={newPassword} onChangeText={setNewPassword} secureTextEntry={!showPassword} maxLength={PASSWORD_MAX_LENGTH} />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                  <Ionicons name={showPassword ? 'eye-outline' : 'eye-off-outline'} size={18} color={MUTED} />
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.passwordHint}>{PASSWORD_HINT}</Text>
-              <View style={styles.inputWrap}>
-                <Ionicons name="lock-closed-outline" size={18} color={MUTED} />
-                <TextInput style={styles.input} placeholder="Confirm New Password" placeholderTextColor={MUTED} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry={!showPassword} />
-              </View>
-              <TouchableOpacity style={styles.ctaBtn} onPress={handleResetPassword} disabled={loading} activeOpacity={0.85}>
-                <Text style={styles.ctaText}>{loading ? 'Resetting...' : 'Reset Password'}</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    <AuthLayout title="Reset password" subtitle={subtitles[step - 1]}>
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 24, alignSelf: 'stretch' }}>
+        {[1, 2, 3].map((s) => (
+          <View key={s} style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: step >= s ? theme.primary : theme.border }} />
+        ))}
+      </View>
+      {step === 1 && (
+        <>
+          <Field label="Email address" icon="mail" placeholder="Email address" value={email} onChangeText={setEmail} keyboardType="email-address" />
+          <Button label={loading ? 'Sending...' : 'Send code'} onPress={handleSendCode} disabled={loading} block />
+        </>
+      )}
+      {step === 2 && (
+        <>
+          <Field label="Code" icon="lock" placeholder="6-digit code" value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6} />
+          <Button label={loading ? 'Verifying...' : 'Verify code'} onPress={handleVerifyCode} disabled={loading} block />
+          <Button label="Resend code" variant="text" onPress={() => { setStep(1); setCode(''); }} />
+        </>
+      )}
+      {step === 3 && (
+        <>
+          <Field label="New password" icon="lock" placeholder="New Password" value={newPassword} onChangeText={setNewPassword} secure secureVisible={showPassword} onToggleSecure={() => setShowPassword((v) => !v)} maxLength={PASSWORD_MAX_LENGTH} hint={PASSWORD_HINT} />
+          <Field label="Confirm password" icon="lock" placeholder="Confirm New Password" value={confirmPassword} onChangeText={setConfirmPassword} secure secureVisible={showPassword} onToggleSecure={() => setShowPassword((v) => !v)} />
+          <Button label={loading ? 'Resetting...' : 'Reset password'} onPress={handleResetPassword} disabled={loading} block />
+        </>
+      )}
+      <Button label="Back to sign in" variant="text" onPress={leave} />
+    </AuthLayout>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
-  scroll: { flexGrow: 1 },
-  topBanner: { alignItems: 'center', paddingTop: 52, paddingBottom: 40, paddingHorizontal: 24 },
-  backBtn: { alignSelf: 'flex-start', marginBottom: 20, width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-  iconWrap: { width: 72, height: 72, borderRadius: 20, backgroundColor: WHITE, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
-  title: { fontSize: 24, fontWeight: '900', color: WHITE, marginBottom: 6 },
-  subtitle: { fontSize: 13, color: 'rgba(255,255,255,0.85)', textAlign: 'center' },
-  card: { backgroundColor: WHITE, borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -20, flex: 1, padding: 28, paddingTop: 32 },
-  stepRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 28 },
-  stepDot: { width: 40, height: 6, borderRadius: 3, backgroundColor: '#E5E7EB' },
-  inputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: BG, borderWidth: 2, borderColor: BORDER, borderRadius: 14, paddingHorizontal: 14, height: 54, marginBottom: 14, gap: 10 },
-  input: { flex: 1, color: TEXT, fontSize: 15 },
-  passwordHint: { color: MUTED, fontSize: 12, marginTop: -6, marginBottom: 14, marginLeft: 4, lineHeight: 16 },
-  ctaBtn: { backgroundColor: BLUE, height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 12, shadowColor: BLUE, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
-  ctaText: { color: WHITE, fontSize: 16, fontWeight: '800' },
-  resendBtn: { alignItems: 'center', marginTop: 4 },
-  resendText: { color: BLUE, fontSize: 14, fontWeight: '700' },
-});

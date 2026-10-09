@@ -3,17 +3,16 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { classService } from '../services/classService';
 import { getErrorMessage } from '../utils/errorMessages';
 
-const BLUE = '#2563EB';
+const BLUE = '#0A66FF';
 const WHITE = '#FFFFFF';
-const BG = '#F3F4F6';
-const TEXT = '#111827';
-const MUTED = '#4B5563';
+const BG = '#F7FBFD';
+const TEXT = '#0B1B3A';
+const MUTED = '#44526F';
 const CARD = '#FFFFFF';
 
 export default function JoinClassScreen({ navigation }) {
@@ -64,13 +63,13 @@ export default function JoinClassScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom + 24 }]}>
-      <LinearGradient colors={[BLUE, '#1D4ED8']} style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="arrow-back" size={20} color={WHITE} />
+          <Ionicons name="arrow-back" size={20} color={TEXT} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Join a class</Text>
-        <View style={{ width: 36 }} />
-      </LinearGradient>
+        <Text style={styles.headerTitle} accessibilityRole="header">Join a class</Text>
+        <View style={{ width: 44 }} />
+      </View>
 
       <View style={styles.body}>
         <Text style={styles.help}>Enter the 6-character code from your lecturer.</Text>
@@ -86,12 +85,12 @@ export default function JoinClassScreen({ navigation }) {
           accessibilityLabel="Class code"
         />
         <TouchableOpacity style={styles.button} onPress={submit} disabled={loading} accessibilityRole="button" accessibilityLabel="Join class">
-          {loading ? <ActivityIndicator color={TEXT} /> : <Text style={styles.buttonText}>Join class</Text>}
+          {loading ? <ActivityIndicator color={WHITE} /> : <Text style={styles.buttonText}>Join class</Text>}
         </TouchableOpacity>
 
         {joined?.name ? (
           <View style={styles.success}>
-            <Ionicons name="checkmark-circle" size={22} color="#16A34A" />
+            <Ionicons name="checkmark-circle" size={22} color="#17743F" />
             <Text style={styles.successText}>You joined {joined.name}.</Text>
           </View>
         ) : null}
@@ -99,7 +98,7 @@ export default function JoinClassScreen({ navigation }) {
         {classes.map((item) => (
           <View key={item.id} style={styles.classRow}>
             <Text style={styles.className}>{item.name}</Text>
-            <TouchableOpacity onPress={() => leave(item)} accessibilityRole="button" accessibilityLabel={`Leave ${item.name}`}>
+            <TouchableOpacity onPress={() => leave(item)} style={styles.leaveBtn} accessibilityRole="button" accessibilityLabel={`Leave ${item.name}`}>
               <Text style={styles.leave}>Leave</Text>
             </TouchableOpacity>
           </View>
@@ -111,17 +110,18 @@ export default function JoinClassScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
-  backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, color: WHITE, fontSize: 18, fontWeight: '900' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 16, gap: 12, backgroundColor: WHITE, borderBottomWidth: 1, borderBottomColor: '#DCE6EF' },
+  backBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EDF4FF', alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { flex: 1, color: TEXT, fontSize: 18, fontWeight: '800', textAlign: 'center' },
   body: { padding: 16 },
   help: { color: MUTED, fontSize: 14, marginBottom: 12 },
   input: { backgroundColor: CARD, borderRadius: 12, padding: 14, fontSize: 20, letterSpacing: 4, fontWeight: '800', color: TEXT, marginBottom: 12 },
-  button: { backgroundColor: '#FACC15', minHeight: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  buttonText: { color: TEXT, fontWeight: '800', fontSize: 16 },
+  button: { backgroundColor: BLUE, minHeight: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', maxWidth: 400 },
+  buttonText: { color: WHITE, fontWeight: '800', fontSize: 16 },
   success: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, backgroundColor: '#DCFCE7', borderRadius: 12, padding: 12 },
   successText: { color: TEXT, fontWeight: '700', flex: 1 },
   classRow: { marginTop: 12, backgroundColor: CARD, borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center' },
   className: { flex: 1, color: TEXT, fontWeight: '700' },
-  leave: { color: '#DC2626', fontWeight: '700' },
+  leaveBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
+  leave: { color: '#B01E38', fontWeight: '700' },
 });

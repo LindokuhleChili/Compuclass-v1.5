@@ -118,7 +118,7 @@ export default function FolderContentScreen({ route, navigation }) {
           </View>
           {documents.map((doc) => (
             <TouchableOpacity key={doc.id} style={[styles.itemCard, { backgroundColor: theme.card }]} onPress={() => openDocument(doc)}>
-              <Ionicons name="document" size={24} color="#3B82F6" />
+              <Ionicons name="document" size={24} color="#0A66FF" />
               <Text style={[styles.itemTitle, { color: theme.text }]}>{doc.title}</Text>
               <Ionicons name="download-outline" size={18} color={theme.primary} />
             </TouchableOpacity>
@@ -134,7 +134,7 @@ export default function FolderContentScreen({ route, navigation }) {
           </View>
           {quizzes.map((quiz) => (
             <View key={quiz.id} style={[styles.itemCard, { backgroundColor: theme.card }]}>
-              <Ionicons name="help-circle" size={24} color="#8B5CF6" />
+              <Ionicons name="help-circle" size={24} color="#0A6F79" />
               <Text style={[styles.itemTitle, { color: theme.text }]}>{quiz.title}</Text>
             </View>
           ))}
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
   modalContent: { backgroundColor: '#fff', borderRadius: 16, padding: 20, maxHeight: '80%' },
   modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 16, color: '#1F2937' },
-  input: { backgroundColor: '#F3F4F6', borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 16 },
+  input: { backgroundColor: '#F7FBFD', borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 16 },
   pickButton: { backgroundColor: '#10B981', padding: 16, borderRadius: 8, alignItems: 'center', marginBottom: 12 },
   pickButtonText: { color: '#fff', fontWeight: '600' },
   questionBlock: { marginBottom: 16, padding: 12, backgroundColor: '#F9FAFB', borderRadius: 8 },
@@ -270,8 +270,8 @@ const styles = StyleSheet.create({
   addQuestionButton: { padding: 12, alignItems: 'center', marginBottom: 16 },
   addQuestionText: { color: '#10B981', fontWeight: '600' },
   modalButtons: { flexDirection: 'row', gap: 12 },
-  cancelButton: { flex: 1, padding: 12, borderRadius: 8, backgroundColor: '#F3F4F6', alignItems: 'center' },
-  cancelButtonText: { color: '#6B7280', fontWeight: '600' },
+  cancelButton: { flex: 1, padding: 12, borderRadius: 8, backgroundColor: '#F7FBFD', alignItems: 'center' },
+  cancelButtonText: { color: '#5E6B85', fontWeight: '600' },
   submitButton: { flex: 1, padding: 12, borderRadius: 8, backgroundColor: '#10B981', alignItems: 'center' },
   submitButtonText: { color: '#fff', fontWeight: '600' }
 });

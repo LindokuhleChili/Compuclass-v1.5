@@ -225,7 +225,7 @@ export default function ContentUploadScreen({ navigation, route }) {
     <View style={[styles.container, { backgroundColor: theme.surface }]}>
       <LinearGradient colors={theme.gradient} style={styles.header}>
         <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="Go back">
             <Ionicons name="arrow-back" size={24} color={theme.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.text }]}>Content Upload</Text>
@@ -354,6 +354,7 @@ export default function ContentUploadScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { paddingTop: 50, paddingBottom: 20 },
+  iconHit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',

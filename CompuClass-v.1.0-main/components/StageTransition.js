@@ -36,7 +36,7 @@ export default function StageTransition({ stage, theme, onDone }) {
           <Text style={[s.stageLabel, { color: theme.trace }]}>{theme.label}</Text>
           {stage > 1 && (
             <View style={[s.boostBadge, { backgroundColor: theme.trace + '22', borderColor: theme.trace }]}>
-              <Text style={[s.boostText, { color: theme.trace }]}>⚡ +20% XP BOOST ACTIVE</Text>
+              <Text style={[s.boostText, { color: theme.trace }]}> +20% XP BOOST ACTIVE</Text>
             </View>
           )}
           <View style={s.dotsRow}>

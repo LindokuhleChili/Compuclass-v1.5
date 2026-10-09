@@ -97,7 +97,7 @@ describe('CircuitMazeTopicScreen', () => {
     await circuitMazeProgress.recordLevelCleared('datasci', TOTAL_LEVELS);
     const { getByText, queryByText } = render(<CircuitMazeTopicScreen navigation={nav()} />);
 
-    await waitFor(() => expect(getByText('✓ COMPLETED')).toBeTruthy());
+    await waitFor(() => expect(getByText('Completed')).toBeTruthy());
     expect(getByText('1/6 COMPLETE')).toBeTruthy();
     // A completed topic is not something to continue.
     expect(queryByText('CONTINUE LEARNING')).toBeNull();

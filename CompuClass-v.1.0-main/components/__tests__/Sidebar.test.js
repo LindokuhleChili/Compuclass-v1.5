@@ -11,7 +11,7 @@ describe('Sidebar', () => {
   it('renders every menu item when visible', () => {
     const { getByText } = render(<Sidebar visible onClose={jest.fn()} onNavigate={jest.fn()} />);
 
-    ['Learning Materials', 'PC Lab', 'Windows 11', 'Quiz', 'Troubleshooting', 'AI Assistant', 'Settings'].forEach(
+    ['Learning materials', 'PC Lab', 'Windows 11', 'Quizzes', 'Troubleshooting', 'CompuBot', 'Settings'].forEach(
       (label) => expect(getByText(label)).toBeTruthy()
     );
   });

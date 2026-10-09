@@ -62,7 +62,7 @@ export default function ClassDetailScreen({ navigation, route }) {
   if (!classData) {
     return (
       <View style={[styles.container, { backgroundColor: theme.surface }]}>
-        <Text style={[styles.loading, { color: theme.text }]}>Loading...</Text>
+        <Text style={[styles.loading, { color: theme.textSecondary }]} accessibilityRole="header">Loading class</Text>
       </View>
     );
   }
@@ -71,10 +71,10 @@ export default function ClassDetailScreen({ navigation, route }) {
     <View style={[styles.container, { backgroundColor: theme.surface }]}>
       <LinearGradient colors={theme.gradient} style={styles.header}>
         <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="Go back">
             <Ionicons name="arrow-back" size={24} color={theme.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Class Details</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]} accessibilityRole="header">Class Details</Text>
           <View style={{ width: 24 }} />
         </View>
       </LinearGradient>
@@ -238,7 +238,8 @@ const styles = StyleSheet.create({
   studentInfo: { flex: 1 },
   studentName: { fontSize: 16, fontWeight: '600' },
   studentMeta: { fontSize: 12, marginTop: 2 },
-  removeButton: { padding: 4 },
+  iconHit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  removeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   emptyState: {
     padding: 40,
     borderRadius: 12,

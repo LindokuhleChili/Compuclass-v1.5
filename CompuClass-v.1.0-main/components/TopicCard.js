@@ -84,7 +84,7 @@ function TopicCard({ topic, progress, locked = false, lockHint, width, onPress }
 
             <View style={s.footer}>
               {done ? (
-                <Text style={[s.meta, { color: accent }]} maxFontSizeMultiplier={1.2}>✓ COMPLETED</Text>
+                <Text style={[s.meta, { color: accent }]} maxFontSizeMultiplier={1.2}>Completed</Text>
               ) : (
                 <Text style={[s.meta, { color: locked ? MAZE.muted : MAZE.textDim }]} maxFontSizeMultiplier={1.2}>
                   Level {levelsCleared} / {total}

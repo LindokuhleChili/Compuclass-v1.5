@@ -4,7 +4,7 @@
     "slug": "CompuClass",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/brand/compuclass-glass-mark.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
@@ -30,9 +30,9 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png",
+      "favicon": "./assets/brand/compuclass-glass-mark.png",
       "description": "CompuClass is an interactive computer learning platform: build a PC in a virtual lab, practise Windows 11, take quizzes and track your progress.",
-      "themeColor": "#2563EB",
+      "themeColor": "#0A66FF",
       "lang": "en"
     },
     "plugins": [
@@ -46,7 +46,7 @@
         {
           "image": "./assets/splash-icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#F7FBFD"
         }
       ]
     ],

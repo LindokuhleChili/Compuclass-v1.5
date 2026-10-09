@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
   },
   fallback: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: '#0B1B3A',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 28,
@@ -72,13 +72,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   hint: {
-    color: '#E5E7EB',
+    color: '#DCE6EF',
     fontSize: 13,
     lineHeight: 18,
     textAlign: 'center',
     paddingHorizontal: 20,
     paddingVertical: 12,
-    backgroundColor: '#111827',
+    backgroundColor: '#0B1B3A',
   },
   fallbackText: {
     color: '#D1D5DB',

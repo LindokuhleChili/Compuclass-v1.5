@@ -38,7 +38,7 @@ function RobotSprite({ size = 28, color }) {
       <Rect x={8}  y={13} width={12} height={10} rx={2} fill={color} />
       <Rect x={9}  y={5}  width={10} height={8}  rx={2} fill={color} />
       <Rect x={13} y={2}  width={2}  height={4}  fill={color} />
-      <Circle cx={14} cy={2} r={2} fill="#FFD700" />
+      <Circle cx={14} cy={2} r={2} fill="#FFE680" />
       <Rect x={11} y={7}  width={2} height={2} fill="#0A0E1A" />
       <Rect x={15} y={7}  width={2} height={2} fill="#0A0E1A" />
       <Rect x={11} y={11} width={6} height={1} fill="#0A0E1A" />
@@ -46,7 +46,7 @@ function RobotSprite({ size = 28, color }) {
       <Rect x={16} y={23} width={3} height={4} rx={1} fill={color} />
       <Rect x={4}  y={14} width={4} height={2} rx={1} fill={color} />
       <Rect x={20} y={14} width={4} height={2} rx={1} fill={color} />
-      <Circle cx={14} cy={18} r={2} fill="#FFD700" opacity={0.9} />
+      <Circle cx={14} cy={18} r={2} fill="#FFE680" opacity={0.9} />
     </Svg>
   );
 }
@@ -71,7 +71,7 @@ function DiceFace({ value, size = 52, rolling, traceColor }) {
 }
 
 function DiffBadge({ diff }) {
-  const color = diff==='easy'?'#00FF9C':diff==='medium'?'#FACC15':'#FF4757';
+  const color = diff==='easy'?'#00FF9C':diff==='medium'?'#FFE680':'#FF4757';
   return (
     <View style={[st.diffBadge,{borderColor:color}]}>
       <Text style={[st.diffText,{color}]}>{diff.toUpperCase()}</Text>
@@ -226,7 +226,7 @@ export default function CircuitMazeScreen({ navigation, route }) {
           Animated.timing(diceAnim, { toValue: 1.3, duration: 100, useNativeDriver: true }),
           Animated.spring(diceAnim, { toValue: 1, useNativeDriver: true }),
         ]).start();
-        addLog(`🎲 Rolled ${final}`);
+        addLog(` Rolled ${final}`);
       }
     }, 80);
   };
@@ -248,7 +248,7 @@ export default function CircuitMazeScreen({ navigation, route }) {
       const earned = isDon ? base * 2 : base;
       setAnswerResult('correct');
       setTotalXp(prev => prev + earned);
-      addLog(`✅ +${earned} XP${isDon ? ' 🔥×2' : ''}`);
+      addLog(` +${earned} XP${isDon ? ' ×2' : ''}`);
       setUsedQIds(prev => [...prev, question.id]);
       circuitMazeService.awardXp(earned);
 
@@ -257,7 +257,7 @@ export default function CircuitMazeScreen({ navigation, route }) {
         const next = prev + 1;
         if (next >= STREAK_FOR_SHIELD && !hasShield) {
           setHasShield(true);
-          addLog('🛡️ SHIELD earned!');
+          addLog(' SHIELD earned!');
           return 0;
         }
         return next;
@@ -269,7 +269,7 @@ export default function CircuitMazeScreen({ navigation, route }) {
           const gate = pendingLock;
           setUnlockedNodes(prev => [...prev, gate]);
           setPendingLock(null);
-          addLog('🔓 Gate unlocked!');
+          addLog(' Gate unlocked!');
           landOn(gate);
         } else {
           setPhase('move');
@@ -293,11 +293,11 @@ export default function CircuitMazeScreen({ navigation, route }) {
       const heartLoss = isDon ? 2 : 1;
       if (hasShield && !isDon) {
         setHasShield(false);
-        addLog('🛡️ Shield absorbed the hit!');
+        addLog(' Shield absorbed the hit!');
       } else {
         const newHearts = Math.max(0, hearts - heartLoss);
         setHearts(newHearts);
-        addLog(`❌ Wrong! -${heartLoss} ❤️`);
+        addLog(` Wrong! -${heartLoss} `);
         setTimeout(() => {
           const back = stepBack(playerPos);
           if (back !== null) setPlayerPos(back);
@@ -339,7 +339,7 @@ export default function CircuitMazeScreen({ navigation, route }) {
 
     if (target?.type === 'drop') {
       const penalty = target.penalty || 3;
-      addLog(`⚠️ DROP ZONE! -${penalty} steps back!`);
+      addLog(` DROP ZONE! -${penalty} steps back!`);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       let pos = nodeId;
       for (let i = 0; i < penalty; i++) {
@@ -356,7 +356,7 @@ export default function CircuitMazeScreen({ navigation, route }) {
     if (target?.type === 'finish') {
       const bonus = applyBoost(FINISH_BONUS);
       setTotalXp(prev => prev + bonus);
-      addLog(`🏆 Level ${levelIdx + 1} done! +${bonus} XP`);
+      addLog(` Level ${levelIdx + 1} done! +${bonus} XP`);
       circuitMazeService.awardXp(bonus);
       // Persist the cleared level so the topic screen can show real progress.
       // Fire-and-forget: the store swallows its own errors.
@@ -466,7 +466,7 @@ export default function CircuitMazeScreen({ navigation, route }) {
               {isStart  && <SvgText x={p.x} y={p.y+4} textAnchor="middle" fontSize={8} fill="#0A0E1A" fontWeight="bold">S</SvgText>}
               {isFinish && <SvgText x={p.x} y={p.y+4} textAnchor="middle" fontSize={8} fill="#0A0E1A" fontWeight="bold">F</SvgText>}
               {isDrop   && <SvgText x={p.x} y={p.y+4} textAnchor="middle" fontSize={7} fill="#FFFFFF" fontWeight="bold">▼</SvgText>}
-              {isLock   && <SvgText x={p.x} y={p.y+4} textAnchor="middle" fontSize={7} fill="#0A0E1A" fontWeight="bold">🔒</SvgText>}
+              {isLock   && <SvgText x={p.x} y={p.y+4} textAnchor="middle" fontSize={7} fill="#0A0E1A" fontWeight="bold"></SvgText>}
               {isValid  && <Circle cx={p.x} cy={p.y} r={r+5} fill="transparent" stroke={theme.trace} strokeWidth={1} opacity={0.4} />}
             </G>
           );
@@ -500,7 +500,7 @@ export default function CircuitMazeScreen({ navigation, route }) {
           <View style={[st.questionCard, { borderTopColor: theme.trace }]}>
             <View style={st.qHeader}>
               <View style={st.qTitleRow}>
-                <Text style={[st.qTitle, { color: theme.trace }]}>⚡ QUESTION</Text>
+                <Text style={[st.qTitle, { color: theme.trace }]}> QUESTION</Text>
                 <View style={[st.topicPill, { borderColor: topicMeta.color }]}>
                   <Text style={[st.topicPillText, { color: topicMeta.color }]}>{topicMeta.label}</Text>
                 </View>
@@ -518,7 +518,7 @@ export default function CircuitMazeScreen({ navigation, route }) {
                 activeOpacity={0.8}
               >
                 <Text style={[st.donText, { color: doubleOrNothing ? '#0A0E1A' : theme.trace }]}>
-                  {doubleOrNothing ? '🔥 DOUBLE OR NOTHING ON' : '⚡ Risk it: 2× XP, -2 ❤️ if wrong'}
+                  {doubleOrNothing ? ' DOUBLE OR NOTHING ON' : ' Risk it: 2× XP, -2  if wrong'}
                 </Text>
               </TouchableOpacity>
             )}
@@ -545,19 +545,19 @@ export default function CircuitMazeScreen({ navigation, route }) {
             {/* Result banner */}
             {answerResult==='correct' && (
               <Text style={[st.resultText,{color:'#00FF9C'}]}>
-                ✅ Correct!{doubleOrNothing?' 🔥 Double XP!':''} Move {movesLeft} steps!
+                 Correct!{doubleOrNothing?'  Double XP!':''} Move {movesLeft} steps!
               </Text>
             )}
             {answerResult==='wrong' && (
               <Text style={[st.resultText,{color:'#FF4757'}]}>
-                ❌ Wrong!{doubleOrNothing?' -2 ❤️':' -1 ❤️'}{hasShield&&!doubleOrNothing?' 🛡️ Shielded!':''} Moving back...
+                 Wrong!{doubleOrNothing?' -2 ':' -1 '}{hasShield&&!doubleOrNothing?'  Shielded!':''} Moving back...
               </Text>
             )}
 
             {/* Explanation card — shown after answering */}
             {selectedOpt !== null && question?.explanation && (
               <View style={st.explanationCard}>
-                <Text style={st.explanationText}>💡 {question.explanation}</Text>
+                <Text style={st.explanationText}> {question.explanation}</Text>
               </View>
             )}
           </View>
@@ -571,20 +571,20 @@ export default function CircuitMazeScreen({ navigation, route }) {
     <Modal visible={(phase==='win'||phase==='gameover') && !showReview} transparent animationType="fade">
       <View style={st.modalOverlay}>
         <LinearGradient colors={phase==='win'?['#0A3D1A','#0D1B2A']:['#3D0A0A','#0D1B2A']} style={st.endCard}>
-          <Text style={st.endEmoji}>{phase==='win'?'🏆':'💀'}</Text>
+          <Text style={st.endEmoji}>{phase==='win'?'':''}</Text>
           <Text style={st.endTitle}>{phase==='win'?'ALL LEVELS CLEAR!':'GAME OVER'}</Text>
           <Text style={st.endXp}>Total XP: {totalXp}</Text>
-          {xpResult?.leveled_up && <Text style={st.levelUpText}>🎉 LEVEL UP → Level {xpResult.new_level}!</Text>}
+          {xpResult?.leveled_up && <Text style={st.levelUpText}>Level up. Now level {xpResult.new_level}.</Text>}
           {missedQuestions.length > 0 && (
             <TouchableOpacity style={[st.reviewBtn, { borderColor: theme.trace }]} onPress={() => setShowReview(true)}>
-              <Text style={[st.reviewBtnText, { color: theme.trace }]}>📋 Review {missedQuestions.length} missed</Text>
+              <Text style={[st.reviewBtnText, { color: theme.trace }]}>Review {missedQuestions.length} missed</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity style={[st.restartBtn,{backgroundColor:theme.trace}]} onPress={restartGame}>
-            <Text style={[st.restartText,{color:'#0A0E1A'}]}>▶ PLAY AGAIN</Text>
+            <Text style={[st.restartText,{color:'#0A0E1A'}]}>Play again</Text>
           </TouchableOpacity>
           <TouchableOpacity style={st.exitBtn} onPress={() => navigation.goBack()}>
-            <Text style={st.exitText}>← EXIT</Text>
+            <Text style={st.exitText}>Exit</Text>
           </TouchableOpacity>
         </LinearGradient>
       </View>
@@ -596,30 +596,30 @@ export default function CircuitMazeScreen({ navigation, route }) {
     <View style={st.hud}>
       <View style={st.hudLeft}>
         {Array.from({length:MAX_HEARTS}).map((_,i)=>(
-          <Text key={i} style={{fontSize:15,opacity:i<hearts?1:0.2}}>❤️</Text>
+          <Text key={i} style={{fontSize:15,opacity:i<hearts?1:0.2}}></Text>
         ))}
       </View>
       {/* Streak indicator */}
       {streak > 0 && (
         <View style={[st.badge,{borderColor:'#FF9F00'}]}>
-          <Text style={[st.badgeText,{color:'#FF9F00'}]}>🔥{streak}</Text>
+          <Text style={[st.badgeText,{color:'#FF9F00'}]}>{streak}</Text>
         </View>
       )}
       {/* Shield indicator */}
       {hasShield && (
         <View style={[st.badge,{borderColor:'#00BFFF'}]}>
-          <Text style={[st.badgeText,{color:'#00BFFF'}]}>🛡️</Text>
+          <Text style={[st.badgeText,{color:'#00BFFF'}]}></Text>
         </View>
       )}
       <View style={[st.badge,{borderColor:theme.trace}]}>
-        <Text style={[st.badgeText,{color:theme.trace}]}>⚡{totalXp} XP</Text>
+        <Text style={[st.badgeText,{color:theme.trace}]}>{totalXp} XP</Text>
       </View>
       <View style={[st.badge,{borderColor:topicMeta.color}]}>
         <Text style={[st.badgeText,{color:topicMeta.color}]}>Lv {levelIdx+1}/10</Text>
       </View>
       {phase==='move' && (
         <View style={[st.badge,{borderColor:theme.trace}]}>
-          <Text style={[st.badgeText,{color:theme.trace}]}>👟{movesLeft}</Text>
+          <Text style={[st.badgeText,{color:theme.trace}]}>{movesLeft}</Text>
         </View>
       )}
     </View>
@@ -641,7 +641,7 @@ export default function CircuitMazeScreen({ navigation, route }) {
       </View>
       <View style={st.phaseHint}>
         <Text style={st.phaseText}>
-          {phase==='roll'?'🎲 Roll':phase==='move'?`👆 Move (${movesLeft})`:phase==='question'?'❓ Answer':phase==='win'?'🏆 Won!':'💀 Over'}
+          {phase==='roll'?' Roll':phase==='move'?` Move (${movesLeft})`:phase==='question'?' Answer':phase==='win'?' Won!':' Over'}
         </Text>
       </View>
     </View>
@@ -656,7 +656,7 @@ export default function CircuitMazeScreen({ navigation, route }) {
             <Ionicons name="chevron-back" size={22} color="#E0F7FF" />
           </TouchableOpacity>
           <View style={st.headerCenter}>
-            <Text style={[st.headerTitle,{color:theme.trace}]}>⚡ {topicMeta.label.toUpperCase()}</Text>
+            <Text style={[st.headerTitle,{color:theme.trace}]}> {topicMeta.label.toUpperCase()}</Text>
             <Text style={[st.headerSub,{color:theme.nodeBorder}]}>{theme.label}</Text>
           </View>
           <TouchableOpacity onPress={restartGame} style={st.backBtn}>
@@ -721,7 +721,7 @@ const st = StyleSheet.create({
   safe:             { flex: 1 },
   container:        { flex: 1 },
   header:           { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:14, paddingTop:8, paddingBottom:6 },
-  backBtn:          { width:36, height:36, borderRadius:10, backgroundColor:'#0F1E30', alignItems:'center', justifyContent:'center' },
+  backBtn:          { width:44, height:44, borderRadius:12, backgroundColor:'#0F1E30', alignItems:'center', justifyContent:'center' },
   headerCenter:     { alignItems:'center' },
   headerTitle:      { fontSize:14, fontWeight:'900', letterSpacing:2 },
   headerSub:        { fontSize:9, fontWeight:'700', letterSpacing:1, marginTop:1 },
@@ -764,8 +764,8 @@ const st = StyleSheet.create({
   endCard:          { margin:28, borderRadius:24, padding:30, alignItems:'center', borderWidth:1, borderColor:'#1A3A5C' },
   endEmoji:         { fontSize:52, marginBottom:8 },
   endTitle:         { fontSize:20, fontWeight:'900', color:'#E0F7FF', letterSpacing:2, marginBottom:6 },
-  endXp:            { fontSize:17, fontWeight:'900', color:'#FACC15', marginBottom:4 },
-  levelUpText:      { fontSize:12, fontWeight:'900', color:'#FACC15', marginBottom:16, textAlign:'center' },
+  endXp:            { fontSize:17, fontWeight:'900', color:'#FFE680', marginBottom:4 },
+  levelUpText:      { fontSize:12, fontWeight:'900', color:'#FFE680', marginBottom:16, textAlign:'center' },
   reviewBtn:        { borderWidth:1, borderRadius:10, paddingHorizontal:20, paddingVertical:10, marginBottom:10, marginTop:6 },
   reviewBtnText:    { fontSize:12, fontWeight:'900' },
   restartBtn:       { paddingHorizontal:30, paddingVertical:13, borderRadius:12, marginBottom:10, marginTop:4 },

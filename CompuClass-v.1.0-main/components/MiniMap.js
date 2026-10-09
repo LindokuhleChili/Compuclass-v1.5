@@ -47,7 +47,7 @@ export default function MiniMap({ nodes, edges, players = [], currentPlayerNodeI
             key={n.id}
             cx={scaleX(n.col)} cy={scaleY(n.row)}
             r={n.type === 'finish' ? 3 : n.type === 'start' ? 2.5 : 1.5}
-            fill={n.type === 'finish' ? '#FFD700' : n.type === 'drop' ? '#FF4757' : n.type === 'lock' ? '#FACC15' : '#1A3A5C'}
+            fill={n.type === 'finish' ? '#FFE680' : n.type === 'drop' ? '#FF4757' : n.type === 'lock' ? '#FFE680' : '#1A3A5C'}
             opacity={0.7}
           />
         ))}

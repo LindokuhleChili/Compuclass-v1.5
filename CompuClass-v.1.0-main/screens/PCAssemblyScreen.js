@@ -8,9 +8,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { PROGRESS_KEYS, progressService } from '../services/progressService';
 
-const GREEN = '#22C55E'; const WHITE = '#FFFFFF'; const BG = '#E9EEF4';
-const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#D6DEE8';
-const RED = '#EF4444';
+const GREEN = '#1F9D55'; const WHITE = '#FFFFFF'; const BG = '#E9EEF4';
+const TEXT = '#0B1B3A'; const MUTED = '#44526F'; const BORDER = '#D6DEE8';
+const RED = '#D92D4A';
 
 const CASE_IMG = require('../assets/pc-assembly/case-open.png');
 const CASE_RATIO = 712 / 548; // width / height of case-open.png
@@ -312,6 +312,20 @@ export default function PCAssemblyScreen({ navigation }) {
     },
   };
 
+  const installPart = (partId) => {
+    if (done || busy.current || installed.includes(partId)) return;
+    const target = PART_BY_ID[partId];
+    if (!target) return;
+    if (partId !== expectedId) {
+      signalIncorrect(`Incorrect — the ${target.name} doesn't go in next.`);
+      return;
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    setInstalled((prev) => [...prev, partId]);
+    setShowHint(false);
+    setFeedback({ kind: 'ok', text: `Correct! ${target.name} installed.` });
+  };
+
   const reset = () => { setInstalled([]); setMistakes(0); setShowHint(false); setFeedback(null); };
   const remaining = PARTS.filter((p) => !installed.includes(p.id));
 
@@ -328,8 +342,10 @@ export default function PCAssemblyScreen({ navigation }) {
         onPress={() => navigation.goBack()}
         style={[styles.floatingBackBtn, { top: insets.top + 12 }]}
         activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
       >
-        <Ionicons name="arrow-back" size={22} color={WHITE} />
+        <Ionicons name="arrow-back" size={22} color={TEXT} />
       </TouchableOpacity>
 
       <ScrollView
@@ -340,8 +356,8 @@ export default function PCAssemblyScreen({ navigation }) {
         <View style={[styles.content, { maxWidth: 1100, width: '100%', alignSelf: 'center', marginTop: insets.top + 64 }]}>
           <View style={styles.headerRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>PC Assembly Challenge 🛠️</Text>
-              <Text style={styles.subtitle}>Pick the right component for each step and drag it into the case.</Text>
+              <Text style={styles.title}>PC Assembly Challenge </Text>
+              <Text style={styles.subtitle}>Drag the next part into the glowing spot, or use Place.</Text>
             </View>
             <View style={styles.progressPill}>
               <Text style={styles.progressText}>{installed.length}/{ORDER.length}</Text>
@@ -379,7 +395,7 @@ export default function PCAssemblyScreen({ navigation }) {
                 <View style={[styles.infoBox, styles.infoDone]}>
                   <Ionicons name="trophy" size={22} color={GREEN} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.infoTitle}>Build complete! 🎉</Text>
+                    <Text style={styles.infoTitle}>Build complete! </Text>
                     <Text style={styles.infoText}>
                       {mistakes === 0 ? 'Perfect build — no mistakes!' : `Finished with ${mistakes} mistake${mistakes === 1 ? '' : 's'}.`}
                     </Text>
@@ -419,7 +435,17 @@ export default function PCAssemblyScreen({ navigation }) {
               <Text style={styles.trayTitle}>Drag & Drop Components</Text>
               <View style={styles.trayGrid}>
                 {remaining.map((part) => (
-                  <PartCard key={part.id} part={part} lifted={dragId === part.id} handlers={handlers} />
+                  <View key={part.id} style={styles.trayItem}>
+                    <PartCard part={part} lifted={dragId === part.id} handlers={handlers} />
+                    <TouchableOpacity
+                      onPress={() => installPart(part.id)}
+                      style={styles.placeBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Place ${part.name}`}
+                    >
+                      <Text style={styles.placeText}>Place</Text>
+                    </TouchableOpacity>
+                  </View>
                 ))}
                 {remaining.length === 0 && (
                   <View style={styles.doneRow}>
@@ -453,8 +479,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
   floatingBackBtn: {
     position: 'absolute', left: 16, zIndex: 10,
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(17,24,39,0.55)', alignItems: 'center', justifyContent: 'center',
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: WHITE, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center',
   },
   content: { paddingHorizontal: 16 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -496,20 +522,23 @@ const styles = StyleSheet.create({
   infoText: { fontSize: 12, color: MUTED, marginTop: 2 },
   feedback: { fontSize: 12, fontWeight: '700', marginTop: 6 },
   hintBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderWidth: 1, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44,
+    borderWidth: 1, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 12,
   },
   hintText: { fontSize: 12, fontWeight: '700', color: TEXT },
-  resetBtn: { backgroundColor: GREEN, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  resetBtn: { backgroundColor: GREEN, borderRadius: 10, paddingHorizontal: 14, minHeight: 44, justifyContent: 'center' },
   resetText: { color: WHITE, fontWeight: '800', fontSize: 13 },
 
   tray: { backgroundColor: '#F4F7FB', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: BORDER },
   trayWide: { flex: 1 },
   trayTitle: { fontSize: 16, fontWeight: '800', color: TEXT, marginBottom: 12, marginLeft: 4 },
   trayGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  trayItem: { width: '47%', flexGrow: 1 },
+  placeBtn: { minHeight: 44, marginTop: 6, borderRadius: 10, borderWidth: 1, borderColor: BORDER, backgroundColor: WHITE, alignItems: 'center', justifyContent: 'center' },
+  placeText: { fontSize: 13, fontWeight: '700', color: '#0A66FF' },
 
   card: {
-    width: '47%', flexGrow: 1, backgroundColor: WHITE, borderRadius: 14, padding: 10, alignItems: 'center',
+    width: '100%', backgroundColor: WHITE, borderRadius: 14, padding: 10, alignItems: 'center',
     borderWidth: 1, borderColor: BORDER,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 3,
   },

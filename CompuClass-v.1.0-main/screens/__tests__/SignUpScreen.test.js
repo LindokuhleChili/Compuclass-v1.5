@@ -17,7 +17,7 @@ const fill = (utils, { name = 'Test Student', email = 'new.student@compuclass.te
   fireEvent.changeText(utils.getByPlaceholderText('Email address'), email);
   fireEvent.changeText(utils.getByPlaceholderText('Password'), password);
   fireEvent.changeText(utils.getByPlaceholderText('Confirm Password'), confirm);
-  fireEvent.press(utils.getAllByText('Sign Up').pop());
+  fireEvent.press(utils.getByText('Create account'));
 };
 
 describe('SignUpScreen password policy', () => {

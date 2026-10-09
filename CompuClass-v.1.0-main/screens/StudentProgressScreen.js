@@ -165,15 +165,15 @@ export default function StudentProgressScreen({ navigation }) {
     <View style={[styles.container, { backgroundColor: theme.surface }]}>
       <LinearGradient colors={theme.gradient} style={styles.header}>
         <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="Go back">
             <Ionicons name="arrow-back" size={24} color={theme.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Student Progress</Text>
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <TouchableOpacity onPress={loadData}>
+          <Text style={[styles.headerTitle, { color: theme.text }]} accessibilityRole="header">Student Progress</Text>
+          <View style={{ flexDirection: 'row', gap: 4 }}>
+            <TouchableOpacity onPress={loadData} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="Refresh">
               <Ionicons name="refresh" size={24} color={theme.primary} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setShowAddStudent(true)}>
+            <TouchableOpacity onPress={() => setShowAddStudent(true)} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="Add student">
               <Ionicons name="person-add" size={24} color={theme.primary} />
             </TouchableOpacity>
           </View>
@@ -360,6 +360,7 @@ export default function StudentProgressScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { paddingTop: 50, paddingBottom: 20 },
+  iconHit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',

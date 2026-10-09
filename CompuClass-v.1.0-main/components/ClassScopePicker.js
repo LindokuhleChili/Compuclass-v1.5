@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-nati
 
 // Optional class for a folder, document, or announcement. Null means every
 // signed-in user, which the form labels "All my classes".
-export default function ClassScopePicker({ classes, value, onChange, textColor = '#111827', mutedColor = '#4B5563', accent = '#2563EB' }) {
+export default function ClassScopePicker({ classes, value, onChange, textColor = '#0B1B3A', mutedColor = '#44526F', accent = '#0A66FF' }) {
   const options = [{ id: null, name: 'All my classes' }, ...(classes || []).map((item) => ({ id: item.id, name: item.name }))];
   return (
     <View style={styles.wrap}>
@@ -15,7 +15,7 @@ export default function ClassScopePicker({ classes, value, onChange, textColor =
             <TouchableOpacity
               key={item.id || 'all'}
               onPress={() => onChange(item.id)}
-              style={[styles.chip, { borderColor: selected ? accent : '#E5E7EB', backgroundColor: selected ? accent : '#FFFFFF' }]}
+              style={[styles.chip, { borderColor: selected ? accent : '#DCE6EF', backgroundColor: selected ? accent : '#FFFFFF' }]}
               accessibilityRole="button"
               accessibilityState={{ selected }}
               accessibilityLabel={item.name}

@@ -9,8 +9,8 @@ import { supabase } from '../config/supabase';
 import { authService } from '../services/authService';
 import { useNavigation } from '@react-navigation/native';
 
-const BLUE = '#2563EB'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
-const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
+const BLUE = '#0A66FF'; const WHITE = '#FFFFFF'; const BG = '#F7FBFD';
+const TEXT = '#0B1B3A'; const MUTED = '#44526F'; const BORDER = '#DCE6EF';
 
 export default function Windows11SimulatorScreen() {
   const navigation = useNavigation();
@@ -92,7 +92,12 @@ export default function Windows11SimulatorScreen() {
             <Text style={styles.loadingText}>Loading Windows 11...</Text>
           </View>
         )}
-        <iframe src="https://win11.blueedge.me/" style={{ width: '100%', height: '100%', border: 'none' }} onLoad={() => setLoading(false)} />
+        <iframe
+          title="Windows 11"
+          src="https://win11.blueedge.me/"
+          style={{ width: '100%', height: '100%', border: 'none', opacity: loading ? 0 : 1, backgroundColor: BG }}
+          onLoad={() => setLoading(false)}
+        />
       </View>
       {!isFullscreen && (
         <View style={styles.footer}>
@@ -113,7 +118,7 @@ export default function Windows11SimulatorScreen() {
           </TouchableOpacity>
           <WebView
             source={{ uri: 'https://win11.blueedge.me/' }}
-            style={styles.webview}
+            style={[styles.webview, { opacity: 1 }]}
             javaScriptEnabled domStorageEnabled scalesPageToFit scrollEnabled bounces
             showsVerticalScrollIndicator showsHorizontalScrollIndicator
             onShouldStartLoadWithRequest={(req) => !req.url.startsWith('about:')}
@@ -146,7 +151,7 @@ export default function Windows11SimulatorScreen() {
           <WebView
             ref={webViewRef}
             source={{ uri: 'https://win11.blueedge.me/' }}
-            style={styles.webview}
+            style={[styles.webview, loading && { opacity: 0 }]}
             onLoadStart={() => setLoading(true)}
             onLoadEnd={() => setLoading(false)}
             onError={(e) => { console.error('[Windows11Simulator] WebView load error:', e.nativeEvent); Alert.alert('Error', 'The Windows 11 simulator failed to load. Check your internet connection and try again.'); setLoading(false); }}
@@ -168,7 +173,7 @@ export default function Windows11SimulatorScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
   floatingBtn: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: 'rgba(17,24,39,0.55)', alignItems: 'center', justifyContent: 'center',
   },
   floatingBackBtn: { position: 'absolute', left: 16, zIndex: 1000 },
@@ -177,16 +182,11 @@ const styles = StyleSheet.create({
   webviewContainer: { flex: 1, backgroundColor: '#000' },
   webview: { flex: 1 },
   fullscreenContainer: { flex: 1, backgroundColor: '#000' },
-  exitFullscreenBtn: { position: 'absolute', top: 40, right: 20, zIndex: 1000, width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' },
+  exitFullscreenBtn: { position: 'absolute', top: 40, right: 20, zIndex: 1000, width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' },
   loadingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: BG, zIndex: 1 },
-  loadingText: { marginTop: 14, fontSize: 15, color: TEXT, fontWeight: '700' },
-  loadingSubtext: { marginTop: 6, fontSize: 12, color: MUTED },
+  loadingText: { marginTop: 14, fontSize: 18, color: TEXT, fontWeight: '800' },
+  loadingSubtext: { marginTop: 6, fontSize: 14, color: MUTED, textAlign: 'center', paddingHorizontal: 24 },
   footer: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: WHITE, borderTopWidth: 1, borderTopColor: BORDER, paddingHorizontal: 16, paddingVertical: 12 },
   footerText: { flex: 1, fontSize: 12, color: MUTED, fontWeight: '500' },
 });
 
-if (Platform.OS === 'web') {
-  const style = document.createElement('style');
-  style.textContent = 'body { margin: 0; overflow: hidden; }';
-  document.head.appendChild(style);
-}
