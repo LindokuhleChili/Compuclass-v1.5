@@ -30,7 +30,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/brand/compuclass-glass-mark.png",
+      "favicon": "./assets/favicon.png",
       "description": "CompuClass is an interactive computer learning platform: build a PC in a virtual lab, practise Windows 11, take quizzes and track your progress.",
       "themeColor": "#0A66FF",
       "lang": "en"
