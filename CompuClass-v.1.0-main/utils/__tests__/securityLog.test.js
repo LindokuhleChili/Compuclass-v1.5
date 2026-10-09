@@ -32,7 +32,7 @@ describe('suspicious activity logging', () => {
       Alert.alert.mockClear();
       fireEvent.changeText(utils.getByPlaceholderText('Email address'), 'lecturer.smith@compuclass.test');
       fireEvent.changeText(utils.getByPlaceholderText('Password'), `Wrong-Guess-${i}`);
-      fireEvent.press(utils.getByText('Sign In'));
+      fireEvent.press(utils.getByText('Sign in'));
       await waitFor(() => expect(Alert.alert).toHaveBeenCalled());
     }
 

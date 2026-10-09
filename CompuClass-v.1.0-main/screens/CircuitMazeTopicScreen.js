@@ -118,7 +118,7 @@ export default function CircuitMazeTopicScreen({ navigation }) {
 
       <View style={s.titleBlock}>
         <Text style={s.title} maxFontSizeMultiplier={1.4}>
-          <Text style={{ color: MAZE.trace }}>⚡ </Text>CHOOSE YOUR PATH
+          <Text style={{ color: MAZE.trace }}> </Text>CHOOSE YOUR PATH
         </Text>
         <Text style={s.subtitle} maxFontSizeMultiplier={1.4}>Build your IT knowledge</Text>
       </View>
@@ -131,7 +131,7 @@ export default function CircuitMazeTopicScreen({ navigation }) {
               style={[s.chip, { borderColor: MAZE.streak + '44' }]}
               accessibilityLabel={`${stats.current_streak} day streak`}
             >
-              <Text style={s.chipEmoji}>🔥</Text>
+              <Text style={s.chipEmoji}></Text>
               <Text style={[s.chipText, { color: MAZE.streak }]} maxFontSizeMultiplier={1.2}>
                 {stats.current_streak} DAY STREAK
               </Text>
@@ -201,7 +201,7 @@ const s = StyleSheet.create({
   headerBlock: { paddingTop: 4, gap: 16, marginBottom: 16 },
   navRow:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   iconBtn:     {
-    width: 34, height: 34, borderRadius: 11,
+    width: 44, height: 44, borderRadius: 11,
     backgroundColor: 'rgba(255,255,255,0.04)',
     borderWidth: 1, borderColor: MAZE.hairline,
     alignItems: 'center', justifyContent: 'center',

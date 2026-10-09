@@ -15,7 +15,7 @@ export default function ReviewScreen({ missedQuestions, onDone, traceColor = '#0
     return (
       <View style={s.overlay}>
         <LinearGradient colors={['#0A3D1A', '#0D1B2A']} style={s.card}>
-          <Text style={s.perfectEmoji}>🏆</Text>
+          <Text style={s.perfectEmoji}></Text>
           <Text style={[s.title, { color: traceColor }]}>PERFECT ROUND!</Text>
           <Text style={s.sub}>No missed questions — great work!</Text>
           <TouchableOpacity style={[s.doneBtn, { backgroundColor: traceColor }]} onPress={onDone}>
@@ -30,7 +30,7 @@ export default function ReviewScreen({ missedQuestions, onDone, traceColor = '#0
     <View style={s.overlay}>
       <LinearGradient colors={['#0D1B2A', '#0A0E1A']} style={s.card}>
         <View style={s.header}>
-          <Text style={[s.title, { color: traceColor }]}>📋 REVIEW</Text>
+          <Text style={[s.title, { color: traceColor }]}> REVIEW</Text>
           <Text style={s.missedCount}>{missedQuestions.length} missed</Text>
         </View>
 
@@ -59,7 +59,7 @@ export default function ReviewScreen({ missedQuestions, onDone, traceColor = '#0
 
               <View style={s.explanationBox}>
                 <Text style={s.explanationText}>
-                  💡 {item.explanation ?? 'Review this topic in your course notes.'}
+                   {item.explanation ?? 'Review this topic in your course notes.'}
                 </Text>
               </View>
             </View>

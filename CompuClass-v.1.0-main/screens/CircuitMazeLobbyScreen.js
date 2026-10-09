@@ -13,7 +13,7 @@ import { getErrorMessage } from '../utils/errorMessages';
 const C = {
   bg: '#0A0E1A', panel: '#0F1E30', border: '#1A3A5C',
   trace: '#00FF9C', text: '#E0F7FF', muted: '#4A7A9B',
-  xp: '#FACC15', hard: '#FF4757', nodeBorder: '#00BFFF',
+  xp: '#FFE680', hard: '#FF4757', nodeBorder: '#00BFFF',
 };
 
 export default function CircuitMazeLobbyScreen({ navigation, route }) {
@@ -114,7 +114,7 @@ export default function CircuitMazeLobbyScreen({ navigation, route }) {
             <TouchableOpacity onPress={() => { teardownChannel(); setMode(null); setRoom(null); }} style={s.backBtn}>
               <Ionicons name="chevron-back" size={22} color={C.text} />
             </TouchableOpacity>
-            <Text style={s.headerTitle}>⚡ WAITING ROOM</Text>
+            <Text style={s.headerTitle}> WAITING ROOM</Text>
             <View style={{ width: 36 }} />
           </View>
 
@@ -147,7 +147,7 @@ export default function CircuitMazeLobbyScreen({ navigation, route }) {
               disabled={players.length < 2}
             >
               <Text style={s.startBtnText}>
-                {players.length < 2 ? 'Waiting for players...' : '▶ START GAME'}
+                {players.length < 2 ? 'Waiting for players...' : 'Start game'}
               </Text>
             </TouchableOpacity>
           )}
@@ -169,12 +169,12 @@ export default function CircuitMazeLobbyScreen({ navigation, route }) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
             <Ionicons name="chevron-back" size={22} color={C.text} />
           </TouchableOpacity>
-          <Text style={s.headerTitle}>⚡ CIRCUIT MAZE</Text>
+          <Text style={s.headerTitle}> CIRCUIT MAZE</Text>
           <View style={{ width: 36 }} />
         </View>
 
         <View style={s.heroWrap}>
-          <Text style={s.heroEmoji}>🔌</Text>
+          <Text style={s.heroEmoji}></Text>
           <Text style={s.heroTitle}>Circuit Maze</Text>
           <Text style={s.heroSub}>Answer IT questions, roll the dice{'\n'}and race through the circuit board!</Text>
         </View>
@@ -182,7 +182,7 @@ export default function CircuitMazeLobbyScreen({ navigation, route }) {
         <View style={s.modesWrap}>
           <TouchableOpacity style={s.modeCard} onPress={() => navigation.navigate('CircuitMaze', { multiplayer: false, topic: route?.params?.topic || 'networking' })} activeOpacity={0.85}>
             <LinearGradient colors={['#0A3D2B', '#0D1B2A']} style={s.modeGrad}>
-              <Text style={s.modeIcon}>🤖</Text>
+              <Text style={s.modeIcon}></Text>
               <Text style={s.modeTitle}>Solo Play</Text>
               <Text style={s.modeDesc}>Practice alone, earn XP{'\n'}and climb the leaderboard</Text>
             </LinearGradient>
@@ -190,7 +190,7 @@ export default function CircuitMazeLobbyScreen({ navigation, route }) {
 
           <TouchableOpacity style={s.modeCard} onPress={handleHost} activeOpacity={0.85} disabled={loading}>
             <LinearGradient colors={['#0A2A3D', '#0D1B2A']} style={s.modeGrad}>
-              <Text style={s.modeIcon}>📡</Text>
+              <Text style={s.modeIcon}></Text>
               <Text style={s.modeTitle}>Host Game</Text>
               <Text style={s.modeDesc}>Create a room and invite{'\n'}classmates with a code</Text>
             </LinearGradient>
@@ -224,7 +224,7 @@ const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
   container: { flex: 1, paddingHorizontal: 20 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, paddingBottom: 8 },
-  backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.panel, alignItems: 'center', justifyContent: 'center' },
+  backBtn: { width: 44, height: 44, borderRadius: 10, backgroundColor: C.panel, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 16, fontWeight: '900', color: C.trace, letterSpacing: 2 },
   heroWrap: { alignItems: 'center', paddingVertical: 24 },
   heroEmoji: { fontSize: 56, marginBottom: 8 },
@@ -250,7 +250,7 @@ const s = StyleSheet.create({
   sectionLabel: { fontSize: 11, fontWeight: '900', color: C.muted, letterSpacing: 2, marginBottom: 10 },
   playerList: { flex: 1, marginBottom: 16 },
   playerRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.panel, borderRadius: 12, padding: 12, marginBottom: 8, gap: 12, borderWidth: 1, borderColor: C.border },
-  playerAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.nodeBorder + '33', alignItems: 'center', justifyContent: 'center' },
+  playerAvatar: { width: 44, height: 44, borderRadius: 18, backgroundColor: C.nodeBorder + '33', alignItems: 'center', justifyContent: 'center' },
   playerInitial: { fontSize: 16, fontWeight: '900', color: C.nodeBorder },
   playerName: { flex: 1, fontSize: 14, fontWeight: '700', color: C.text },
   hostBadge: { fontSize: 9, fontWeight: '900', color: C.xp, backgroundColor: C.xp + '22', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, letterSpacing: 1 },

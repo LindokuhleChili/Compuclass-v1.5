@@ -12,7 +12,7 @@ export const MAZE = {
   textDim:   '#9FC4DA',
   muted:     '#4A7A9B',
   trace:     '#00FF9C',
-  xp:        '#FACC15',
+  xp:        '#FFE680',
   streak:    '#FF9F00',
 };
 

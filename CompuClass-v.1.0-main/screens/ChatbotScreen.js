@@ -12,17 +12,17 @@ import { progressService } from '../services/progressService';
 import { aiService } from '../services/aiService';
 import { COMPUBOT_MAX_CHARS, compuBotErrorMessage } from '../utils/compuBotError';
 
-const BLUE = '#2563EB'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
-const TEXT = '#111827'; const MUTED = '#6B7280'; const BUBBLE_AI = '#EFF6FF';
+const BLUE = '#0A66FF'; const WHITE = '#FFFFFF'; const BG = '#F7FBFD';
+const TEXT = '#0B1B3A'; const MUTED = '#5E6B85'; const BUBBLE_AI = '#EFF6FF';
 const CHAT_STORAGE_KEY = 'compubot_chat_history';
 
 const QUICK_PROMPTS = [
-  { label: '🖥️ What is a CPU?',        text: 'What is a CPU and what does it do?' },
-  { label: '💾 RAM vs Storage',         text: 'What is the difference between RAM and storage?' },
-  { label: '🔧 PC won\'t turn on',      text: 'My PC won\'t turn on. How do I troubleshoot it?' },
-  { label: '📋 Quiz tips',              text: 'Give me tips to prepare for a computer hardware quiz.' },
-  { label: '🔌 What is a PSU?',         text: 'What is a PSU and why is it important?' },
-  { label: '🧩 Motherboard explained',  text: 'Explain what a motherboard does in simple terms.' },
+  { label: 'What is a CPU?', text: 'What is a CPU and what does it do?' },
+  { label: 'RAM vs Storage', text: 'What is the difference between RAM and storage?' },
+  { label: 'PC won\'t turn on', text: 'My PC won\'t turn on. How do I troubleshoot it?' },
+  { label: 'Quiz tips', text: 'Give me tips to prepare for a computer hardware quiz.' },
+  { label: 'What is a PSU?', text: 'What is a PSU and why is it important?' },
+  { label: 'Motherboard explained', text: 'Explain what a motherboard does in simple terms.' },
 ];
 
 function TypingDots() {
@@ -168,7 +168,7 @@ export default function ChatbotScreen({ navigation, route }) {
           <View style={styles.msgMeta}>
             <Text style={[styles.timestamp, isUser && { color: WHITE + 'AA' }]}>{formatTime(item.timestamp)}</Text>
             {!isUser && (
-              <TouchableOpacity onPress={() => speakMessage(item.text, item.id)} style={{ marginLeft: 6 }}>
+              <TouchableOpacity onPress={() => speakMessage(item.text, item.id)} style={{ marginLeft: 6, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Read aloud">
                 <Ionicons name={speakingId === item.id ? 'volume-high' : 'volume-medium-outline'} size={13} color={speakingId === item.id ? BLUE : MUTED} />
               </TouchableOpacity>
             )}
@@ -189,7 +189,7 @@ export default function ChatbotScreen({ navigation, route }) {
             <Ionicons name="hardware-chip" size={16} color={WHITE} />
           </View>
           <View>
-            <Text style={styles.headerTitle}>CompuBot</Text>
+            <Text style={styles.headerTitle} accessibilityRole="header">CompuBot</Text>
             <Text style={styles.headerSub}>AI Learning Assistant</Text>
           </View>
         </View>
@@ -283,19 +283,19 @@ export default function ChatbotScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
-  header: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', gap: 12 },
-  backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F7FBFD', gap: 12 },
+  backBtn: { width: 44, height: 44, borderRadius: 10, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerAvatar: { width: 36, height: 36, borderRadius: 10, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
+  headerAvatar: { width: 44, height: 44, borderRadius: 10, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 15, fontWeight: '800', color: TEXT },
   headerSub: { fontSize: 11, color: MUTED },
-  clearBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
+  clearBtn: { width: 44, height: 44, borderRadius: 10, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
   emptyState: { flex: 1, alignItems: 'center', paddingHorizontal: 24, paddingTop: 48 },
   emptyIcon: { width: 72, height: 72, borderRadius: 20, backgroundColor: BLUE + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   emptyTitle: { fontSize: 20, fontWeight: '900', color: TEXT, marginBottom: 8 },
   emptySub: { fontSize: 13, color: MUTED, textAlign: 'center', lineHeight: 20, marginBottom: 28 },
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
-  quickChip: { backgroundColor: WHITE, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: '#E5E7EB' },
+  quickChip: { backgroundColor: WHITE, borderRadius: 20, paddingHorizontal: 14, minHeight: 44, justifyContent: 'center', borderWidth: 1, borderColor: '#DCE6EF' },
   quickChipText: { fontSize: 12, fontWeight: '600', color: TEXT },
   messageList: { padding: 16, gap: 12, paddingBottom: 8 },
   msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
@@ -312,15 +312,15 @@ const styles = StyleSheet.create({
   timestamp: { fontSize: 10, color: MUTED },
   typingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 8 },
   typingBubble: { backgroundColor: BUBBLE_AI, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },
-  imagePreviewBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#F3F4F6', gap: 10 },
+  imagePreviewBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#F7FBFD', gap: 10 },
   imagePreview: { width: 48, height: 48, borderRadius: 8 },
   removeImageBtn: { position: 'absolute', top: 4, left: 52 },
   imagePreviewText: { fontSize: 12, color: MUTED },
-  inputBar: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: WHITE, paddingHorizontal: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6', gap: 8 },
-  iconBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
+  inputBar: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: WHITE, paddingHorizontal: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F7FBFD', gap: 8 },
+  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   inputColumn: { flex: 1 },
   input: { backgroundColor: BG, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: TEXT, maxHeight: 100 },
   charCount: { fontSize: 11, color: MUTED, marginTop: 4, marginLeft: 4 },
-  sendBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
+  sendBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
   sendBtnDisabled: { backgroundColor: BLUE + '50' },
 });

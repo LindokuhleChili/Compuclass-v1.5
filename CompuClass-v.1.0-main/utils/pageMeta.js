@@ -10,8 +10,8 @@ export const DEFAULT_DESCRIPTION = 'CompuClass is an interactive computer learni
 
 export const PAGE_META = {
   Onboarding: { title: 'Welcome', description: 'Get started with CompuClass, the interactive way to learn computer hardware and software skills.' },
-  Login: { title: 'Sign In', description: 'Sign in to CompuClass to continue your computer skills lessons, quizzes and PC Lab progress.' },
-  SignUp: { title: 'Create Account', description: 'Create a free CompuClass student or lecturer account and start learning computer skills.' },
+  Login: { title: 'Sign in', description: 'Sign in to CompuClass to continue your computer skills lessons, quizzes and PC Lab progress.' },
+  SignUp: { title: 'Create an account', description: 'Create a free CompuClass student or lecturer account and start learning computer skills.' },
   ForgotPassword: { title: 'Reset Password', description: 'Reset your CompuClass password with a one-time code sent to your email.' },
   NotFound: { title: 'Page Not Found', description: 'The page you were looking for does not exist on CompuClass.' },
 

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Animated, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../config/supabase';
@@ -10,9 +9,9 @@ import { openStoredDocument } from '../utils/fileDownload';
 import { getErrorMessage } from '../utils/errorMessages';
 import { classService } from '../services/classService';
 import { filterByClassScope } from '../utils/classScope';
-const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const PURPLE = '#8B5CF6';
-const WHITE = '#FFFFFF'; const BG = '#F3F4F6'; const TEXT = '#111827';
-const MUTED = '#4B5563'; const CARD = '#FFFFFF';
+const BLUE = '#0A66FF'; const PURPLE = '#0A6F79';
+const WHITE = '#FFFFFF'; const BG = '#F7FBFD'; const TEXT = '#0B1B3A';
+const MUTED = '#44526F'; const CARD = '#FFFFFF';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -29,10 +28,10 @@ function SkeletonCard() {
   const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.9] });
   return (
     <Animated.View style={[{ flexDirection: 'row', alignItems: 'center', backgroundColor: CARD, borderRadius: 14, padding: 14, marginBottom: 8, gap: 12 }, { opacity }]}>
-      <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#E5E7EB' }} />
+      <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#DCE6EF' }} />
       <View style={{ flex: 1, gap: 8 }}>
-        <View style={{ height: 12, backgroundColor: '#E5E7EB', borderRadius: 6, width: '80%' }} />
-        <View style={{ height: 10, backgroundColor: '#E5E7EB', borderRadius: 6, width: '50%' }} />
+        <View style={{ height: 12, backgroundColor: '#DCE6EF', borderRadius: 6, width: '80%' }} />
+        <View style={{ height: 10, backgroundColor: '#DCE6EF', borderRadius: 6, width: '50%' }} />
       </View>
     </Animated.View>
   );
@@ -110,8 +109,8 @@ export default function SearchScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: BG }]}>
-      <LinearGradient colors={[BLUE, '#1D4ED8']} style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
-        <Text style={styles.topTitle}>Search 🔍</Text>
+      <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
+        <Text style={styles.topTitle} accessibilityRole="header">Search</Text>
         <Text style={styles.topSubtitle}>Find quizzes, documents and more</Text>
         <View style={[styles.searchBar, { backgroundColor: CARD }]}>
           <Ionicons name="search-outline" size={18} color={MUTED} />
@@ -125,19 +124,19 @@ export default function SearchScreen({ navigation }) {
             maxLength={LIMITS.search}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSearchQuery(''); }} activeOpacity={0.75}>
+            <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSearchQuery(''); }} style={styles.clearBtn} accessibilityRole="button" accessibilityLabel="Clear search" activeOpacity={0.75}>
               <Ionicons name="close-circle" size={18} color={MUTED} />
             </TouchableOpacity>
           )}
         </View>
-      </LinearGradient>
+      </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
         {loading && [1, 2, 3].map(i => <SkeletonCard key={i} />)}
         {searchQuery.length === 0 && !loading && (
           <View style={styles.emptyState}>
-            <View style={[styles.emptyIconWrap, { backgroundColor: BLUE }]}>
-              <Ionicons name="search" size={40} color={WHITE} />
+            <View style={[styles.emptyIconWrap, { backgroundColor: '#EDF4FF' }]}>
+              <Ionicons name="search" size={40} color={BLUE} />
             </View>
             <Text style={[styles.emptyTitle, { color: TEXT }]}>Find Anything</Text>
             <Text style={[styles.emptySubtitle, { color: MUTED }]}>Search for quizzes and documents</Text>
@@ -157,15 +156,15 @@ export default function SearchScreen({ navigation }) {
                 <Text style={[styles.sectionLabel, { color: MUTED }]}>Quizzes ({quizzes.length})</Text>
                 {quizzes.map((quiz) => (
                   <TouchableOpacity key={quiz.id} style={[styles.resultCard, { backgroundColor: CARD }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('Quiz', { quizId: quiz.id }); }} activeOpacity={0.75}>
-                    <View style={[styles.resultIconWrap, { backgroundColor: YELLOW }]}>
-                      <Ionicons name="help-circle" size={22} color={WHITE} />
+                    <View style={[styles.resultIconWrap, { backgroundColor: '#EDF4FF' }]}>
+                      <Ionicons name="help-circle" size={22} color={BLUE} />
                     </View>
                     <View style={styles.resultInfo}>
                       <Text style={[styles.resultTitle, { color: TEXT }]}>{quiz.title}</Text>
                       <Text style={[styles.resultSubtitle, { color: MUTED }]}>{quiz.quiz_questions?.length || 0} questions</Text>
                     </View>
-                    <View style={[styles.resultBadge, { backgroundColor: YELLOW + '30' }]}>
-                      <Text style={[styles.resultBadgeText, { color: TEXT }]}>Quiz</Text>
+                    <View style={[styles.resultBadge, { backgroundColor: '#FFF9D6' }]}>
+                      <Text style={[styles.resultBadgeText, { color: '#7A5C00' }]}>Quiz</Text>
                     </View>
                   </TouchableOpacity>
                 ))}
@@ -176,8 +175,8 @@ export default function SearchScreen({ navigation }) {
                 <Text style={[styles.sectionLabel, { color: MUTED }]}>Documents ({documents.length})</Text>
                 {documents.map((doc) => (
                   <TouchableOpacity key={doc.id} style={[styles.resultCard, { backgroundColor: CARD }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); openDocument(doc); }} activeOpacity={0.75}>
-                    <View style={[styles.resultIconWrap, { backgroundColor: PURPLE }]}>
-                      <Ionicons name="document-text" size={22} color={WHITE} />
+                    <View style={[styles.resultIconWrap, { backgroundColor: '#DDF3F4' }]}>
+                      <Ionicons name="document-text" size={22} color={PURPLE} />
                     </View>
                     <View style={styles.resultInfo}>
                       <Text style={[styles.resultTitle, { color: TEXT }]}>{doc.title}</Text>
@@ -190,7 +189,7 @@ export default function SearchScreen({ navigation }) {
             )}
             {searchError ? (
               <View style={styles.emptyState} accessibilityRole="alert">
-                <View style={[styles.emptyIconWrap, { backgroundColor: '#EF4444' }]}><Ionicons name="cloud-offline" size={40} color={WHITE} /></View>
+                <View style={[styles.emptyIconWrap, { backgroundColor: '#D92D4A' }]}><Ionicons name="cloud-offline" size={40} color={WHITE} /></View>
                 <Text style={[styles.emptyTitle, { color: TEXT }]}>Search failed</Text>
                 <Text style={[styles.emptySubtitle, { color: MUTED }]}>{searchError}</Text>
               </View>
@@ -210,9 +209,10 @@ export default function SearchScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topBar: { paddingBottom: 16, paddingHorizontal: 16 },
-  topTitle: { fontSize: 24, fontWeight: '900', color: '#FFFFFF', marginBottom: 2 },
-  topSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginBottom: 14 },
+  topBar: { paddingBottom: 16, paddingHorizontal: 16, backgroundColor: WHITE, borderBottomWidth: 1, borderBottomColor: '#DCE6EF' },
+  topTitle: { fontSize: 24, fontWeight: '800', color: TEXT, marginBottom: 2 },
+  topSubtitle: { fontSize: 13, color: MUTED, marginBottom: 14 },
+  clearBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   searchBar: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, paddingHorizontal: 14, height: 48, gap: 10 },
   searchInput: { flex: 1, fontSize: 15, fontWeight: '600' },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 20, fontWeight: '900', marginBottom: 6 },
   emptySubtitle: { fontSize: 14, fontWeight: '500', marginBottom: 20 },
   suggestionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
-  suggestionChip: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, borderWidth: 2 },
+  suggestionChip: { borderRadius: 20, paddingHorizontal: 16, minHeight: 44, justifyContent: 'center', borderWidth: 2 },
   suggestionText: { fontSize: 13, fontWeight: '700' },
   section: { marginBottom: 24 },
   sectionLabel: { fontSize: 13, fontWeight: '800', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },

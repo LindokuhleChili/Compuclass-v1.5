@@ -13,7 +13,7 @@ import { getErrorMessage } from '../utils/errorMessages';
 const C = {
   bg: '#0B1226', panel: '#141B34', border: '#2A2F55',
   text: '#E7ECF7', muted: '#7C8AAB',
-  purple: '#7C3AED', indigo: '#4F46E5', yellow: '#FACC15', hard: '#FF4757',
+  purple: '#0A6F79', indigo: '#4F46E5', yellow: '#FFE680', hard: '#FF4757',
 };
 
 export default function GameRunnerLobbyScreen({ navigation }) {
@@ -111,7 +111,7 @@ export default function GameRunnerLobbyScreen({ navigation }) {
             <TouchableOpacity onPress={() => { teardownChannel(); setMode(null); setRoom(null); }} style={s.backBtn}>
               <Ionicons name="chevron-back" size={22} color={C.text} />
             </TouchableOpacity>
-            <Text style={s.headerTitle}>🏃 WAITING ROOM</Text>
+            <Text style={s.headerTitle}> WAITING ROOM</Text>
             <View style={{ width: 36 }} />
           </View>
 
@@ -144,7 +144,7 @@ export default function GameRunnerLobbyScreen({ navigation }) {
               disabled={players.length < 2}
             >
               <Text style={s.startBtnText}>
-                {players.length < 2 ? 'Waiting for players...' : '▶ START RACE'}
+                {players.length < 2 ? 'Waiting for players...' : 'Start race'}
               </Text>
             </TouchableOpacity>
           )}
@@ -167,12 +167,12 @@ export default function GameRunnerLobbyScreen({ navigation }) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
             <Ionicons name="chevron-back" size={22} color={C.text} />
           </TouchableOpacity>
-          <Text style={s.headerTitle}>🏃 COMPURUNNER</Text>
+          <Text style={s.headerTitle}> COMPURUNNER</Text>
           <View style={{ width: 36 }} />
         </View>
 
         <View style={s.heroWrap}>
-          <Text style={s.heroEmoji}>🏃</Text>
+          <Text style={s.heroEmoji}></Text>
           <Text style={s.heroTitle}>CompuRunner</Text>
           <Text style={s.heroSub}>Dodge obstacles, collect PC components{'\n'}and race classmates to the finish!</Text>
         </View>
@@ -180,7 +180,7 @@ export default function GameRunnerLobbyScreen({ navigation }) {
         <View style={s.modesWrap}>
           <TouchableOpacity style={s.modeCard} onPress={() => navigation.navigate('Game')} activeOpacity={0.85}>
             <LinearGradient colors={['#1E293B', '#0F172A']} style={s.modeGrad}>
-              <Text style={s.modeIcon}>🤖</Text>
+              <Text style={s.modeIcon}></Text>
               <Text style={s.modeTitle}>Solo Run</Text>
               <Text style={s.modeDesc}>Practice alone, chase{'\n'}your high score</Text>
             </LinearGradient>
@@ -188,7 +188,7 @@ export default function GameRunnerLobbyScreen({ navigation }) {
 
           <TouchableOpacity style={s.modeCard} onPress={handleHost} activeOpacity={0.85} disabled={loading}>
             <LinearGradient colors={['#3B2A6B', '#1E1447']} style={s.modeGrad}>
-              <Text style={s.modeIcon}>📡</Text>
+              <Text style={s.modeIcon}></Text>
               <Text style={s.modeTitle}>Host Race</Text>
               <Text style={s.modeDesc}>Create a room and invite{'\n'}classmates with a code</Text>
             </LinearGradient>
@@ -222,7 +222,7 @@ const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
   container: { flex: 1, paddingHorizontal: 20 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, paddingBottom: 8 },
-  backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.panel, alignItems: 'center', justifyContent: 'center' },
+  backBtn: { width: 44, height: 44, borderRadius: 10, backgroundColor: C.panel, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 16, fontWeight: '900', color: C.purple, letterSpacing: 2 },
   heroWrap: { alignItems: 'center', paddingVertical: 24 },
   heroEmoji: { fontSize: 56, marginBottom: 8 },
@@ -248,7 +248,7 @@ const s = StyleSheet.create({
   sectionLabel: { fontSize: 11, fontWeight: '900', color: C.muted, letterSpacing: 2, marginBottom: 10 },
   playerList: { flex: 1, marginBottom: 16 },
   playerRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.panel, borderRadius: 12, padding: 12, marginBottom: 8, gap: 12, borderWidth: 1, borderColor: C.border },
-  playerAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.indigo + '33', alignItems: 'center', justifyContent: 'center' },
+  playerAvatar: { width: 44, height: 44, borderRadius: 18, backgroundColor: C.indigo + '33', alignItems: 'center', justifyContent: 'center' },
   playerInitial: { fontSize: 16, fontWeight: '900', color: C.indigo },
   playerName: { flex: 1, fontSize: 14, fontWeight: '700', color: C.text },
   hostBadge: { fontSize: 9, fontWeight: '900', color: C.yellow, backgroundColor: C.yellow + '22', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, letterSpacing: 1 },

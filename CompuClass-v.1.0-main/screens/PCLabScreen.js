@@ -12,15 +12,15 @@ import GPUAR from '../components/GPUAR';
 import PSUAR from '../components/PSUAR';
 import { PROGRESS_KEYS, progressService } from '../services/progressService';
 
-const GREEN = '#22C55E'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
-const TEXT = '#111827'; const MUTED = '#4B5563';
+const GREEN = '#1F9D55'; const WHITE = '#FFFFFF'; const BG = '#F7FBFD';
+const TEXT = '#0B1B3A'; const MUTED = '#44526F'; const BORDER = '#DCE6EF';
 
 const components = [
-  { id: 'motherboard', name: 'Motherboard',  icon: 'hardware-chip',    color: '#2563EB' },
-  { id: 'cpu',         name: 'CPU',           icon: 'speedometer',      color: '#EF4444' },
-  { id: 'ram',         name: 'RAM',           icon: 'albums',           color: '#8B5CF6' },
-  { id: 'gpu',         name: 'Graphics Card', icon: 'tv',               color: '#F59E0B' },
-  { id: 'storage',     name: 'Storage (SSD)', icon: 'save',             color: '#22C55E' },
+  { id: 'motherboard', name: 'Motherboard',  icon: 'hardware-chip',    color: '#0A66FF' },
+  { id: 'cpu',         name: 'CPU',           icon: 'speedometer',      color: '#D92D4A' },
+  { id: 'ram',         name: 'RAM',           icon: 'albums',           color: '#0A6F79' },
+  { id: 'gpu',         name: 'Graphics Card', icon: 'tv',               color: '#E39B0B' },
+  { id: 'storage',     name: 'Storage (SSD)', icon: 'save',             color: '#1F9D55' },
   { id: 'psu',         name: 'Power Supply',  icon: 'battery-charging', color: '#EC4899' },
 ];
 
@@ -90,7 +90,7 @@ export default function PCLabScreen({ navigation }) {
         setCurrentStep(currentStep + 1);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         if (currentStep === steps.length - 1) {
-          Alert.alert('Congratulations! 🎉', 'You have successfully assembled your PC!', [
+          Alert.alert('Congratulations! ', 'You have successfully assembled your PC!', [
             { text: 'Start New Build', onPress: () => { setSelectedComponents([]); setCurrentStep(0); } },
           ]);
         }
@@ -133,9 +133,9 @@ export default function PCLabScreen({ navigation }) {
               </TouchableOpacity>
             </View>
             {[
-              { icon: 'hand-left', color: '#2563EB', text: 'Drag to rotate the 3D PC model' },
-              { icon: 'resize',    color: '#22C55E', text: 'Pinch to zoom in/out' },
-              { icon: 'construct', color: '#F59E0B', text: 'Tap components to learn more' },
+              { icon: 'hand-left', color: '#0A66FF', text: 'Drag to rotate the 3D PC model' },
+              { icon: 'resize',    color: '#1F9D55', text: 'Pinch to zoom in/out' },
+              { icon: 'construct', color: '#E39B0B', text: 'Tap components to learn more' },
             ].map((item, i) => (
               <View key={i} style={styles.instructionRow}>
                 <Ionicons name={item.icon} size={18} color={item.color} />
@@ -155,7 +155,7 @@ export default function PCLabScreen({ navigation }) {
         style={[styles.floatingBackBtn, { top: insets.top + 12 }]}
         activeOpacity={0.75}
       >
-        <Ionicons name="arrow-back" size={22} color={WHITE} />
+        <Ionicons name="arrow-back" size={22} color={TEXT} />
       </TouchableOpacity>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
@@ -190,7 +190,7 @@ export default function PCLabScreen({ navigation }) {
                   disabled={installed}
                   activeOpacity={0.75}
                 >
-                  <View style={[styles.componentIconWrap, { backgroundColor: installed ? '#E5E7EB' : component.color }]}>
+                  <View style={[styles.componentIconWrap, { backgroundColor: installed ? '#DCE6EF' : component.color }]}>
                     <Ionicons name={component.icon} size={26} color={installed ? MUTED : WHITE} />
                   </View>
                   <Text style={[styles.componentName, installed && styles.componentNameInstalled]}>{component.name}</Text>
@@ -222,8 +222,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
   floatingBackBtn: {
     position: 'absolute', left: 16, zIndex: 10,
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(17,24,39,0.55)', alignItems: 'center', justifyContent: 'center',
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: WHITE, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center',
   },
   content: { paddingHorizontal: 16 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
   componentName: { fontSize: 13, fontWeight: '700', color: TEXT, textAlign: 'center' },
   stepHint: { fontSize: 14, fontWeight: '700', color: MUTED, marginBottom: 12 },
   viewModelBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  viewModelText: { fontSize: 13, fontWeight: '700', color: '#2563EB' },
+  viewModelText: { fontSize: 13, fontWeight: '700', color: '#0A66FF' },
   componentNameInstalled: { color: MUTED },
   installedBadge: { position: 'absolute', top: 8, right: 8, backgroundColor: GREEN, borderRadius: 10, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
   fullscreenContainer: { flex: 1, backgroundColor: '#000' },

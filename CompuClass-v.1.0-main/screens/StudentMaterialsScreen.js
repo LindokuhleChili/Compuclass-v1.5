@@ -1,25 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
+import { View, Text, Pressable, Alert } from 'react-native';
 import { supabase } from '../config/supabase';
 import { openStoredDocument } from '../utils/fileDownload';
 import { getErrorMessage } from '../utils/errorMessages';
 import { classService } from '../services/classService';
 import { filterByClassScope } from '../utils/classScope';
-const YELLOW = '#FACC15'; const PURPLE = '#8B5CF6';
-const WHITE = '#FFFFFF'; const BG = '#F3F4F6'; const TEXT = '#111827';
-const MUTED = '#4B5563'; const CARD = '#FFFFFF';
+import { useTheme } from '../context/ThemeContext';
+import { Icon } from '../components/ui/Icon';
+import {
+  Page, Heading, Body, Card, Badge, Button, IconTile, IconButton, font, useLayout,
+} from '../components/ui/kit';
+
+function folderTone(name = '') {
+  const n = name.toLowerCase();
+  if (n.includes('window')) return { icon: 'windows', tone: 'teal' };
+  if (n.includes('network') || n.includes('internet')) return { icon: 'wifi', tone: 'teal' };
+  if (n.includes('safe') || n.includes('security')) return { icon: 'shield', tone: 'teal' };
+  if (n.includes('hardware') || n.includes('pc')) return { icon: 'cpu', tone: 'blue' };
+  if (n.includes('trouble')) return { icon: 'wrench', tone: 'blue' };
+  return { icon: 'folder', tone: 'blue' };
+}
 
 export default function StudentMaterialsScreen({ navigation }) {
-  const insets = useSafeAreaInsets();
-
+  const { theme } = useTheme();
+  const { laptop } = useLayout();
   const [folders, setFolders] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [quizzes, setQuizzes] = useState([]);
+  const [filter, setFilter] = useState('All');
 
   useEffect(() => { loadFolders(); }, []);
   useEffect(() => { if (selectedFolder) loadFolderContent(selectedFolder.id); }, [selectedFolder]);
@@ -31,21 +41,19 @@ export default function StudentMaterialsScreen({ navigation }) {
       if (error) throw error;
       setFolders(filterByClassScope(data, scope));
     } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'StudentMaterials' })); }
+    finally { setLoading(false); }
   };
 
   const loadFolderContent = async (folderId) => {
     try {
       const [docsRes, quizzesRes] = await Promise.all([
         supabase.from('documents').select('*').eq('folder_id', folderId),
-        // Question rows stay on the server. The count comes from
-        // quiz_question_counts when that function exists, otherwise from ids
-        // only so correct_answer is not selected.
         supabase.from('quizzes').select('*, quiz_questions(id)').eq('folder_id', folderId),
       ]);
       if (docsRes.error) throw docsRes.error;
       if (quizzesRes.error) throw quizzesRes.error;
-      const quizzes = quizzesRes.data || [];
-      const ids = quizzes.map((quiz) => quiz.id).filter(Boolean);
+      const nextQuizzes = quizzesRes.data || [];
+      const ids = nextQuizzes.map((quiz) => quiz.id).filter(Boolean);
       let counts = null;
       if (ids.length > 0 && typeof supabase.rpc === 'function') {
         const countRes = await supabase.rpc('quiz_question_counts', { p_quiz_ids: ids });
@@ -56,8 +64,8 @@ export default function StudentMaterialsScreen({ navigation }) {
       const scope = await classService.classScopeForCurrentUser();
       setDocuments(filterByClassScope(docsRes.data, scope));
       setQuizzes(counts
-        ? quizzes.map((quiz) => ({ ...quiz, quiz_questions: Array.from({ length: counts[quiz.id] || 0 }) }))
-        : quizzes);
+        ? nextQuizzes.map((quiz) => ({ ...quiz, quiz_questions: Array.from({ length: counts[quiz.id] || 0 }) }))
+        : nextQuizzes);
     } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'StudentMaterials' })); }
   };
 
@@ -69,95 +77,98 @@ export default function StudentMaterialsScreen({ navigation }) {
     } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'StudentMaterials', fallback: 'Failed to download document' })); }
   };
 
-  if (selectedFolder) return (
-    <View style={[styles.container, { backgroundColor: BG }]}>
-      <LinearGradient colors={[PURPLE, '#7C3AED']} style={[styles.folderHeader, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity onPress={() => setSelectedFolder(null)} style={styles.backBtn}><Ionicons name="arrow-back" size={20} color={WHITE} /></TouchableOpacity>
-        <View style={styles.folderHeaderIcon}><Ionicons name="folder-open" size={22} color={WHITE} /></View>
-        <Text style={styles.folderHeaderTitle}>{selectedFolder.name}</Text>
-      </LinearGradient>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
-        <Text style={[styles.sectionLabel, { color: MUTED }]}>Documents</Text>
-        {documents.length === 0
-          ? <Text style={[styles.emptyText, { color: MUTED }]}>No documents in this folder</Text>
-          : documents.map((doc) => (
-            <TouchableOpacity key={doc.id} style={[styles.itemCard, { backgroundColor: CARD }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); openDocument(doc); }} activeOpacity={0.75}>
-              <View style={[styles.itemIconWrap, { backgroundColor: PURPLE }]}><Ionicons name="document-text" size={18} color={WHITE} /></View>
-              <Text style={[styles.itemTitle, { color: TEXT }]}>{doc.title}</Text>
-              <View style={[styles.downloadBadge, { backgroundColor: PURPLE + '15' }]}><Ionicons name="download-outline" size={14} color={PURPLE} /></View>
-            </TouchableOpacity>
-          ))}
-        <Text style={[styles.sectionLabel, { color: MUTED, marginTop: 20 }]}>Quizzes</Text>
-        {quizzes.length === 0
-          ? <Text style={[styles.emptyText, { color: MUTED }]}>No quizzes in this folder</Text>
-          : quizzes.map((quiz) => (
-            <TouchableOpacity key={quiz.id} style={[styles.itemCard, { backgroundColor: CARD }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('Quiz', { quizId: quiz.id }); }} activeOpacity={0.75}>
-              <View style={[styles.itemIconWrap, { backgroundColor: YELLOW }]}><Ionicons name="help-circle" size={18} color={TEXT} /></View>
-              <Text style={[styles.itemTitle, { color: TEXT }]}>{quiz.title}</Text>
-              <View style={[styles.questionBadge, { backgroundColor: YELLOW + '30' }]}><Text style={[styles.questionBadgeText, { color: TEXT }]}>{quiz.quiz_questions?.length || 0} Q</Text></View>
-            </TouchableOpacity>
-          ))}
-        <View style={{ height: 32 }} />
-      </ScrollView>
-    </View>
-  );
+  if (selectedFolder) {
+    const tone = folderTone(selectedFolder.name);
+    return (
+      <Page>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 24 }}>
+          <IconButton name="chevLeft" label="Back to materials" onPress={() => setSelectedFolder(null)} />
+          <Heading level={1} style={{ flex: 1 }}>{selectedFolder.name}</Heading>
+        </View>
+        <Heading level={2} style={{ marginBottom: 12 }}>Documents</Heading>
+        {documents.length === 0 ? <Body variant="small" style={{ marginBottom: 24 }}>No documents in this folder.</Body> : documents.map((doc) => (
+          <Pressable key={doc.id} onPress={() => openDocument(doc)} accessibilityRole="button" accessibilityLabel={`Open ${doc.title}`} style={{ marginBottom: 12 }}>
+            <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, minHeight: 72 }}>
+              <IconTile name="folder" tone={tone.tone} />
+              <Text style={[{ flex: 1, color: theme.text }, font(theme, 'semibold')]}>{doc.title}</Text>
+              <Icon name="download" size={20} color={theme.primary} />
+            </Card>
+          </Pressable>
+        ))}
+        <Heading level={2} style={{ marginTop: 16, marginBottom: 12 }}>Quizzes</Heading>
+        {quizzes.length === 0 ? <Body variant="small">No quizzes in this folder.</Body> : quizzes.map((quiz) => (
+          <Pressable key={quiz.id} onPress={() => navigation.navigate('Quiz', { quizId: quiz.id })} accessibilityRole="button" accessibilityLabel={`Start ${quiz.title}`} style={{ marginBottom: 12 }}>
+            <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, minHeight: 72 }}>
+              <IconTile name="quiz" tone="teal" />
+              <View style={{ flex: 1 }}>
+                <Text style={[{ color: theme.text }, font(theme, 'h3')]}>{quiz.title}</Text>
+                <Body variant="small">{quiz.quiz_questions?.length || 0} questions</Body>
+              </View>
+              <Button label="Start" fit onPress={() => navigation.navigate('Quiz', { quizId: quiz.id })} style={{ height: 44, minHeight: 44 }} />
+            </Card>
+          </Pressable>
+        ))}
+      </Page>
+    );
+  }
+
+  const chips = ['All', ...Array.from(new Set(folders.map((f) => f.name))).slice(0, 5)];
+  const shown = filter === 'All' ? folders : folders.filter((f) => f.name === filter);
+  const featured = folders[0];
 
   return (
-    <View style={[styles.container, { backgroundColor: BG }]}>
-      <LinearGradient colors={[PURPLE, '#7C3AED']} style={[styles.header, { paddingTop: insets.top + 20 }]}>
-        <View style={styles.headerIconWrap}><Ionicons name="library" size={32} color={WHITE} /></View>
-        <Text style={styles.headerTitle}>Learning Materials 📚</Text>
-        <Text style={styles.headerSubtitle}>Browse your course folders and resources</Text>
-      </LinearGradient>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
-        {folders.length === 0 ? (
-          <View style={styles.emptyState}>
-            <View style={[styles.emptyIconWrap, { backgroundColor: PURPLE }]}><Ionicons name="folder-open" size={40} color={WHITE} /></View>
-            <Text style={[styles.emptyTitle, { color: TEXT }]}>No folders yet</Text>
-            <Text style={[styles.emptySubtitle, { color: MUTED }]}>Your lecturer will add materials here</Text>
+    <Page>
+      <View style={{ marginTop: 8, marginBottom: 24 }}>
+        <Heading level={1}>Learning materials</Heading>
+        <Body style={{ marginTop: 4 }}>{loading ? 'Loading your modules' : `${folders.length} ${folders.length === 1 ? 'module' : 'modules'}`}</Body>
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
+        {chips.map((chip) => {
+          const on = chip === filter;
+          return (
+            <Pressable key={chip} onPress={() => setFilter(chip)} accessibilityRole="button" accessibilityState={{ selected: on }} style={{ height: 44, paddingHorizontal: 16, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? theme.yellowTint : theme.surface, borderWidth: 1, borderColor: on ? theme.yellow : theme.border }}>
+              <Text style={[{ fontSize: 14, color: on ? theme.yellowInk : theme.textSecondary }, font(theme, 'semibold')]}>{chip}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {featured && filter === 'All' ? (
+        <View style={{ borderRadius: 16, padding: laptop ? 24 : 16, marginBottom: 24, backgroundColor: '#E7F3F8', borderWidth: 1, borderColor: theme.border, flexDirection: laptop ? 'row' : 'column', alignItems: laptop ? 'center' : 'flex-start', gap: 16 }}>
+          <View style={{ flex: 1 }}>
+            <Badge label="Up next" kind="yellowStrong" />
+            <Text style={[{ color: theme.text, marginTop: 8 }, font(theme, 'h2')]}>{featured.name}</Text>
+            {featured.description ? <Body variant="small">{featured.description}</Body> : null}
           </View>
-        ) : folders.map((folder) => (
-          <TouchableOpacity key={folder.id} style={[styles.folderCard, { backgroundColor: CARD }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedFolder(folder); }} activeOpacity={0.75}>
-            <View style={[styles.folderIconWrap, { backgroundColor: PURPLE }]}><Ionicons name="folder" size={26} color={WHITE} /></View>
-            <View style={styles.folderInfo}>
-              <Text style={[styles.folderName, { color: TEXT }]}>{folder.name}</Text>
-              {folder.description && <Text style={[styles.folderDesc, { color: MUTED }]}>{folder.description}</Text>}
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={MUTED} />
-          </TouchableOpacity>
-        ))}
-        <View style={{ height: 32 }} />
-      </ScrollView>
-    </View>
+          <Button label="Open module" fit onPress={() => setSelectedFolder(featured)} style={{ height: 44, minHeight: 44 }} />
+        </View>
+      ) : null}
+      {shown.length === 0 && !loading ? (
+        <Card style={{ padding: 32, alignItems: 'center' }}>
+          <IconTile name="folder" tone="teal" />
+          <Heading level={3} style={{ marginTop: 16 }}>No folders yet</Heading>
+          <Body variant="small" style={{ marginTop: 4, textAlign: 'center' }}>Your lecturer will add materials here.</Body>
+        </Card>
+      ) : (
+        <View style={{ gap: 12, flexDirection: 'row', flexWrap: 'wrap' }}>
+          {shown.map((folder) => {
+            const tone = folderTone(folder.name);
+            return (
+              <Pressable key={folder.id} onPress={() => setSelectedFolder(folder)} accessibilityRole="button" accessibilityLabel={folder.name} style={{ width: laptop ? '48%' : '100%' }}>
+                <Card style={{ flexDirection: 'row', gap: 16, padding: 16, alignItems: 'flex-start', minHeight: 120 }}>
+                  <IconTile name={tone.icon} tone={tone.tone} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[{ color: theme.text }, font(theme, 'h3')]}>{folder.name}</Text>
+                    {folder.description ? <Body variant="small" style={{ marginVertical: 8 }}>{folder.description}</Body> : <View style={{ height: 8 }} />}
+                    <View style={{ height: 6, borderRadius: 3, backgroundColor: '#E6EDF4', overflow: 'hidden' }}>
+                      <View style={{ width: '12%', height: '100%', backgroundColor: tone.tone === 'teal' ? theme.accent : theme.primary }} />
+                    </View>
+                  </View>
+                </Card>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+    </Page>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { alignItems: 'center', paddingBottom: 32, paddingHorizontal: 20 },
-  headerIconWrap: { width: 68, height: 68, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
-  headerTitle: { fontSize: 24, fontWeight: '900', color: WHITE, marginBottom: 6 },
-  headerSubtitle: { fontSize: 14, color: 'rgba(255,255,255,0.85)', textAlign: 'center' },
-  folderHeader: { flexDirection: 'row', alignItems: 'center', paddingBottom: 20, paddingHorizontal: 16, gap: 12 },
-  backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
-  folderHeaderIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-  folderHeaderTitle: { fontSize: 17, fontWeight: '800', color: WHITE, flex: 1 },
-  content: { flex: 1, padding: 16 },
-  sectionLabel: { fontSize: 13, fontWeight: '800', color: MUTED, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  emptyText: { fontSize: 13, color: MUTED, marginBottom: 8, fontWeight: '500' },
-  emptyState: { alignItems: 'center', paddingVertical: 60 },
-  emptyIconWrap: { width: 80, height: 80, borderRadius: 24, backgroundColor: PURPLE, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  emptyTitle: { fontSize: 20, fontWeight: '900', color: TEXT, marginBottom: 6 },
-  emptySubtitle: { fontSize: 14, color: MUTED, fontWeight: '500' },
-  folderCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 16, padding: 16, marginBottom: 10, gap: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
-  folderIconWrap: { width: 46, height: 46, borderRadius: 12, backgroundColor: PURPLE, alignItems: 'center', justifyContent: 'center' },
-  folderInfo: { flex: 1 },
-  folderName: { fontSize: 15, fontWeight: '700', color: TEXT },
-  folderDesc: { fontSize: 12, color: MUTED, marginTop: 3 },
-  itemCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 16, padding: 14, marginBottom: 8, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
-  itemIconWrap: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  itemTitle: { flex: 1, fontSize: 14, fontWeight: '600', color: TEXT },
-  downloadBadge: { width: 32, height: 32, borderRadius: 10, backgroundColor: PURPLE + '15', alignItems: 'center', justifyContent: 'center' },
-  questionBadge: { backgroundColor: YELLOW + '30', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-  questionBadgeText: { fontSize: 11, fontWeight: '800', color: TEXT },
-});

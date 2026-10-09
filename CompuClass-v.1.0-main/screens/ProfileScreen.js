@@ -1,62 +1,53 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, Pressable, Alert, Image } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
+import { authService } from '../services/authService';
+import { gamificationService } from '../services/gamificationservice';
+import { validateNewPassword, PASSWORD_HINT, PASSWORD_MAX_LENGTH } from '../utils/passwordPolicy';
+import { cleanText, LIMITS } from '../utils/inputValidation';
+import { getErrorMessage } from '../utils/errorMessages';
+import { useTheme } from '../context/ThemeContext';
+import { Icon } from '../components/ui/Icon';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Modal, TextInput, Image,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import * as ImagePicker from "expo-image-picker";
-import * as Haptics from "expo-haptics";
-import { authService } from "../services/authService";
-import { gamificationService } from "../services/gamificationservice";
-import { validateNewPassword, PASSWORD_HINT, PASSWORD_MAX_LENGTH } from "../utils/passwordPolicy";
-import { cleanText, LIMITS } from "../utils/inputValidation";
-import { getErrorMessage } from "../utils/errorMessages";
-import { useTheme } from "../context/ThemeContext";
+  Page, Heading, Body, Card, Badge, Button, IconTile, Avatar, initials, Sheet, Field, Skeleton, font, useLayout,
+} from '../components/ui/kit';
 
 export default function ProfileScreen({ onLogout }) {
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { theme } = useTheme();
-  const BLUE = theme.primary;
-  const YELLOW = theme.secondary;
-  const RED = theme.error;
-  const PURPLE = theme.purple;
-  const BG = theme.surface;
-  const TEXT = theme.text;
-  const MUTED = theme.textSecondary;
-  const BORDER = theme.border;
-  const CARD = theme.card;
-
+  const { laptop } = useLayout();
   const [user, setUser] = useState(null);
+  const [ready, setReady] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [fullName, setFullName] = useState("");
+  const [fullName, setFullName] = useState('');
   const [avatarFile, setAvatarFile] = useState(null);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [gamifyStats, setGamifyStats] = useState({ xp: 0, level: 1, current_streak: 0, xp_for_current_level: 0, xp_for_next_level: 100 });
+  const [gamifyStats, setGamifyStats] = useState(null);
   const [badges, setBadges] = useState([]);
 
   useEffect(() => { loadUser(); }, []);
-
   useFocusEffect(useCallback(() => { loadGamification(); }, []));
 
   const loadGamification = async () => {
     const [stats, myBadges] = await Promise.all([gamificationService.getMyStats(), gamificationService.getMyBadges()]);
     setGamifyStats(stats);
-    setBadges(myBadges);
+    setBadges(myBadges || []);
   };
 
   const loadUser = async () => {
     try {
       const u = await authService.getCurrentUser();
       setUser(u);
-      setFullName(u?.user_metadata?.full_name || u?.profile?.full_name || "");
-    } catch {}
+      setFullName(u?.user_metadata?.full_name || u?.profile?.full_name || '');
+    } catch { /* skeleton stays until a later focus */ }
+    finally { setReady(true); }
   };
 
   const handlePickAvatar = async () => {
@@ -65,204 +56,151 @@ export default function ProfileScreen({ onLogout }) {
   };
 
   const handleEditProfile = async () => {
-    if (!fullName.trim()) { Alert.alert("Error", "Name cannot be empty"); return; }
+    if (!fullName.trim()) { Alert.alert('Error', 'Name cannot be empty'); return; }
     setLoading(true);
     try {
-      const cleanName = cleanText(fullName, { field: "Name", maxLength: LIMITS.name, required: true, allowMarkup: false });
+      const cleanName = cleanText(fullName, { field: 'Name', maxLength: LIMITS.name, required: true, allowMarkup: false });
       await authService.updateProfile(cleanName, avatarFile);
-      Alert.alert("Success", "Profile updated");
+      Alert.alert('Success', 'Profile updated');
       setShowEditModal(false);
       setAvatarFile(null);
       loadUser();
     } catch (error) {
-      Alert.alert("Error", getErrorMessage(error, { context: "Profile" }));
+      Alert.alert('Error', getErrorMessage(error, { context: 'Profile' }));
     } finally { setLoading(false); }
   };
 
   const handleChangePassword = async () => {
-    if (!currentPassword || !newPassword || !confirmPassword) { Alert.alert("Error", "All fields are required"); return; }
-    if (newPassword !== confirmPassword) { Alert.alert("Error", "Passwords do not match"); return; }
+    if (!currentPassword || !newPassword || !confirmPassword) { Alert.alert('Error', 'All fields are required'); return; }
+    if (newPassword !== confirmPassword) { Alert.alert('Error', 'Passwords do not match'); return; }
     setLoading(true);
     try {
       const passwordProblems = await validateNewPassword(newPassword, { email: user?.email });
-      if (passwordProblems.length > 0) { Alert.alert("Choose a stronger password", passwordProblems.join("\n")); return; }
+      if (passwordProblems.length > 0) { Alert.alert('Choose a stronger password', passwordProblems.join('\n')); return; }
       await authService.updatePassword(currentPassword, newPassword);
-      Alert.alert("Success", "Password changed successfully");
+      Alert.alert('Success', 'Password changed successfully');
       setShowPasswordModal(false);
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
     } catch (error) {
-      Alert.alert("Error", getErrorMessage(error, { context: "Profile" }));
+      Alert.alert('Error', getErrorMessage(error, { context: 'Profile' }));
     } finally { setLoading(false); }
   };
 
   const handleLogout = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Logout", style: "destructive", onPress: async () => { try { await authService.signOut(); onLogout(); } catch { Alert.alert("Error", "Failed to logout. Please try again."); } } },
+    Alert.alert('Sign out', 'Sign out of CompuClass on this device?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: async () => { try { await authService.signOut(); onLogout(); } catch { Alert.alert('Error', 'Failed to logout. Please try again.'); } } },
     ]);
   };
 
-  const displayName = user?.user_metadata?.full_name || user?.profile?.full_name || "User";
+  const displayName = user?.user_metadata?.full_name || user?.profile?.full_name || '';
   const role = user?.profile?.role;
-  const levelSpan = Math.max(gamifyStats.xp_for_next_level - gamifyStats.xp_for_current_level, 1);
-  const levelProgress = Math.min(Math.max((gamifyStats.xp - gamifyStats.xp_for_current_level) / levelSpan, 0), 1);
-
-  const actionItems = [
-    { icon: "person-outline", label: "Edit Profile", color: BLUE, onPress: () => setShowEditModal(true) },
-    { icon: "lock-closed-outline", label: "Change Password", color: PURPLE, onPress: () => setShowPasswordModal(true) },
-    { icon: "settings-outline", label: "Settings", color: MUTED, onPress: () => navigation.navigate("Settings") },
-    ...(role === "lecturer" ? [] : [{ icon: "school-outline", label: "Join a class", color: BLUE, onPress: () => navigation.navigate("JoinClass") }]),
-  ];
+  const joined = user?.profile?.created_at || user?.created_at;
+  const joinedLabel = joined ? new Date(joined).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : null;
+  const points = gamifyStats?.xp || 0;
+  const earned = badges.filter((b) => b.earned);
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: BG }]} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }} showsVerticalScrollIndicator={false}>
-      <LinearGradient colors={[BLUE, "#1D4ED8"]} style={styles.heroBanner}>
-        <View style={styles.avatarWrap}>
-          {user?.user_metadata?.avatar_url
-            ? <Image source={{ uri: user.user_metadata.avatar_url }} style={styles.avatarImg} />
-            : <View style={styles.avatarPlaceholder}><Ionicons name="person" size={40} color={BLUE} /></View>}
-        </View>
-        <Text style={styles.userName}>{displayName}</Text>
-        <Text style={styles.userEmail}>{user?.email || "No email"}</Text>
-        {role && <View style={styles.roleBadge}><Text style={styles.roleText}>{role.charAt(0).toUpperCase() + role.slice(1)}</Text></View>}
-        <View style={styles.gamifyRow}>
-          <View style={styles.gamifyCard}><Text style={styles.gamifyEmoji}>⚡</Text><Text style={styles.gamifyValue}>{gamifyStats.xp}</Text><Text style={styles.gamifyLabel}>XP</Text></View>
-          <View style={styles.gamifyDivider} />
-          <View style={styles.gamifyCard}><Text style={styles.gamifyEmoji}>🔥</Text><Text style={styles.gamifyValue}>{gamifyStats.current_streak}</Text><Text style={styles.gamifyLabel}>Day Streak</Text></View>
-          <View style={styles.gamifyDivider} />
-          <View style={styles.gamifyCard}><Text style={styles.gamifyEmoji}>🏆</Text><Text style={styles.gamifyValue}>Lv {gamifyStats.level}</Text><Text style={styles.gamifyLabel}>Level</Text></View>
-        </View>
-        <View style={styles.xpBarWrap}>
-          <View style={styles.xpBarBg}><View style={[styles.xpBarFill, { width: `${Math.round(levelProgress * 100)}%` }]} /></View>
-          <Text style={styles.xpBarLabel}>{gamifyStats.xp} / {gamifyStats.xp_for_next_level} XP to Level {gamifyStats.level + 1}</Text>
-        </View>
-      </LinearGradient>
+    <Page>
+      <View style={{ height: 8 }} />
+      {!ready ? (
+        <Card style={{ padding: 24, flexDirection: 'row', gap: 16, alignItems: 'center' }}>
+          <Skeleton width={72} height={72} radius={36} />
+          <View style={{ flex: 1, gap: 8 }}>
+            <Skeleton width="60%" height={22} />
+            <Skeleton width="40%" height={14} />
+          </View>
+        </Card>
+      ) : (
+        <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: laptop ? 32 : 20, flexWrap: 'wrap' }}>
+          {user?.user_metadata?.avatar_url ? (
+            <Image source={{ uri: user.user_metadata.avatar_url }} style={{ width: laptop ? 88 : 72, height: laptop ? 88 : 72, borderRadius: 44 }} />
+          ) : (
+            <Avatar label={initials(displayName)} size={laptop ? 88 : 72} />
+          )}
+          <View style={{ flex: 1, minWidth: 160 }}>
+            <Heading level={1} style={{ fontSize: 26, lineHeight: 32 }}>{displayName || 'Your profile'}</Heading>
+            <Body variant="small" style={{ marginTop: 4 }}>{[role ? role.charAt(0).toUpperCase() + role.slice(1) : null, joinedLabel ? `Joined ${joinedLabel}` : null].filter(Boolean).join(' · ') || user?.email}</Body>
+            <View style={{ marginTop: 8 }}><Badge label={`${points.toLocaleString()} points`} kind="yellowStrong" /></View>
+          </View>
+          <Button label="Settings" icon="sliders" variant="secondary" fit onPress={() => navigation.navigate('Settings')} style={{ height: 44, minHeight: 44 }} />
+        </Card>
+      )}
 
-      <View style={styles.content}>
-        {badges.length > 0 && (
-          <View style={[styles.badgesCard, { backgroundColor: CARD }]}>
-            <Text style={[styles.badgesTitle, { color: TEXT }]}>Badges</Text>
-            <View style={styles.badgesGrid}>
+      <Card style={{ flexDirection: 'row', marginVertical: 24 }}>
+        {[
+          { value: points.toLocaleString(), label: 'Points' },
+          { value: gamifyStats ? `Lv ${gamifyStats.level}` : '–', label: 'Level' },
+          { value: gamifyStats?.current_streak ?? '–', label: 'Day streak' },
+        ].map((s, i) => (
+          <View key={s.label} style={{ flex: 1, padding: 16, borderLeftWidth: i ? 1 : 0, borderLeftColor: theme.border }}>
+            <Text style={[{ fontSize: 26, lineHeight: 32, color: theme.text }, font(theme, 'display')]}>{ready ? s.value : '–'}</Text>
+            <Text style={[{ fontSize: 12, color: theme.textTertiary }, font(theme, 'body')]}>{s.label}</Text>
+          </View>
+        ))}
+      </Card>
+
+      <View style={laptop ? { flexDirection: 'row', gap: 40, alignItems: 'flex-start' } : undefined}>
+        <View style={{ flex: 1 }}>
+          <Heading level={2} style={{ marginBottom: 16 }}>Account</Heading>
+          <Card>
+            {[
+              { icon: 'user', label: 'Edit profile', onPress: () => setShowEditModal(true) },
+              { icon: 'lock', label: 'Change password', onPress: () => setShowPasswordModal(true) },
+              ...(role === 'lecturer' ? [] : [{ icon: 'school', label: 'Join a class', onPress: () => navigation.navigate('JoinClass') }]),
+            ].map((item, i) => (
+              <Pressable key={item.label} onPress={item.onPress} accessibilityRole="button" accessibilityLabel={item.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, minHeight: 72, borderTopWidth: i ? 1 : 0, borderTopColor: theme.borderLight }}>
+                <IconTile name={item.icon} tone={i === 1 ? 'neutral' : 'blue'} />
+                <Text style={[{ flex: 1, color: theme.text }, font(theme, 'h3')]}>{item.label}</Text>
+                <Icon name="chev" size={18} color={theme.textTertiary} tone="transparent" />
+              </Pressable>
+            ))}
+          </Card>
+          <Pressable onPress={handleLogout} accessibilityRole="button" accessibilityLabel="Sign out" style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, minHeight: 72, marginTop: 16 }}>
+            <IconTile name="logout" tone="neutral" />
+            <Text style={[{ color: theme.error, fontSize: 16 }, font(theme, 'semibold')]}>Sign out</Text>
+          </Pressable>
+        </View>
+        <View style={{ flex: 1, marginTop: laptop ? 0 : 32 }}>
+          <Heading level={2} style={{ marginBottom: 16 }}>Badges{badges.length ? ` · ${earned.length} of ${badges.length}` : ''}</Heading>
+          {badges.length === 0 ? (
+            <Card style={{ padding: 20 }}><Body variant="small">Badges you earn from quizzes and streaks show up here.</Body></Card>
+          ) : (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
               {badges.map((b) => (
-                <View key={b.code} style={styles.badgeItem}>
-                  <View style={[styles.badgeIconWrap, { backgroundColor: b.earned ? YELLOW : BORDER }]}>
-                    <Ionicons name={b.icon || "trophy"} size={20} color={b.earned ? TEXT : MUTED} />
-                  </View>
-                  <Text style={[styles.badgeName, { color: b.earned ? TEXT : MUTED }]}>{b.name}</Text>
-                </View>
+                <Card key={b.code} style={{ width: '47%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, opacity: b.earned ? 1 : 0.55 }}>
+                  <IconTile name="medal" tone={b.earned ? 'yellow' : 'neutral'} />
+                  <Text style={[{ flex: 1, fontSize: 14, color: theme.text }, font(theme, 'semibold')]}>{b.name}</Text>
+                </Card>
               ))}
             </View>
-          </View>
-        )}
-
-        {actionItems.map((item, i) => (
-          <TouchableOpacity key={i} style={[styles.actionCard, { backgroundColor: CARD }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); item.onPress?.(); }} activeOpacity={0.75}>
-            <View style={[styles.actionIconWrap, { backgroundColor: item.color + "18" }]}>
-              <Ionicons name={item.icon} size={22} color={item.color} />
-            </View>
-            <Text style={[styles.actionLabel, { color: TEXT }]}>{item.label}</Text>
-            <Ionicons name="chevron-forward" size={18} color={MUTED} />
-          </TouchableOpacity>
-        ))}
-
-        <TouchableOpacity style={[styles.actionCard, styles.logoutCard, { backgroundColor: CARD }]} onPress={handleLogout} activeOpacity={0.75}>
-          <View style={[styles.actionIconWrap, { backgroundColor: RED + "18" }]}>
-            <Ionicons name="log-out-outline" size={22} color={RED} />
-          </View>
-          <Text style={[styles.actionLabel, { color: RED }]}>Logout</Text>
-        </TouchableOpacity>
+          )}
+        </View>
       </View>
 
-      {/* Edit Modal */}
-      <Modal visible={showEditModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: CARD }]}>
-            <Text style={[styles.modalTitle, { color: TEXT }]}>Edit Profile ✏️</Text>
-            <TouchableOpacity style={[styles.avatarPickerBtn, { borderColor: BLUE, backgroundColor: BLUE + "10" }]} onPress={handlePickAvatar}>
-              <Ionicons name="camera-outline" size={20} color={BLUE} />
-              <Text style={[styles.avatarPickerText, { color: BLUE }]}>{avatarFile ? "Avatar selected ✓" : "Choose Avatar"}</Text>
-            </TouchableOpacity>
-            <TextInput style={[styles.input, { backgroundColor: BG, borderColor: BORDER, color: TEXT }]} placeholder="Full Name" placeholderTextColor={MUTED} value={fullName} onChangeText={setFullName} />
-            <View style={styles.modalBtns}>
-              <TouchableOpacity style={[styles.cancelBtn, { borderColor: BORDER }]} onPress={() => setShowEditModal(false)} disabled={loading}>
-                <Text style={[styles.cancelBtnText, { color: MUTED }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleEditProfile} disabled={loading}>
-                <Text style={styles.saveBtnText}>{loading ? "Saving..." : "Save"}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+      <Sheet visible={showEditModal} onClose={() => setShowEditModal(false)} title="Edit profile">
+        <Pressable onPress={handlePickAvatar} accessibilityRole="button" accessibilityLabel="Choose avatar" style={{ minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          <Icon name="user" size={20} color={theme.primary} />
+          <Text style={[{ color: theme.primary }, font(theme, 'semibold')]}>{avatarFile ? 'Photo selected' : 'Choose a photo'}</Text>
+        </Pressable>
+        <Field label="Full name" icon="user" placeholder="Full Name" value={fullName} onChangeText={setFullName} autoCapitalize="words" />
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <Button label="Cancel" variant="secondary" onPress={() => setShowEditModal(false)} style={{ flex: 1 }} />
+          <Button label={loading ? 'Saving...' : 'Save'} onPress={handleEditProfile} disabled={loading} style={{ flex: 1 }} />
         </View>
-      </Modal>
+      </Sheet>
 
-      {/* Password Modal */}
-      <Modal visible={showPasswordModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: CARD }]}>
-            <Text style={[styles.modalTitle, { color: TEXT }]}>Change Password 🔒</Text>
-            <TextInput style={[styles.input, { backgroundColor: BG, borderColor: BORDER, color: TEXT }]} placeholder="Current Password" placeholderTextColor={MUTED} value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry autoCapitalize="none" />
-            <TextInput style={[styles.input, { backgroundColor: BG, borderColor: BORDER, color: TEXT }]} placeholder="New Password" placeholderTextColor={MUTED} value={newPassword} onChangeText={setNewPassword} secureTextEntry maxLength={PASSWORD_MAX_LENGTH} />
-            <Text style={[styles.passwordHint, { color: MUTED }]}>{PASSWORD_HINT}</Text>
-            <TextInput style={[styles.input, { backgroundColor: BG, borderColor: BORDER, color: TEXT }]} placeholder="Confirm New Password" placeholderTextColor={MUTED} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
-            <View style={styles.modalBtns}>
-              <TouchableOpacity style={[styles.cancelBtn, { borderColor: BORDER }]} onPress={() => setShowPasswordModal(false)} disabled={loading}>
-                <Text style={[styles.cancelBtnText, { color: MUTED }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleChangePassword} disabled={loading}>
-                <Text style={styles.saveBtnText}>{loading ? "Changing..." : "Change"}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+      <Sheet visible={showPasswordModal} onClose={() => setShowPasswordModal(false)} title="Change password">
+        <Field label="Current password" icon="lock" placeholder="Current Password" value={currentPassword} onChangeText={setCurrentPassword} secure secureVisible={showCurrent} onToggleSecure={() => setShowCurrent((v) => !v)} />
+        <Field label="New password" icon="lock" placeholder="New Password" value={newPassword} onChangeText={setNewPassword} secure secureVisible={showNew} onToggleSecure={() => setShowNew((v) => !v)} maxLength={PASSWORD_MAX_LENGTH} hint={PASSWORD_HINT} />
+        <Field label="Confirm password" icon="lock" placeholder="Confirm New Password" value={confirmPassword} onChangeText={setConfirmPassword} secure />
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <Button label="Cancel" variant="secondary" onPress={() => setShowPasswordModal(false)} style={{ flex: 1 }} />
+          <Button label={loading ? 'Changing...' : 'Change'} onPress={handleChangePassword} disabled={loading} style={{ flex: 1 }} />
         </View>
-      </Modal>
-    </ScrollView>
+      </Sheet>
+    </Page>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  passwordHint: { fontSize: 12, marginTop: -4, marginBottom: 12, lineHeight: 16 },
-  heroBanner: { alignItems: "center", paddingTop: 32, paddingBottom: 28, paddingHorizontal: 24 },
-  avatarWrap: { width: 96, height: 96, borderRadius: 48, borderWidth: 4, borderColor: "#FFFFFF", overflow: "hidden", marginBottom: 12, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
-  avatarImg: { width: "100%", height: "100%" },
-  avatarPlaceholder: { width: "100%", height: "100%", alignItems: "center", justifyContent: "center" },
-  userName: { fontSize: 22, fontWeight: "900", color: "#FFFFFF", marginBottom: 4 },
-  userEmail: { fontSize: 13, color: "rgba(255,255,255,0.85)", marginBottom: 10 },
-  roleBadge: { backgroundColor: "rgba(255,255,255,0.25)", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 4, marginBottom: 16 },
-  roleText: { fontSize: 12, color: "#FFFFFF", fontWeight: "700" },
-  gamifyRow: { flexDirection: "row", backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 16, paddingVertical: 14, paddingHorizontal: 8, width: "100%", marginBottom: 14 },
-  gamifyCard: { flex: 1, alignItems: "center", gap: 2 },
-  gamifyDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.3)" },
-  gamifyEmoji: { fontSize: 18 },
-  gamifyValue: { fontSize: 16, fontWeight: "900", color: "#FFFFFF" },
-  gamifyLabel: { fontSize: 10, color: "rgba(255,255,255,0.8)", fontWeight: "600" },
-  xpBarWrap: { width: "100%", alignItems: "center", gap: 6 },
-  xpBarBg: { width: "100%", height: 8, backgroundColor: "rgba(255,255,255,0.25)", borderRadius: 4, overflow: "hidden" },
-  xpBarFill: { height: "100%", backgroundColor: "#FACC15", borderRadius: 4 },
-  xpBarLabel: { fontSize: 11, color: "rgba(255,255,255,0.8)", fontWeight: "600" },
-  content: { padding: 16, gap: 10 },
-  actionCard: { flexDirection: "row", alignItems: "center", borderRadius: 16, padding: 16, gap: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  logoutCard: { marginTop: 8 },
-  actionIconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  actionLabel: { flex: 1, fontSize: 15, fontWeight: "700" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 20 },
-  modalCard: { borderRadius: 20, padding: 24 },
-  modalTitle: { fontSize: 20, fontWeight: "900", marginBottom: 20 },
-  avatarPickerBtn: { flexDirection: "row", alignItems: "center", borderWidth: 2, borderRadius: 12, padding: 12, marginBottom: 14, gap: 10 },
-  avatarPickerText: { fontWeight: "700", fontSize: 14 },
-  input: { borderWidth: 2, borderRadius: 12, padding: 14, marginBottom: 12, fontSize: 15 },
-  modalBtns: { flexDirection: "row", gap: 12, marginTop: 4 },
-  cancelBtn: { flex: 1, padding: 14, borderRadius: 12, borderWidth: 2, alignItems: "center" },
-  cancelBtnText: { fontWeight: "700" },
-  saveBtn: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#2563EB", alignItems: "center" },
-  saveBtnText: { color: "#FFFFFF", fontWeight: "800" },
-  badgesCard: { borderRadius: 16, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  badgesTitle: { fontSize: 15, fontWeight: "800", marginBottom: 12 },
-  badgesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  badgeItem: { alignItems: "center", width: 72, gap: 6 },
-  badgeIconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  badgeName: { fontSize: 10, fontWeight: "700", textAlign: "center" },
-});

@@ -1,96 +1,134 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, FlatList, Animated } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useState } from 'react';
+import { View, Pressable, Text, StyleSheet } from 'react-native';
+import { useTheme } from '../context/ThemeContext';
+import { StageArt } from '../components/ui/art';
+import {
+  ColourField, Glass, Heading, Body, Button, Mark, Wordmark, IconTile, useLayout, font,
+} from '../components/ui/kit';
 
-const WHITE = '#FFFFFF'; const TEXT = '#111827'; const MUTED = '#4B5563';
-
-const slides = [
-  { id: '1', title: 'Learn Computer Skills', subtitle: 'Master essential computer knowledge with interactive lessons', icon: 'desktop', colors: ['#2563EB', '#1D4ED8'] },
-  { id: '2', title: 'Practice in PC Lab',    subtitle: 'Hands-on experience with virtual computer environments',    icon: 'hardware-chip', colors: ['#22C55E', '#16A34A'] },
-  { id: '3', title: 'Test Your Knowledge',   subtitle: 'Take quizzes and track your progress as you learn',         icon: 'trophy', colors: ['#FACC15', '#EAB308'] },
+const SLIDES = [
+  {
+    title: 'Understand the machine in front of you',
+    body: 'Short, visual lessons take you from the parts inside a PC to Windows 11 and everyday troubleshooting.',
+    icon: 'cpu',
+    chip: 'Processor',
+    detail: 'Reads and runs every instruction',
+  },
+  {
+    title: 'Practice by playing',
+    body: 'CompuRunner and Circuit Maze turn what you just learned into quick rounds you can finish in a break.',
+    icon: 'gamepad',
+    chip: 'Circuit Maze',
+    detail: 'Level 4 cleared, +120 points',
+  },
+  {
+    title: 'Climb the leaderboard',
+    body: 'Earn points from quizzes and games, compare with classmates, and keep your streak going.',
+    icon: 'trophy',
+    chip: 'You are 7th this week',
+    detail: '160 points behind 6th place',
+  },
 ];
 
-export default function OnboardingScreen({ onComplete }) {
-  // Live dimensions: each slide must be exactly one window wide, even after a resize.
-  const { width, height } = useWindowDimensions();
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const flatListRef = useRef(null);
-  const scrollX = useRef(new Animated.Value(0)).current;
+export default function OnboardingScreen({ onComplete, onCreateAccount }) {
+  const { theme } = useTheme();
+  const { laptop } = useLayout();
+  const [index, setIndex] = useState(0);
+  const slide = SLIDES[index];
+  const last = index === SLIDES.length - 1;
 
-  const handleNext = () => {
-    if (currentIndex < slides.length - 1) {
-      const next = currentIndex + 1;
-      flatListRef.current?.scrollToIndex({ index: next });
-      setCurrentIndex(next);
-    } else { onComplete(); }
+  const next = () => {
+    if (!last) {
+      setIndex((n) => n + 1);
+      return;
+    }
+    if (onCreateAccount) onCreateAccount();
+    else onComplete?.();
   };
 
-  const renderItem = ({ item }) => (
-    <View style={{ width, height }}>
-      <LinearGradient colors={item.colors} style={styles.slideGradient}>
-        <View style={[styles.iconWrap, { marginBottom: height * 0.06 }]}>
-          <Ionicons name={item.icon} size={64} color={WHITE} />
+  const stage = (
+    <View style={[styles.stage, laptop && styles.stageLaptop, { borderColor: theme.border }]}>
+      <View style={styles.glow} />
+      <StageArt index={index} />
+      <Glass radius={18} strong style={[styles.chip, laptop && styles.chipLaptop]}>
+        <IconTile name={slide.icon} tone="yellow" />
+        <View style={{ flexShrink: 1 }}>
+          <Text style={[{ fontSize: 14, color: theme.text }, font(theme, 'semibold')]}>{slide.chip}</Text>
+          <Text style={[{ fontSize: 12, lineHeight: 16, color: theme.textSecondary }, font(theme, 'body')]}>{slide.detail}</Text>
         </View>
-        <Text style={styles.slideTitle}>{item.title}</Text>
-        <Text style={styles.slideSubtitle}>{item.subtitle}</Text>
-      </LinearGradient>
+      </Glass>
+    </View>
+  );
+
+  const copy = (
+    <View style={[styles.copy, laptop && styles.copyLaptop]}>
+      <Heading level="display" style={styles.title}>{slide.title}</Heading>
+      <Body style={{ maxWidth: 420 }}>{slide.body}</Body>
+      <View style={styles.dots}>
+        {SLIDES.map((_, i) => (
+          <View key={i} style={{ width: i === index ? 28 : 8, height: 8, borderRadius: 4, backgroundColor: i === index ? theme.primary : '#C5D3E2' }} />
+        ))}
+      </View>
+      <View style={[styles.cta, laptop && styles.ctaLaptop]}>
+        {last ? (
+          <>
+            <Button label="Create account" onPress={() => (onCreateAccount ? onCreateAccount() : onComplete?.())} />
+            <Button label="I already have an account" variant="secondary" onPress={onComplete} />
+          </>
+        ) : (
+          <Button label="Next" onPress={next} />
+        )}
+      </View>
     </View>
   );
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        ref={flatListRef}
-        data={slides}
-        renderItem={renderItem}
-        horizontal pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        keyExtractor={(item) => item.id}
-        getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
-        onScrollToIndexFailed={(info) => {
-          flatListRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: true });
-        }}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: false })}
-        onMomentumScrollEnd={(e) => setCurrentIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
-      />
-
-      <View style={styles.bottom}>
-        <View style={styles.dotsRow}>
-          {slides.map((_, i) => {
-            const dotWidth = scrollX.interpolate({ inputRange: [(i - 1) * width, i * width, (i + 1) * width], outputRange: [8, 28, 8], extrapolate: 'clamp' });
-            const bg = currentIndex === i ? slides[currentIndex].colors[0] : '#D1D5DB';
-            return <Animated.View key={i} style={[styles.dot, { width: dotWidth, backgroundColor: bg }]} />;
-          })}
+    <View style={[styles.root, { backgroundColor: theme.background }]}>
+      <ColourField />
+      <View style={[styles.frame, laptop && styles.frameLaptop]}>
+        <View style={styles.top}>
+          <View style={styles.brand}>
+            <Mark size={44} />
+            <Wordmark />
+          </View>
+          {!last ? (
+            <Pressable onPress={onComplete} accessibilityRole="button" accessibilityLabel="Skip" style={styles.skip}>
+              <Text style={[{ color: theme.primary, fontSize: 14 }, font(theme, 'semibold')]}>Skip</Text>
+            </Pressable>
+          ) : <View style={{ width: 44 }} />}
         </View>
-
-        <View style={styles.btnRow}>
-          <TouchableOpacity onPress={onComplete} style={styles.skipBtn}>
-            <Text style={styles.skipText}>Skip</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.nextBtn, { backgroundColor: slides[currentIndex].colors[0] }]} onPress={handleNext} activeOpacity={0.85}>
-            <Text style={[styles.nextText, currentIndex === slides.length - 1 && styles.nextTextDark]}>{currentIndex === slides.length - 1 ? 'Get Started' : 'Next'}</Text>
-            <Ionicons name={currentIndex === slides.length - 1 ? 'checkmark' : 'arrow-forward'} size={18} color={currentIndex === slides.length - 1 ? TEXT : WHITE} />
-          </TouchableOpacity>
-        </View>
+        {laptop ? (
+          <>
+            {copy}
+            {stage}
+          </>
+        ) : (
+          <>
+            {stage}
+            {copy}
+          </>
+        )}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: WHITE },
-  slideGradient: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  iconWrap: { width: 130, height: 130, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
-  slideTitle: { fontSize: 32, fontWeight: '900', color: WHITE, textAlign: 'center', marginBottom: 16 },
-  slideSubtitle: { fontSize: 17, color: 'rgba(255,255,255,0.9)', textAlign: 'center', lineHeight: 26 },
-  bottom: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: WHITE, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 28, paddingTop: 24, paddingBottom: 48 },
-  dotsRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 24, gap: 6 },
-  dot: { height: 8, borderRadius: 4 },
-  btnRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  skipBtn: { paddingVertical: 12, paddingHorizontal: 20 },
-  skipText: { color: MUTED, fontSize: 15, fontWeight: '600' },
-  nextBtn: { flex: 1, marginLeft: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 54, borderRadius: 14, gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
-  nextText: { fontSize: 16, fontWeight: '800', color: WHITE },
-  nextTextDark: { color: TEXT },
+  root: { flex: 1 },
+  frame: { flex: 1, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 32, zIndex: 1 },
+  frameLaptop: { flexDirection: 'row', flexWrap: 'wrap', maxWidth: 1360, width: '100%', alignSelf: 'center', paddingHorizontal: 56, paddingVertical: 40, columnGap: 80 },
+  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 44, width: '100%' },
+  brand: { flexDirection: 'row', alignItems: 'center', marginLeft: -8 },
+  skip: { minHeight: 44, minWidth: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
+  stage: { height: 380, marginTop: 16, marginBottom: 24, borderRadius: 28, overflow: 'hidden', borderWidth: 1, backgroundColor: '#E7F3F8' },
+  stageLaptop: { flex: 1, minWidth: 360, height: undefined, minHeight: 560, marginTop: 24, marginBottom: 0, borderRadius: 36 },
+  glow: { position: 'absolute', left: -40, bottom: -60, width: 260, height: 220, borderRadius: 140, backgroundColor: 'rgba(255,230,128,0.55)' },
+  chip: { position: 'absolute', left: 20, bottom: 20, right: 20, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 16 },
+  chipLaptop: { right: undefined, maxWidth: 360, left: 32, bottom: 32, paddingVertical: 16, paddingHorizontal: 20 },
+  copy: { flex: 1 },
+  copyLaptop: { width: 440, flex: undefined, alignSelf: 'center', paddingBottom: 48 },
+  title: { marginBottom: 12 },
+  dots: { flexDirection: 'row', gap: 8, marginVertical: 24 },
+  cta: { marginTop: 'auto', gap: 8 },
+  ctaLaptop: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 0, gap: 12 },
 });

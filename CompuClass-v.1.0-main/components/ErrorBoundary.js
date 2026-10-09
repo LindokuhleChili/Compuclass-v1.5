@@ -2,8 +2,8 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const BLUE = '#2563EB'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
-const TEXT = '#111827'; const MUTED = '#4B5563';
+const BLUE = '#0A66FF'; const WHITE = '#FFFFFF'; const BG = '#F7FBFD';
+const TEXT = '#0B1B3A'; const MUTED = '#44526F';
 
 // Catches render-time crashes anywhere below it. The full error and component
 // stack go to the console only; the user sees a generic message and a retry.

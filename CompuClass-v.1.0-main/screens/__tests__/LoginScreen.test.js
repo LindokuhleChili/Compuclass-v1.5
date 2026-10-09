@@ -20,7 +20,7 @@ describe('LoginScreen', () => {
   it('warns instead of calling signIn when email or password is missing', () => {
     const { getByText } = renderScreen(<LoginScreen onLogin={jest.fn()} onSignUp={jest.fn()} onForgotPassword={jest.fn()} />);
 
-    fireEvent.press(getByText('Sign In'));
+    fireEvent.press(getByText('Sign in'));
 
     expect(Alert.alert).toHaveBeenCalledWith('Error', 'Please enter email and password');
     expect(authService.signIn).not.toHaveBeenCalled();
@@ -35,7 +35,7 @@ describe('LoginScreen', () => {
 
     fireEvent.changeText(getByPlaceholderText('Email address'), 'student@compuclass.test');
     fireEvent.changeText(getByPlaceholderText('Password'), 'password123');
-    fireEvent.press(getByText('Sign In'));
+    fireEvent.press(getByText('Sign in'));
 
     await waitFor(() => expect(onLogin).toHaveBeenCalledTimes(1));
     expect(authService.signIn).toHaveBeenCalledWith('student@compuclass.test', 'password123');
@@ -50,7 +50,7 @@ describe('LoginScreen', () => {
 
     fireEvent.changeText(getByPlaceholderText('Email address'), 'student@compuclass.test');
     fireEvent.changeText(getByPlaceholderText('Password'), 'wrongpass');
-    fireEvent.press(getByText('Sign In'));
+    fireEvent.press(getByText('Sign in'));
 
     await waitFor(() =>
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Invalid login credentials')
@@ -63,7 +63,7 @@ describe('LoginScreen', () => {
       Alert.alert.mockClear();
       fireEvent.changeText(utils.getByPlaceholderText('Email address'), email);
       fireEvent.changeText(utils.getByPlaceholderText('Password'), password);
-      fireEvent.press(utils.getByText('Sign In'));
+      fireEvent.press(utils.getByText('Sign in'));
       await waitFor(() => expect(Alert.alert.mock.calls.length + utils.onLogin.mock.calls.length).toBeGreaterThan(0));
       return Alert.alert.mock.calls[0]?.[1];
     };

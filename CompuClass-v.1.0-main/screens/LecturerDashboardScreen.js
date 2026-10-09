@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, TextInput, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
 import ClassScopePicker from '../components/ClassScopePicker';
 
-const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const RED = '#EF4444';
-const GREEN = '#22C55E'; const PURPLE = '#8B5CF6'; const WHITE = '#FFFFFF';
-const BG = '#F3F4F6'; const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
+const BLUE = '#0A66FF'; const YELLOW = '#FFE680'; const RED = '#D92D4A';
+const GREEN = '#1F9D55'; const PURPLE = '#0A6F79'; const WHITE = '#FFFFFF';
+const BG = '#F7FBFD'; const TEXT = '#0B1B3A'; const MUTED = '#44526F'; const BORDER = '#DCE6EF';
 
 const quickActions = (navigation, lecturerService) => [
   { icon: 'people', label: 'Student Progress', color: BLUE, onPress: () => navigation.navigate('StudentProgress') },
@@ -100,16 +99,16 @@ export default function LecturerDashboardScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={[BLUE, '#1D4ED8']} style={[styles.header, { paddingTop: insets.top + 20 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <View style={styles.headerIconWrap}>
-          <Ionicons name="desktop" size={28} color={WHITE} />
+          <Ionicons name="desktop" size={28} color={BLUE} />
         </View>
-        <Text style={styles.headerTitle}>Lecturer Dashboard 👨‍🏫</Text>
+        <Text style={styles.headerTitle} accessibilityRole="header">Lecturer Dashboard</Text>
         <Text style={styles.headerSubtitle}>Manage your learning materials</Text>
-      </LinearGradient>
+      </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}>
-        <TouchableOpacity style={[styles.createFolderBtn, { backgroundColor: '#7C3AED', marginBottom: 10 }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setAnnouncementClassId(null); loadClasses(); setShowAnnouncement(true); }} activeOpacity={0.85}>
+        <TouchableOpacity style={[styles.createFolderBtn, { marginBottom: 10 }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setAnnouncementClassId(null); loadClasses(); setShowAnnouncement(true); }} activeOpacity={0.85}>
           <Ionicons name="megaphone" size={20} color={WHITE} />
           <Text style={styles.createFolderText}>Post Announcement</Text>
         </TouchableOpacity>
@@ -122,8 +121,8 @@ export default function LecturerDashboardScreen({ navigation }) {
         <View style={styles.actionsGrid}>
           {actions.map((action, i) => (
             <TouchableOpacity key={i} style={styles.actionCard} onPress={action.onPress} activeOpacity={0.75}>
-              <View style={[styles.actionIconWrap, { backgroundColor: action.color }]}>
-                <Ionicons name={action.icon} size={22} color={action.color === YELLOW ? TEXT : WHITE} />
+              <View style={[styles.actionIconWrap, { backgroundColor: '#EDF4FF' }]}>
+                <Ionicons name={action.icon} size={22} color={BLUE} />
               </View>
               <Text style={styles.actionLabel}>{action.label}</Text>
             </TouchableOpacity>
@@ -158,7 +157,7 @@ export default function LecturerDashboardScreen({ navigation }) {
       <Modal visible={showAnnouncement} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Post Announcement 📢</Text>
+            <Text style={styles.modalTitle}>Post Announcement </Text>
             <TextInput style={styles.input} placeholder="Title" placeholderTextColor={MUTED} value={announcementTitle} onChangeText={setAnnouncementTitle} />
             <TextInput style={[styles.input, styles.textArea]} placeholder="Message to students..." placeholderTextColor={MUTED} value={announcementBody} onChangeText={setAnnouncementBody} multiline />
             <ClassScopePicker classes={classes} value={announcementClassId} onChange={setAnnouncementClassId} />
@@ -177,7 +176,7 @@ export default function LecturerDashboardScreen({ navigation }) {
       <Modal visible={showCreateFolder} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Create New Folder 📁</Text>
+            <Text style={styles.modalTitle}>Create New Folder </Text>
             <TextInput style={styles.input} placeholder="Folder Name" placeholderTextColor={MUTED}
               value={folderName} onChangeText={setFolderName} />
             <TextInput style={[styles.input, styles.textArea]} placeholder="Description (optional)" placeholderTextColor={MUTED}
@@ -200,12 +199,12 @@ export default function LecturerDashboardScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
-  header: { alignItems: 'center', paddingBottom: 32, paddingHorizontal: 20 },
-  headerIconWrap: { width: 64, height: 64, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  headerTitle: { fontSize: 22, fontWeight: '900', color: WHITE, marginBottom: 4 },
-  headerSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.85)' },
+  header: { alignItems: 'center', paddingBottom: 24, paddingHorizontal: 20, backgroundColor: WHITE, borderBottomWidth: 1, borderBottomColor: '#DCE6EF' },
+  headerIconWrap: { width: 64, height: 64, borderRadius: 20, backgroundColor: '#EDF4FF', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  headerTitle: { fontSize: 22, fontWeight: '800', color: TEXT, marginBottom: 4 },
+  headerSubtitle: { fontSize: 13, color: MUTED },
   content: { flex: 1, padding: 16 },
-  createFolderBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: BLUE, borderRadius: 14, padding: 14, marginBottom: 20, gap: 8, shadowColor: BLUE, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  createFolderBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: BLUE, borderRadius: 14, minHeight: 48, paddingHorizontal: 16, marginBottom: 20, gap: 8, maxWidth: 400, alignSelf: 'center', width: '100%' },
   createFolderText: { color: WHITE, fontSize: 15, fontWeight: '800' },
   sectionLabel: { fontSize: 13, fontWeight: '800', color: MUTED, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
   actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },

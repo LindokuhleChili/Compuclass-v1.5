@@ -1,26 +1,51 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../config/supabase';
 import { authService } from '../services/authService';
-const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const RED = '#EF4444';
-const GREEN = '#22C55E'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
-const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
-const CARD = '#FFFFFF'; const PURPLE = '#8B5CF6'; const AMBER = '#CA8A04';
+import { useTheme } from '../context/ThemeContext';
+import { Icon } from '../components/ui/Icon';
+import { Heading, Body, Card, Badge, Button, IconTile, IconButton, Skeleton, Page, font } from '../components/ui/kit';
+const WHITE = '#FFFFFF';
 
 // Base XP mirrors the CASE in submit_quiz_attempt — keep the two in sync.
 const DIFFICULTY = {
-  easy:   { label: 'Easy',   color: GREEN, icon: 'leaf',    xp: 5  },
-  medium: { label: 'Medium', color: AMBER, icon: 'flame',   xp: 10 },
-  hard:   { label: 'Hard',   color: RED,   icon: 'barbell', xp: 15 },
+  easy:   { label: 'Easy',   color: '#1F9D55', icon: 'check',  xp: 5  },
+  medium: { label: 'Medium', color: '#8A5A00', icon: 'flame',  xp: 10 },
+  hard:   { label: 'Hard',   color: '#D92D4A', icon: 'target', xp: 15 },
 };
 
+function PressableQuiz({ theme, quiz, onPress }) {
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={`Start ${quiz.title}`} style={{ marginBottom: 12 }}>
+      <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, minHeight: 72 }}>
+        <IconTile name="quiz" tone="teal" />
+        <View style={{ flex: 1 }}>
+          <Text style={[{ color: theme.text }, font(theme, 'h3')]}>{quiz.title}</Text>
+          {quiz.description ? <Body variant="small">{quiz.description}</Body> : null}
+          <Body variant="caption">Pass mark {quiz.passing_score}%</Body>
+        </View>
+        <Badge label="To do" kind="yellow" />
+        <Button label="Start" fit onPress={onPress} style={{ height: 44, minHeight: 44 }} />
+      </Card>
+    </TouchableOpacity>
+  );
+}
+
 export default function QuizScreen({ route, navigation }) {
-  const insets = useSafeAreaInsets();
+  const { theme } = useTheme();
+  const BLUE = theme.primary;
+  const YELLOW = theme.yellow;
+  const RED = theme.error;
+  const GREEN = theme.success;
+  const BG = theme.background;
+  const TEXT = theme.text;
+  const MUTED = theme.textSecondary;
+  const BORDER = theme.border;
+  const CARD = theme.surface;
+  const PURPLE = theme.accentInk;
   const { quizId } = route?.params || {};
   const [loading, setLoading] = useState(true);
   const [availableQuizzes, setAvailableQuizzes] = useState([]);
@@ -171,7 +196,15 @@ export default function QuizScreen({ route, navigation }) {
     setQuizCompleted(false); setResult(null); setTimeLeft(null);
   };
 
-  if (loading) return <View style={[styles.centered, { backgroundColor: BG }]}><ActivityIndicator size="large" color={BLUE} /><Text style={[styles.loadingText, { color: MUTED }]}>Loading...</Text></View>;
+  if (loading) return (
+    <View style={[styles.centered, { backgroundColor: BG, padding: 24 }]} accessibilityRole="progressbar">
+      <Skeleton width={72} height={72} radius={16} />
+      <Skeleton width={180} height={18} style={{ marginTop: 16 }} />
+      <Skeleton width={240} height={14} style={{ marginTop: 8 }} />
+      <Heading level={2} style={{ marginTop: 20 }}>Loading quizzes</Heading>
+      <Body variant="small" style={{ marginTop: 4 }}>Fetching what your class has assigned.</Body>
+    </View>
+  );
 
   if (submitting) return (
     <View style={[styles.centered, { backgroundColor: BG }]}>
@@ -181,14 +214,12 @@ export default function QuizScreen({ route, navigation }) {
   );
 
   if (!quizId) return (
-    <View style={[styles.container, { backgroundColor: BG }]}>
-      <LinearGradient colors={[YELLOW, '#EAB308']} style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={20} color={TEXT} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: TEXT }]}>Available Quizzes</Text>
-      </LinearGradient>
-      <ScrollView style={[styles.listScroll, { backgroundColor: BG }]} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
+    <Page>
+      <View style={{ marginTop: 8, marginBottom: 8 }}>
+        <Heading level={1}>Quizzes</Heading>
+        <Body style={{ marginTop: 4 }}>{listError ? 'Could not refresh the list' : `${availableQuizzes.length} assigned`}</Body>
+      </View>
+      <View style={{ paddingBottom: 8 }}>
         {listError ? (
           <View style={styles.emptyState} accessibilityRole="alert">
             <Ionicons name="cloud-offline-outline" size={64} color={BORDER} />
@@ -208,18 +239,10 @@ export default function QuizScreen({ route, navigation }) {
             </TouchableOpacity>
           </View>
         ) : availableQuizzes.map((q) => (
-          <TouchableOpacity key={q.id} style={[styles.quizCard, { backgroundColor: CARD }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('Quiz', { quizId: q.id }); }} activeOpacity={0.75}>
-            <View style={styles.quizIconWrap}><Ionicons name="document-text" size={26} color={WHITE} /></View>
-            <View style={styles.quizInfo}>
-              <Text style={[styles.quizTitle, { color: TEXT }]}>{q.title}</Text>
-              {q.description && <Text style={[styles.quizDesc, { color: MUTED }]}>{q.description}</Text>}
-              <Text style={[styles.passingScore, { color: MUTED }]}>Passing: {q.passing_score}%</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={MUTED} />
-          </TouchableOpacity>
+          <PressableQuiz key={q.id} theme={theme} quiz={q} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('Quiz', { quizId: q.id }); }} />
         ))}
-      </ScrollView>
-    </View>
+      </View>
+    </Page>
   );
 
   if (quizCompleted && result) {
@@ -239,33 +262,33 @@ export default function QuizScreen({ route, navigation }) {
 
     return (
       <ScrollView style={[styles.container, { backgroundColor: BG }]}>
-        <LinearGradient colors={[scoreColor, scoreColor + 'CC']} style={styles.resultBanner}>
-          <Ionicons name={result.passed ? 'trophy' : 'ribbon'} size={60} color={WHITE} />
-          <Text style={styles.resultTitle}>Quiz Completed! 🎉</Text>
-          <Text style={styles.resultQuizTitle}>{quiz.title}</Text>
-          <Text style={styles.resultScore}>{result.score}%</Text>
-          <Text style={styles.resultFraction}>{result.correct_count} / {result.total_questions} correct</Text>
+        <View style={[styles.resultBanner, { backgroundColor: theme.surface, borderBottomWidth: 1, borderBottomColor: theme.border }]}>
+          <IconTile name={result.passed ? 'trophy' : 'refresh'} tone={result.passed ? 'yellow' : 'blue'} size={56} />
+          <Text style={[styles.resultTitle, { color: theme.text }]} accessibilityRole="header">Quiz completed</Text>
+          <Text style={[styles.resultQuizTitle, { color: theme.textSecondary }]}>{quiz.title}</Text>
+          <Text style={[styles.resultScore, { color: scoreColor }]}>{result.score}%</Text>
+          <Text style={[styles.resultFraction, { color: theme.textSecondary }]}>{result.correct_count} / {result.total_questions} correct</Text>
 
           <View style={styles.statsRow}>
-            <View style={styles.statPill}><Ionicons name="flash" size={14} color={WHITE} /><Text style={styles.statPillText}>+{result.xp_earned} XP</Text></View>
-            <View style={styles.statPill}><Ionicons name="trending-up" size={14} color={WHITE} /><Text style={styles.statPillText}>Best combo x{result.max_combo}</Text></View>
-            <View style={styles.statPill}><Ionicons name="flame" size={14} color={WHITE} /><Text style={styles.statPillText}>{result.current_streak} day streak</Text></View>
+            <View style={[styles.statPill, { backgroundColor: theme.tint }]}><Text style={[styles.statPillText, { color: theme.primaryInk }]}>+{result.xp_earned} XP</Text></View>
+            <View style={[styles.statPill, { backgroundColor: theme.secondary }]}><Text style={[styles.statPillText, { color: theme.accentInk }]}>Best combo x{result.max_combo}</Text></View>
+            <View style={[styles.statPill, { backgroundColor: theme.yellowTint }]}><Text style={[styles.statPillText, { color: theme.yellowInk }]}>{result.current_streak} day streak</Text></View>
           </View>
 
           {/* A quiz is worth its best attempt, once — explain a retake that
               earned nothing, and celebrate one that beat the old best. */}
-          {retryNote && <Text style={styles.retryNote}>{retryNote}</Text>}
+          {retryNote && <Text style={[styles.retryNote, { color: theme.textSecondary }]}>{retryNote}</Text>}
 
           <View style={styles.resultBtns}>
-            <TouchableOpacity style={styles.resultBtn} onPress={resetQuiz} activeOpacity={0.85}><Ionicons name="refresh" size={16} color={scoreColor} /><Text style={[styles.resultBtnText, { color: scoreColor }]}>Try Again</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.resultBtn, { backgroundColor: 'rgba(255,255,255,0.2)', borderWidth: 0 }]} onPress={() => navigation.goBack()} activeOpacity={0.85}><Ionicons name="home" size={16} color={WHITE} /><Text style={[styles.resultBtnText, { color: WHITE }]}>Home</Text></TouchableOpacity>
+            <Button label="Try again" variant="secondary" fit onPress={resetQuiz} />
+            <Button label="Back to quizzes" fit onPress={() => navigation.goBack()} />
           </View>
-        </LinearGradient>
+        </View>
 
         {result.leveled_up && (
           <View style={styles.levelUpBanner}>
             <Ionicons name="rocket" size={26} color={PURPLE} />
-            <Text style={styles.levelUpText}>Level Up! You&apos;re now Level {result.new_level} 🎊</Text>
+            <Text style={styles.levelUpText}>Level up. You are now level {result.new_level}.</Text>
           </View>
         )}
 
@@ -290,9 +313,9 @@ export default function QuizScreen({ route, navigation }) {
               <View key={r.question_id} style={[styles.reviewCard, { backgroundColor: CARD }]}>
                 <Text style={[styles.reviewQ, { color: TEXT }]}>{index + 1}. {r.question}</Text>
                 <Text style={[styles.reviewA, { color: r.is_correct ? GREEN : RED }]}>
-                  Your answer: {r.selected_answer ?? '(no answer)'} {r.is_correct ? '✓' : '✗'}
+                  Your answer: {r.selected_answer ?? '(no answer)'} {r.is_correct ? 'Correct' : 'Incorrect'}
                 </Text>
-                {!r.is_correct && <Text style={styles.correctA}>✓ Correct: {r.correct_answer}</Text>}
+                {!r.is_correct && <Text style={styles.correctA}>Correct answer: {r.correct_answer}</Text>}
               </View>
             ))}
           </View>
@@ -309,20 +332,20 @@ export default function QuizScreen({ route, navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: BG }]}>
-      <LinearGradient colors={[BLUE, '#1D4ED8']} style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}><Ionicons name="arrow-back" size={20} color={WHITE} /></TouchableOpacity>
-        <Text style={styles.headerTitle}>Question {currentQuestion + 1} of {questions.length}</Text>
+      <View style={[styles.header, { paddingTop: 12, backgroundColor: 'transparent' }]}>
+        <IconButton name="chevLeft" label="Back" onPress={() => navigation.goBack()} />
+        <Text style={[styles.headerTitle, { color: TEXT }]} accessibilityRole="header">Question {currentQuestion + 1} of {questions.length}</Text>
         {timeLeft !== null && (
-          <View style={[styles.timerPill, { backgroundColor: timerColor }]}>
-            <Ionicons name="time" size={14} color={WHITE} />
-            <Text style={styles.timerPillText}>{timeLeft}s</Text>
+          <View style={[styles.timerPill, { backgroundColor: theme.tint }]}>
+            <Icon name="clock" size={16} color={timerColor} />
+            <Text style={[styles.timerPillText, { color: timerColor }]}>{timeLeft}s</Text>
           </View>
         )}
-      </LinearGradient>
+      </View>
       <View style={styles.progressBar}><View style={[styles.progressFill, { width: `${((currentQuestion + 1) / questions.length) * 100}%` }]} /></View>
       <ScrollView style={styles.questionScroll}>
         <View style={[styles.difficultyPill, { backgroundColor: difficultyMeta.color + '1A', borderColor: difficultyMeta.color }]}>
-          <Ionicons name={difficultyMeta.icon} size={12} color={difficultyMeta.color} />
+          <Icon name={difficultyMeta.icon} size={14} color={difficultyMeta.color} />
           <Text style={[styles.difficultyText, { color: difficultyMeta.color }]}>
             {difficultyMeta.label} · {difficultyMeta.xp} XP
           </Text>
@@ -340,7 +363,7 @@ export default function QuizScreen({ route, navigation }) {
         </View>
       </ScrollView>
       <TouchableOpacity style={[styles.nextBtn, selectedAnswer === null && styles.nextBtnDisabled]} onPress={handleNextPress} disabled={selectedAnswer === null} activeOpacity={0.85}>
-        <Text style={styles.nextBtnText}>{currentQuestion + 1 === questions.length ? 'Finish Quiz 🎉' : 'Next Question'}</Text>
+        <Text style={styles.nextBtnText}>{currentQuestion + 1 === questions.length ? 'Finish quiz' : 'Next question'}</Text>
         <Ionicons name="arrow-forward" size={18} color={WHITE} />
       </TouchableOpacity>
       <TouchableOpacity style={styles.chatbotBtn} onPress={() => navigation.navigate('Chatbot', { context: `Help me with this quiz question: ${currentQ?.question}` })} activeOpacity={0.85}>
@@ -356,61 +379,61 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { marginTop: 12, fontSize: 14 },
   header: { flexDirection: 'row', alignItems: 'center', paddingBottom: 16, paddingHorizontal: 16, gap: 12 },
-  backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, fontSize: 16, fontWeight: '800', color: WHITE },
+  backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { flex: 1, fontSize: 16, fontWeight: '800', color: '#FFFFFF' },
   timerPill: { flexDirection: 'row', alignItems: 'center', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4, gap: 4 },
-  timerPillText: { fontSize: 13, fontWeight: '800', color: WHITE },
-  progressBar: { height: 6, backgroundColor: BORDER },
-  progressFill: { height: '100%', backgroundColor: BLUE },
+  timerPillText: { fontSize: 13, fontWeight: '800', color: '#FFFFFF' },
+  progressBar: { height: 6, backgroundColor: '#DCE6EF' },
+  progressFill: { height: '100%', backgroundColor: '#0A66FF' },
   listScroll: { flex: 1, padding: 16 },
   emptyState: { alignItems: 'center', paddingVertical: 60 },
-  emptyText: { fontSize: 18, fontWeight: '700', color: TEXT, marginTop: 16 },
-  emptySubtext: { fontSize: 13, color: MUTED, marginTop: 6, textAlign: 'center' },
-  retryBtn: { marginTop: 16, backgroundColor: BLUE, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 22 },
-  retryText: { color: WHITE, fontSize: 14, fontWeight: '800' },
-  quizCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 16, padding: 16, marginBottom: 12, gap: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  quizIconWrap: { width: 52, height: 52, borderRadius: 14, backgroundColor: YELLOW, alignItems: 'center', justifyContent: 'center' },
+  emptyText: { fontSize: 18, fontWeight: '700', color: '#0B1B3A', marginTop: 16 },
+  emptySubtext: { fontSize: 13, color: '#44526F', marginTop: 6, textAlign: 'center' },
+  retryBtn: { marginTop: 16, backgroundColor: '#0A66FF', borderRadius: 14, minHeight: 48, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
+  retryText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  quizCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 12, gap: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  quizIconWrap: { width: 52, height: 52, borderRadius: 14, backgroundColor: '#FFE680', alignItems: 'center', justifyContent: 'center' },
   quizInfo: { flex: 1 },
-  quizTitle: { fontSize: 15, fontWeight: '700', color: TEXT, marginBottom: 3 },
-  quizDesc: { fontSize: 13, color: MUTED, marginBottom: 3 },
-  passingScore: { fontSize: 11, color: MUTED },
+  quizTitle: { fontSize: 15, fontWeight: '700', color: '#0B1B3A', marginBottom: 3 },
+  quizDesc: { fontSize: 13, color: '#44526F', marginBottom: 3 },
+  passingScore: { fontSize: 11, color: '#44526F' },
   questionScroll: { flex: 1, padding: 20 },
-  questionText: { fontSize: 20, fontWeight: '800', color: TEXT, marginBottom: 24, lineHeight: 28 },
+  questionText: { fontSize: 20, fontWeight: '800', color: '#0B1B3A', marginBottom: 24, lineHeight: 28 },
   optionsWrap: { gap: 12 },
-  optionBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 14, padding: 14, gap: 14, borderWidth: 2, borderColor: BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
-  optionBtnSelected: { borderColor: BLUE, backgroundColor: BLUE + '10' },
-  optionLetter: { width: 34, height: 34, borderRadius: 10, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
-  optionLetterText: { fontSize: 14, fontWeight: '800', color: TEXT },
-  optionText: { fontSize: 15, color: TEXT, flex: 1 },
-  nextBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: BLUE, margin: 16, height: 54, borderRadius: 14, gap: 8, shadowColor: BLUE, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  optionBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, gap: 14, borderWidth: 2, borderColor: '#DCE6EF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+  optionBtnSelected: { borderColor: '#0A66FF', backgroundColor: '#0A66FF' + '10' },
+  optionLetter: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#F7FBFD', alignItems: 'center', justifyContent: 'center' },
+  optionLetterText: { fontSize: 14, fontWeight: '800', color: '#0B1B3A' },
+  optionText: { fontSize: 15, color: '#0B1B3A', flex: 1 },
+  nextBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0A66FF', marginHorizontal: 16, marginTop: 16, height: 48, borderRadius: 14, gap: 8, alignSelf: 'center', width: '100%', maxWidth: 400 },
   nextBtnDisabled: { backgroundColor: '#D1D5DB', shadowOpacity: 0 },
-  nextBtnText: { color: WHITE, fontSize: 16, fontWeight: '800' },
+  nextBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
   resultBanner: { alignItems: 'center', padding: 40 },
-  resultTitle: { fontSize: 26, fontWeight: '900', color: WHITE, marginTop: 16 },
+  resultTitle: { fontSize: 26, fontWeight: '900', color: '#FFFFFF', marginTop: 16 },
   resultQuizTitle: { fontSize: 14, color: 'rgba(255,255,255,0.85)', marginBottom: 12 },
-  resultScore: { fontSize: 56, fontWeight: '900', color: WHITE, marginBottom: 4 },
+  resultScore: { fontSize: 56, fontWeight: '900', color: '#FFFFFF', marginBottom: 4 },
   resultFraction: { fontSize: 16, color: 'rgba(255,255,255,0.85)', marginBottom: 20 },
   statsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 24 },
   statPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, gap: 6 },
-  statPillText: { color: WHITE, fontSize: 12, fontWeight: '800' },
+  statPillText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
   retryNote: { color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: '600', textAlign: 'center', marginBottom: 20, paddingHorizontal: 24 },
   difficultyPill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 5, borderRadius: 20, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10 },
   difficultyText: { fontSize: 11, fontWeight: '800' },
   resultBtns: { flexDirection: 'row', gap: 12 },
-  resultBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, gap: 6 },
+  resultBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, gap: 6 },
   resultBtnText: { fontWeight: '700', fontSize: 14 },
-  levelUpBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: WHITE, marginHorizontal: 20, marginTop: 16, padding: 16, borderRadius: 14, borderWidth: 2, borderColor: PURPLE + '40' },
-  levelUpText: { fontSize: 14, fontWeight: '800', color: PURPLE, flex: 1 },
+  levelUpBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', marginHorizontal: 20, marginTop: 16, padding: 16, borderRadius: 14, borderWidth: 2, borderColor: '#0A6F79' + '40' },
+  levelUpText: { fontSize: 14, fontWeight: '800', color: '#0A6F79', flex: 1 },
   badgesSection: { padding: 20, paddingBottom: 0 },
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  badgeChip: { alignItems: 'center', backgroundColor: WHITE, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14, gap: 6, width: 96, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  badgeChipText: { fontSize: 11, fontWeight: '700', color: TEXT, textAlign: 'center' },
+  badgeChip: { alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14, gap: 6, width: 96, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  badgeChipText: { fontSize: 11, fontWeight: '700', color: '#0B1B3A', textAlign: 'center' },
   reviewSection: { padding: 20, paddingBottom: 40 },
-  reviewTitle: { fontSize: 18, fontWeight: '800', color: TEXT, marginBottom: 16 },
-  reviewCard: { backgroundColor: WHITE, borderRadius: 16, padding: 16, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
-  reviewQ: { fontSize: 14, fontWeight: '700', color: TEXT, marginBottom: 8 },
+  reviewTitle: { fontSize: 18, fontWeight: '800', color: '#0B1B3A', marginBottom: 16 },
+  reviewCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+  reviewQ: { fontSize: 14, fontWeight: '700', color: '#0B1B3A', marginBottom: 8 },
   reviewA: { fontSize: 13, fontWeight: '700', marginBottom: 4 },
-  correctA: { fontSize: 13, color: GREEN, fontWeight: '600' },
-  chatbotBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginHorizontal: 16, marginBottom: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: BLUE + '12', borderWidth: 1.5, borderColor: BLUE + '30' },
-  chatbotBtnText: { fontSize: 13, fontWeight: '700', color: BLUE },
+  correctA: { fontSize: 13, color: '#1F9D55', fontWeight: '600' },
+  chatbotBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginHorizontal: 16, marginBottom: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: '#0A66FF' + '12', borderWidth: 1.5, borderColor: '#0A66FF' + '30' },
+  chatbotBtnText: { fontSize: 13, fontWeight: '700', color: '#0A66FF' },
 });

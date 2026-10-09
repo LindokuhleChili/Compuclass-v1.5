@@ -3,13 +3,21 @@ import React, { useState, useEffect, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, TouchableOpacity, Animated, StyleSheet, Platform, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, useWindowDimensions, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
+import {
+  useFonts,
+  PlusJakartaSans_700Bold,
+  PlusJakartaSans_800ExtraBold,
+} from '@expo-google-fonts/plus-jakarta-sans';
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
 
 import DashboardScreen from './screens/DashboardScreen';
 import PCLabScreen from './screens/PCLabScreen';
@@ -42,8 +50,12 @@ import GameScreen from './screens/GameScreen';
 import GameRunnerLobbyScreen from './screens/GameRunnerLobbyScreen';
 import JoinClassScreen from './screens/JoinClassScreen';
 import NotFoundScreen from './screens/NotFoundScreen';
-import Sidebar, { getSidebarHiddenX } from './components/Sidebar';
+import Sidebar from './components/Sidebar';
 import ErrorBoundary from './components/ErrorBoundary';
+import { Icon } from './components/ui/Icon';
+import {
+  installWebStyles, ColourField, Glass, IconButton, Mark, Avatar, initials, Sheet, Body, Heading, font, LAPTOP,
+} from './components/ui/kit';
 import { installWebAlert } from './utils/webAlert';
 import { setPageMeta } from './utils/pageMeta';
 
@@ -51,20 +63,35 @@ import { authService } from './services/authService';
 import { supabase } from './config/supabase';
 import { sessionCheckDecision } from './utils/sessionCheck';
 import { isUnknownWebPath as pathIsUnknown, linkingConfig } from './utils/webRoutes';
-import { ThemeProvider } from './context/ThemeContext';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { classService } from './services/classService';
+import { filterByClassScope } from './utils/classScope';
 
 installWebAlert();
+installWebStyles();
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-// Web only: known screen paths open after login. Any other path is a 404.
 const ONBOARDING_KEY = 'onboardingComplete';
 const isUnknownWebPath = () =>
   Platform.OS === 'web' && typeof window !== 'undefined' && pathIsUnknown(window.location.pathname);
 
-const BLUE = '#2563EB'; const WHITE = '#FFFFFF';
-const TEXT = '#111827'; const MUTED = '#4B5563';
+const FULLSCREEN_ROUTES = ['CircuitMaze', 'CircuitMazeLobby', 'CircuitMazeTopic', 'Chatbot', 'Game', 'GameRunnerLobby', 'Windows 11', 'PC Lab', 'PC Assembly'];
+const TAB_ORDER = ['Dashboard', 'Lecturer', 'Materials', 'Quiz', 'Leaderboard', 'Profile'];
+const TAB_META = {
+  Dashboard: { icon: 'home', label: 'Home' },
+  Lecturer: { icon: 'home', label: 'Home' },
+  Materials: { icon: 'book', label: 'Learn' },
+  Quiz: { icon: 'quiz', label: 'Quizzes' },
+  Leaderboard: { icon: 'trophy', label: 'Ranks' },
+  Profile: { icon: 'user', label: 'Profile' },
+};
+
+function highlightFor(routeName) {
+  if (routeName === 'Settings') return 'Profile';
+  return routeName;
+}
 
 function LecturerStack() {
   return (
@@ -81,117 +108,116 @@ function LecturerStack() {
   );
 }
 
-const MAZE_ROUTES = ['CircuitMaze', 'CircuitMazeLobby', 'CircuitMazeTopic'];
-// Routes that take over the whole screen, so the floating tab bar is hidden.
-const FULLSCREEN_ROUTES = [...MAZE_ROUTES, 'Chatbot', 'Game', 'GameRunnerLobby', 'Windows 11', 'PC Lab', 'PC Assembly'];
-
-// Floating pill tab bar
-function CustomTabBar({ state, descriptors, navigation }) {
+function PhoneTabBar({ state, navigation }) {
+  const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const visibleTabs = ['Dashboard', 'Lecturer', 'Search', 'Profile'];
-  // Hooks must run before the early return below; previously useRef came after
-  // it, so entering a Circuit Maze screen changed the hook order and crashed.
-  const scaleAnims = useRef(visibleTabs.map(() => new Animated.Value(1))).current;
-  const currentRouteName = state.routes[state.index]?.name || '';
-  if (FULLSCREEN_ROUTES.includes(currentRouteName)) return null;
-
-  const tabConfig = {
-    Dashboard: { icon: 'home',           iconOff: 'home-outline',          label: 'Home'    },
-    Lecturer:  { icon: 'home',           iconOff: 'home-outline',          label: 'Lecturer'},
-    Search:    { icon: 'search',         iconOff: 'search-outline',        label: 'Search'  },
-    Profile:   { icon: 'person',         iconOff: 'person-outline',        label: 'Profile' },
-  };
-
-  const visibleRoutes = state.routes.filter(r => visibleTabs.includes(r.name));
+  const current = state.routes[state.index]?.name || '';
+  if (FULLSCREEN_ROUTES.includes(current)) return null;
+  const highlighted = highlightFor(current);
+  const visible = TAB_ORDER.map((name) => state.routes.find((r) => r.name === name)).filter(Boolean);
 
   return (
-    <View style={[styles.tabBarWrapper, { paddingBottom: insets.bottom + 8 }]}>
-      <View style={[styles.tabBarPill, { backgroundColor: WHITE }]}>
-        {visibleRoutes.map((route, index) => {
-          const isFocused = state.index === state.routes.indexOf(route);
-          const cfg = tabConfig[route.name] || { icon: 'ellipse', iconOff: 'ellipse-outline', label: route.name };
-
-          const onPress = () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            Animated.sequence([
-              Animated.timing(scaleAnims[index], { toValue: 0.85, duration: 80, useNativeDriver: true }),
-              Animated.spring(scaleAnims[index], { toValue: 1, useNativeDriver: true }),
-            ]).start();
-            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-            if (!isFocused && !event.defaultPrevented) navigation.navigate(route.name);
-          };
-
+    <View pointerEvents="box-none" style={[styles.tabWrap, { paddingBottom: 25 + insets.bottom }]}>
+      <Glass radius={999} style={styles.tabPill}>
+        {visible.map((route) => {
+          const on = highlighted === route.name || (route.name === 'Lecturer' && highlighted === 'Lecturer');
+          const meta = TAB_META[route.name];
           return (
-            <Animated.View key={route.key} style={[styles.tabItem, { transform: [{ scale: scaleAnims[index] }] }]}>
-              <TouchableOpacity onPress={onPress} style={styles.tabTouchable} activeOpacity={1}>
-                {isFocused && <View style={styles.tabActivePill} />}
-                <Ionicons
-                  name={isFocused ? cfg.icon : cfg.iconOff}
-                  size={22}
-                  color={isFocused ? BLUE : MUTED}
-                />
-                <Text style={[styles.tabLabel, { color: isFocused ? BLUE : MUTED, fontWeight: isFocused ? '800' : '500' }]}>
-                  {cfg.label}
-                </Text>
-              </TouchableOpacity>
-            </Animated.View>
+            <Pressable
+              key={route.key}
+              accessibilityRole="button"
+              accessibilityLabel={meta.label}
+              accessibilityState={{ selected: on }}
+              onPress={() => {
+                const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+                if (!on && !event.defaultPrevented) navigation.navigate(route.name);
+              }}
+              style={[styles.tab, on && { backgroundColor: theme.tabPill }]}
+            >
+              <Icon name={meta.icon} size={18} color={on ? theme.tabSelected : theme.tabUnselected} tone={on ? 'rgba(10,102,255,0.18)' : 'rgba(26,26,26,0.12)'} />
+              <Text style={[{ fontSize: 10, lineHeight: 12, letterSpacing: -0.1, color: on ? theme.tabSelected : theme.tabUnselected }, font(theme, 'semibold')]}>{meta.label}</Text>
+            </Pressable>
           );
         })}
-      </View>
+      </Glass>
     </View>
   );
 }
 
-function CustomHeader({ onMenuPress, onLogoPress }) {
+function TopBar({ laptop, hidden, user, onSearch, onBell, onAvatar, dot }) {
+  const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  if (hidden) return null;
+  const name = user?.user_metadata?.full_name || user?.profile?.full_name || '';
   return (
-    <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-      <TouchableOpacity
-        style={styles.headerLeft}
-        onPress={onLogoPress}
-        activeOpacity={0.75}
-        accessibilityRole="link"
-        accessibilityLabel="CompuClass home"
-      >
-        <LinearGradient colors={[BLUE, '#1D4ED8']} style={styles.headerLogoWrap}>
-          <Ionicons name="desktop" size={18} color={WHITE} />
-        </LinearGradient>
-        <View>
-          <Text style={[styles.headerAppName, { color: TEXT }]}>CompuClass</Text>
-          <Text style={[styles.headerTagline, { color: MUTED }]}>Computer Learning Platform</Text>
-        </View>
-      </TouchableOpacity>
-      <TouchableOpacity
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onMenuPress(); }}
-        style={styles.menuBtn}
-        activeOpacity={0.75}
-        accessibilityRole="button"
-        accessibilityLabel="Open menu"
-      >
-        <Ionicons name="menu" size={22} color={BLUE} />
-      </TouchableOpacity>
+    <View style={[styles.topBar, { height: laptop ? 80 : undefined, paddingTop: laptop ? 0 : Math.max(insets.top, 12), paddingHorizontal: laptop ? 40 : 20 }]}>
+      {!laptop && (
+        <>
+          <Mark size={44} />
+          <Text style={[{ flex: 1, fontSize: 14, lineHeight: 20, color: theme.textSecondary }, font(theme, 'h2')]} numberOfLines={1}>Computer Learning Platform</Text>
+          <IconButton name="search" label="Search" onPress={onSearch} />
+        </>
+      )}
+      {laptop && (
+        <Pressable onPress={onSearch} accessibilityRole="button" accessibilityLabel="Search lessons, quizzes, games" style={[styles.searchPill, { borderColor: theme.border, backgroundColor: 'rgba(255,255,255,0.8)' }]}>
+          <Icon name="search" size={18} color={theme.textTertiary} />
+          <Text style={[{ fontSize: 14, color: theme.textTertiary }, font(theme, 'body')]}>Search lessons, quizzes, games</Text>
+        </Pressable>
+      )}
+      <IconButton name="bell" label="Announcements" onPress={onBell} dot={dot} />
+      {laptop && (
+        <Pressable onPress={onAvatar} accessibilityRole="button" accessibilityLabel="Profile" style={styles.me}>
+          <Avatar label={initials(name)} image={user?.user_metadata?.avatar_url} size={40} />
+        </Pressable>
+      )}
     </View>
+  );
+}
+
+function AnnouncementSheet({ visible, onClose, items }) {
+  const { theme } = useTheme();
+  return (
+    <Sheet visible={visible} onClose={onClose} title="Announcements">
+      {items.length === 0 ? <Body>Nothing new right now.</Body> : (
+        <ScrollView style={{ maxHeight: 360 }}>
+          {items.map((a) => (
+            <View key={a.id} style={{ paddingVertical: 12, borderTopWidth: 1, borderTopColor: theme.borderLight }}>
+              <Heading level={3}>{a.title}</Heading>
+              {a.body ? <Body variant="small" style={{ marginTop: 4 }}>{a.body}</Body> : null}
+            </View>
+          ))}
+        </ScrollView>
+      )}
+    </Sheet>
   );
 }
 
 function AppContent() {
+  const { theme } = useTheme();
+  const [fontsLoaded, fontError] = useFonts({
+    PlusJakartaSans_700Bold,
+    PlusJakartaSans_800ExtraBold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
   const [isFirstLaunch, setIsFirstLaunch] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [loading, setLoading] = useState(true);
   const [offlineStartup, setOfflineStartup] = useState(false);
-  const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
+  const [account, setAccount] = useState(null);
+  const [announcements, setAnnouncements] = useState([]);
+  const [showAnnouncements, setShowAnnouncements] = useState(false);
   const [notFound] = useState(isUnknownWebPath);
   const navigationRef = useRef(null);
-  const { width: windowWidth } = useWindowDimensions();
-  const sidebarHiddenX = useRef(getSidebarHiddenX(windowWidth));
-  sidebarHiddenX.current = getSidebarHiddenX(windowWidth);
-  const sidebarTranslateX = useRef(new Animated.Value(sidebarHiddenX.current)).current;
-  // Read through a ref: the pan responder is created once, so reading state
-  // directly would always see the initial empty route.
+  const { width } = useWindowDimensions();
+  const laptop = width >= LAPTOP;
   const currentRouteRef = useRef('');
+  const [routeName, setRouteName] = useState('');
 
   useEffect(() => { checkUser(); }, []);
 
@@ -206,6 +232,7 @@ function AppContent() {
   const syncRoute = () => {
     const name = navigationRef.current?.getCurrentRoute()?.name || '';
     currentRouteRef.current = name;
+    setRouteName(name);
     if (name) setPageMeta(name);
   };
 
@@ -213,7 +240,12 @@ function AppContent() {
     try {
       if (userRole === 'lecturer') navigationRef.current?.navigate('Lecturer', { screen: 'LecturerDashboard' });
       else navigationRef.current?.navigate('Dashboard');
-    } catch {}
+    } catch { /* navigator not ready */ }
+  };
+
+  const rememberUser = (user) => {
+    setAccount(user || null);
+    setUserRole(user?.profile?.role || 'student');
   };
 
   const checkUser = async () => {
@@ -225,7 +257,7 @@ function AppContent() {
       if (session) {
         const user = await authService.getCurrentUser();
         if (user) {
-          setUserRole(user.profile?.role || 'student');
+          rememberUser(user);
           setIsLoggedIn(true);
           setIsFirstLaunch(false);
           setOfflineStartup(false);
@@ -244,7 +276,7 @@ function AppContent() {
         setOfflineStartup(true);
         const cached = await authService.getOfflineUser();
         if (cached) {
-          setUserRole(cached.profile?.role || 'student');
+          rememberUser(cached);
           setIsLoggedIn(true);
           setIsFirstLaunch(false);
         }
@@ -254,26 +286,40 @@ function AppContent() {
     }
   };
 
-  const finishOnboarding = async () => {
-    try { await AsyncStorage.setItem(ONBOARDING_KEY, '1'); } catch {}
+  useEffect(() => {
+    if (!isLoggedIn) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase.from('announcements').select('*').order('created_at', { ascending: false }).limit(6);
+        const scope = await classService.classScopeForCurrentUser();
+        if (!cancelled) setAnnouncements(filterByClassScope(data || [], scope));
+      } catch { if (!cancelled) setAnnouncements([]); }
+    })();
+    return () => { cancelled = true; };
+  }, [isLoggedIn]);
+
+  const finishOnboarding = async (destination) => {
+    try { await AsyncStorage.setItem(ONBOARDING_KEY, '1'); } catch { /* still leave onboarding */ }
+    if (destination === 'signup') setShowSignUp(true);
     setIsFirstLaunch(false);
   };
 
   const handleLogin = async () => {
     try {
       const user = await authService.getCurrentUser();
-      setUserRole(user?.profile?.role || 'student');
+      rememberUser(user);
       setIsLoggedIn(true);
-    } catch {}
+    } catch { /* session check will retry on next launch */ }
   };
 
   const handleSignUpSuccess = async () => {
     try {
       const user = await authService.getCurrentUser();
-      setUserRole(user?.profile?.role || 'student');
+      rememberUser(user);
       setShowSignUp(false);
       setIsLoggedIn(true);
-    } catch {}
+    } catch { /* email confirmation may still be pending */ }
   };
 
   const handleLogout = async () => {
@@ -281,32 +327,40 @@ function AppContent() {
       await authService.signOut();
       setIsLoggedIn(false);
       setUserRole(null);
-    } catch {}
+      setAccount(null);
+    } catch { /* keep the current session if sign-out fails */ }
   };
 
   const handleNavigate = (screen) => {
-    try { navigationRef.current?.navigate(screen); } catch {}
+    try { navigationRef.current?.navigate(screen); } catch { /* navigator not ready */ }
   };
+
+  if ((!fontsLoaded && !fontError) || loading) {
+    return (
+      <View style={[styles.boot, { backgroundColor: theme.background }]}>
+        <StatusBar style="dark" />
+        <Mark size={72} />
+      </View>
+    );
+  }
 
   if (notFound) return <NotFoundScreen onGoHome={() => window.location.replace('/')} />;
 
-  if (loading) return null;
-
   if (offlineStartup && !isLoggedIn) return (
-    <View style={styles.offlineGate}>
+    <View style={[styles.offlineGate, { backgroundColor: theme.background }]}>
       <StatusBar style="dark" />
-      <Text style={styles.offlineTitle}>{"You're offline"}</Text>
-      <Text style={styles.offlineText}>{"We couldn't check your session. Connect and try again. You have not been signed out."}</Text>
-      <TouchableOpacity style={styles.offlineBtn} onPress={() => { setLoading(true); checkUser(); }} accessibilityRole="button">
-        <Text style={styles.offlineBtnText}>Try again</Text>
-      </TouchableOpacity>
+      <Heading level={2}>You are offline</Heading>
+      <Body style={{ textAlign: 'center', marginVertical: 16 }}>We could not check your session. Connect and try again. You have not been signed out.</Body>
+      <Pressable style={[styles.offlineBtn, { backgroundColor: theme.primary }]} onPress={() => { setLoading(true); checkUser(); }} accessibilityRole="button">
+        <Text style={[{ color: '#fff', fontSize: 16 }, font(theme, 'semibold')]}>Try again</Text>
+      </Pressable>
     </View>
   );
 
   if (isFirstLaunch) return (
     <>
-      <StatusBar style="light" />
-      <OnboardingScreen onComplete={finishOnboarding} />
+      <StatusBar style="dark" />
+      <OnboardingScreen onComplete={() => finishOnboarding('login')} onCreateAccount={() => finishOnboarding('signup')} />
     </>
   );
 
@@ -331,144 +385,111 @@ function AppContent() {
     );
   }
 
+  const hideChrome = FULLSCREEN_ROUTES.includes(routeName);
+
   return (
     <SafeAreaProvider>
-      <View style={{ flex: 1 }}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: WHITE }} edges={['left', 'right']}>
-        <NavigationContainer
-          ref={navigationRef}
-          documentTitle={{ enabled: false }}
-          linking={{
-            prefixes: [Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : 'compuclass://'],
-            config: linkingConfig(userRole),
-          }}
-          onReady={syncRoute}
-          onStateChange={syncRoute}
-        >
-          <View style={{ flex: 1 }}>
-            <StatusBar style="dark" backgroundColor={WHITE} />
-            {offlineStartup && (
-              <Text style={styles.offlineBanner}>{"You're offline. Some features need a connection."}</Text>
+      <View style={{ flex: 1, backgroundColor: theme.background }}>
+        <ColourField />
+        <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }} edges={['left', 'right']}>
+          <View style={{ flex: 1, flexDirection: 'row', zIndex: 1 }}>
+            {laptop && (
+              <Sidebar
+                docked
+                onNavigate={handleNavigate}
+                onHomePress={goHome}
+                currentScreen={routeName}
+                user={account}
+              />
             )}
-            <Tab.Navigator
-              tabBar={props => <CustomTabBar {...props} />}
-              screenOptions={({ route }) => ({
-                header: () => MAZE_ROUTES.includes(route.name) ? null : (
-                  <CustomHeader onMenuPress={() => setSidebarVisible(true)} onLogoPress={goHome} />
-                ),
-                headerShown: !MAZE_ROUTES.includes(route.name),
-              })}
-            >
-              {userRole === 'lecturer' ? (
-                <Tab.Screen name="Lecturer" component={LecturerStack} options={{ tabBarLabel: 'Lecturer' }} />
-              ) : (
-                <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ tabBarLabel: 'Home' }} />
-              )}
-              <Tab.Screen name="Quiz" component={QuizScreen} options={{ tabBarButton: () => null }} />
-              <Tab.Screen name="Search" component={SearchScreen} />
-              <Tab.Screen name="Profile" options={{ tabBarLabel: 'Profile' }}>
-                {() => <ProfileScreen onLogout={handleLogout} />}
-              </Tab.Screen>
-              <Tab.Screen name="PC Lab" component={PCLabScreen} options={{ tabBarButton: () => null, headerShown: false }} />
-              <Tab.Screen name="PC Assembly" component={PCAssemblyScreen} options={{ tabBarButton: () => null, headerShown: false }} />
-              <Tab.Screen name="Windows 11" component={Windows11SimulatorScreen} options={{ tabBarButton: () => null, headerShown: false }} />
-              <Tab.Screen name="Troubleshoot" component={TroubleshootingScreen} options={{ tabBarButton: () => null }} />
-              <Tab.Screen name="Leaderboard" component={LeaderboardScreen} options={{ tabBarButton: () => null, headerShown: false }} />
-              <Tab.Screen name="JoinClass" component={JoinClassScreen} options={{ tabBarButton: () => null, headerShown: false }} />
-              <Tab.Screen name="Materials" component={StudentMaterialsScreen} options={{ tabBarButton: () => null }} />
-              <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarButton: () => null }} />
-              <Tab.Screen name="Chatbot" component={ChatbotScreen} options={{ tabBarButton: () => null, headerShown: false }} />
-              <Tab.Screen name="CircuitMaze" component={CircuitMazeScreen} options={{ tabBarButton: () => null, headerShown: false }} />
-              <Tab.Screen name="CircuitMazeLobby" component={CircuitMazeLobbyScreen} options={{ tabBarButton: () => null, headerShown: false }} />
-              <Tab.Screen name="CircuitMazeTopic" component={CircuitMazeTopicScreen} options={{ tabBarButton: () => null, headerShown: false }} />
-              <Tab.Screen name="Game" component={GameScreen} options={{ tabBarButton: () => null, headerShown: false }} />
-              <Tab.Screen name="GameRunnerLobby" component={GameRunnerLobbyScreen} options={{ tabBarButton: () => null, headerShown: false }} />
-            </Tab.Navigator>
+            <View style={{ flex: 1 }}>
+              <NavigationContainer
+                ref={navigationRef}
+                documentTitle={{ enabled: false }}
+                linking={{
+                  prefixes: [Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : 'compuclass://'],
+                  config: linkingConfig(userRole),
+                }}
+                onReady={syncRoute}
+                onStateChange={syncRoute}
+              >
+                <View style={{ flex: 1 }}>
+                  <StatusBar style="dark" />
+                  {offlineStartup && (
+                    <Text style={[styles.offlineBanner, { backgroundColor: theme.warningWash, color: theme.warningInk }]}>You are offline. Some features need a connection.</Text>
+                  )}
+                  <TopBar
+                    laptop={laptop}
+                    hidden={hideChrome}
+                    user={account}
+                    dot={announcements.length > 0}
+                    onSearch={() => handleNavigate('Search')}
+                    onBell={() => setShowAnnouncements(true)}
+                    onAvatar={() => handleNavigate('Profile')}
+                  />
+                  <Tab.Navigator
+                    tabBar={(props) => (laptop ? null : <PhoneTabBar {...props} />)}
+                    screenOptions={{ headerShown: false }}
+                  >
+                    {userRole === 'lecturer' ? (
+                      <Tab.Screen name="Lecturer" component={LecturerStack} />
+                    ) : (
+                      <Tab.Screen name="Dashboard" component={DashboardScreen} />
+                    )}
+                    <Tab.Screen name="Materials" component={StudentMaterialsScreen} />
+                    <Tab.Screen name="Quiz" component={QuizScreen} />
+                    <Tab.Screen name="Leaderboard" component={LeaderboardScreen} />
+                    <Tab.Screen name="Profile">
+                      {() => <ProfileScreen onLogout={handleLogout} />}
+                    </Tab.Screen>
+                    <Tab.Screen name="Search" component={SearchScreen} />
+                    <Tab.Screen name="PC Lab" component={PCLabScreen} />
+                    <Tab.Screen name="PC Assembly" component={PCAssemblyScreen} />
+                    <Tab.Screen name="Windows 11" component={Windows11SimulatorScreen} />
+                    <Tab.Screen name="Troubleshoot" component={TroubleshootingScreen} />
+                    <Tab.Screen name="JoinClass" component={JoinClassScreen} />
+                    <Tab.Screen name="Settings">
+                      {() => <SettingsScreen onLogout={handleLogout} />}
+                    </Tab.Screen>
+                    <Tab.Screen name="Chatbot" component={ChatbotScreen} />
+                    <Tab.Screen name="CircuitMaze" component={CircuitMazeScreen} />
+                    <Tab.Screen name="CircuitMazeLobby" component={CircuitMazeLobbyScreen} />
+                    <Tab.Screen name="CircuitMazeTopic" component={CircuitMazeTopicScreen} />
+                    <Tab.Screen name="Game" component={GameScreen} />
+                    <Tab.Screen name="GameRunnerLobby" component={GameRunnerLobbyScreen} />
+                  </Tab.Navigator>
+                </View>
+              </NavigationContainer>
+            </View>
           </View>
-        </NavigationContainer>
-        <Sidebar
-          visible={sidebarVisible}
-          onClose={() => setSidebarVisible(false)}
-          onNavigate={handleNavigate}
-          onHomePress={goHome}
-          translateX={sidebarTranslateX}
-          currentScreen={currentRouteRef.current}
-        />
-      </SafeAreaView>
+        </SafeAreaView>
+        <AnnouncementSheet visible={showAnnouncements} onClose={() => setShowAnnouncements(false)} items={announcements} />
       </View>
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  // Floating pill tab bar
-  tabBarWrapper: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    backgroundColor: 'transparent',
-  },
-  tabBarPill: {
-    flexDirection: 'row',
-    backgroundColor: WHITE,
-    borderRadius: 32,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 12,
-  },
-  tabItem: { flex: 1 },
-  tabTouchable: { alignItems: 'center', justifyContent: 'center', paddingVertical: 6, borderRadius: 24, position: 'relative' },
-  tabActivePill: {
-    position: 'absolute',
-    top: 0, left: 4, right: 4, bottom: 0,
-    backgroundColor: BLUE + '12',
-    borderRadius: 20,
-  },
-  tabLabel: { fontSize: 11, marginTop: 3 },
-
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: WHITE,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headerLogoWrap: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  headerAppName: { fontSize: 17, fontWeight: '900', color: TEXT },
-  headerTagline: { fontSize: 11, color: MUTED, marginTop: 1 },
-  menuBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: BLUE + '12', alignItems: 'center', justifyContent: 'center' },
-  offlineGate: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, backgroundColor: WHITE },
-  offlineTitle: { fontSize: 22, fontWeight: '900', color: TEXT, marginBottom: 8 },
-  offlineText: { fontSize: 15, color: MUTED, textAlign: 'center', lineHeight: 22, marginBottom: 20 },
-  offlineBtn: { minHeight: 44, minWidth: 44, paddingHorizontal: 20, borderRadius: 12, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
-  offlineBtnText: { color: WHITE, fontWeight: '800', fontSize: 16 },
-  offlineBanner: { backgroundColor: '#FEF3C7', color: TEXT, textAlign: 'center', paddingVertical: 8, paddingHorizontal: 12, fontSize: 13, fontWeight: '700' },
+  boot: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  tabWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: 16, paddingHorizontal: 25, zIndex: 20 },
+  tabPill: { flexDirection: 'row', padding: 4, alignItems: 'stretch' },
+  tab: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', gap: 1, paddingTop: 6, paddingBottom: 7, paddingHorizontal: 8, borderRadius: 999 },
+  topBar: { flexDirection: 'row', alignItems: 'center', gap: 12, zIndex: 5 },
+  searchPill: { flex: 1, maxWidth: 420, height: 44, borderRadius: 999, borderWidth: 1, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 'auto' },
+  me: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  offlineGate: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 },
+  offlineBtn: { minHeight: 48, minWidth: 44, paddingHorizontal: 24, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  offlineBanner: { textAlign: 'center', paddingVertical: 8, paddingHorizontal: 12, fontSize: 13, fontWeight: '600' },
 });
 
 export default function App() {
   return (
-    <ErrorBoundary>
-      <ThemeProvider>
-        <AppContent />
-      </ThemeProvider>
-    </ErrorBoundary>
+    <SafeAreaProvider>
+      <ErrorBoundary>
+        <ThemeProvider>
+          <AppContent />
+        </ThemeProvider>
+      </ErrorBoundary>
+    </SafeAreaProvider>
   );
 }

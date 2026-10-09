@@ -4,6 +4,7 @@ import {
   Animated, PanResponder, TextInput, StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -12,10 +13,10 @@ import { supabase } from '../config/supabase';
 import { authService } from '../services/authService';
 import { gameRunnerService } from '../services/gameRunnerService';
 
-const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const RED = '#EF4444';
-const GREEN = '#22C55E'; const WHITE = '#FFFFFF'; const TEXT = '#111827';
-const MUTED = '#6B7280'; const BG = '#F3F4F6';
-const DARK_BLUE = '#1E3A8A'; const PURPLE = '#7C3AED';
+const BLUE = '#0A66FF'; const YELLOW = '#FFE680'; const RED = '#D92D4A';
+const GREEN = '#1F9D55'; const WHITE = '#FFFFFF'; const TEXT = '#0B1B3A';
+const MUTED = '#5E6B85'; const BG = '#F7FBFD';
+const DARK_BLUE = '#1E3A8A'; const PURPLE = '#0A6F79';
 const CYAN = '#22D3EE';
 
 // Office scene tokens — kept separate from the UI palette above so the
@@ -39,23 +40,23 @@ const GAME_TICK = 16;
 // (the on-screen clue text) so the abbreviation itself can never accidentally
 // count as having spelled it out.
 const PC_COMPONENTS = [
-  { id: 'cpu', emoji: '🖥️', name: 'CPU',         hint: 'Central Processing Unit',  answer: 'Central Processing Unit', color: BLUE,    points: 50 },
-  { id: 'ram', emoji: '💾', name: 'RAM',         hint: 'Random Access Memory',      answer: 'Random Access Memory',    color: GREEN,   points: 50 },
-  { id: 'gpu', emoji: '🎮', name: 'GPU',         hint: 'Graphics Processing Unit',  answer: 'Graphics Processing Unit', color: PURPLE,  points: 75 },
-  { id: 'psu', emoji: '🔌', name: 'PSU',         hint: 'Power Supply Unit',         answer: 'Power Supply Unit',       color: YELLOW,  points: 50 },
-  { id: 'ssd', emoji: '💿', name: 'SSD',         hint: 'Solid State Drive',         answer: 'Solid State Drive',       color: '#EC4899', points: 60 },
-  { id: 'mb',  emoji: '🔧', name: 'Motherboard', hint: 'Main circuit board',        answer: 'Motherboard',             color: '#F97316', points: 75 },
-  { id: 'fan', emoji: '🌀', name: 'CPU Fan',     hint: 'Keeps the CPU cool',        answer: 'CPU Fan',                 color: '#06B6D4', points: 40 },
-  { id: 'hdd', emoji: '🗄️', name: 'HDD',         hint: 'Hard Disk Drive',           answer: 'Hard Disk Drive',         color: RED,     points: 40 },
+  { id: 'cpu', emoji: 'CPU', name: 'CPU',         hint: 'Central Processing Unit',  answer: 'Central Processing Unit', color: BLUE,    points: 50 },
+  { id: 'ram', emoji: 'RAM', name: 'RAM',         hint: 'Random Access Memory',      answer: 'Random Access Memory',    color: GREEN,   points: 50 },
+  { id: 'gpu', emoji: 'GPU', name: 'GPU',         hint: 'Graphics Processing Unit',  answer: 'Graphics Processing Unit', color: PURPLE,  points: 75 },
+  { id: 'psu', emoji: 'PSU', name: 'PSU',         hint: 'Power Supply Unit',         answer: 'Power Supply Unit',       color: YELLOW,  points: 50 },
+  { id: 'ssd', emoji: 'SSD', name: 'SSD',         hint: 'Solid State Drive',         answer: 'Solid State Drive',       color: '#EC4899', points: 60 },
+  { id: 'mb',  emoji: 'MB', name: 'Motherboard', hint: 'Main circuit board',        answer: 'Motherboard',             color: '#E39B0B', points: 75 },
+  { id: 'fan', emoji: 'FAN', name: 'CPU Fan',     hint: 'Keeps the CPU cool',        answer: 'CPU Fan',                 color: '#06B6D4', points: 40 },
+  { id: 'hdd', emoji: 'HDD', name: 'HDD',         hint: 'Hard Disk Drive',           answer: 'Hard Disk Drive',         color: RED,     points: 40 },
 ];
 
 const OBSTACLES = [
-  { emoji: '🪑', label: 'Chair',   type: 'low'  },
-  { emoji: '🖥️', label: 'Monitor', type: 'low'  },
-  { emoji: '📦', label: 'Box',     type: 'low'  },
-  { emoji: '📚', label: 'Books',   type: 'low'  },
-  { emoji: '🗑️', label: 'Bin',     type: 'low'  },
-  { emoji: '🚧', label: 'Barrier', type: 'low'  },
+  { emoji: 'Chair', label: 'Chair',   type: 'low'  },
+  { emoji: 'Monitor', label: 'Monitor', type: 'low'  },
+  { emoji: 'Box', label: 'Box',     type: 'low'  },
+  { emoji: 'Books', label: 'Books',   type: 'low'  },
+  { emoji: 'Bin', label: 'Bin',     type: 'low'  },
+  { emoji: 'Barrier', label: 'Barrier', type: 'low'  },
 ];
 
 const QUESTIONS = {
@@ -130,7 +131,7 @@ function ParallaxBG({ W, H, GROUND_Y, LANE_WIDTH }) {
       {/* Posters on upper wall */}
       {posterItems.map((x, i) => (
         <View key={i} style={[styles.bgPoster, { left: x, top: trimY * 0.62, backgroundColor: [PURPLE][i] + '33' }]}>
-          <Text style={styles.bgPosterText}>{['📡'][i]}</Text>
+          <Text style={styles.bgPosterText}>{[''][i]}</Text>
         </View>
       ))}
 
@@ -273,29 +274,31 @@ function StartScreen({ onStart, onBack, highScore }) {
         <TouchableOpacity
           style={[styles.gameBackBtn, { top: insets.top + 10 }]}
           onPress={onBack}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
-          <Text style={styles.gameBackBtnText}>←</Text>
+          <Ionicons name="arrow-back" size={22} color={WHITE} />
         </TouchableOpacity>
       )}
 
       <View style={styles.startContent}>
         <View style={styles.startEmojiWrap}>
           <View style={styles.startEmojiGlow} />
-          <Animated.Text style={[styles.startEmoji, { transform: [{ translateY: float }] }]}>🏃</Animated.Text>
+          <Animated.Text style={[styles.startEmoji, { transform: [{ translateY: float }] }]}></Animated.Text>
         </View>
         <Text style={styles.startTitle}>CompuRunner</Text>
         <Text style={styles.startSub}>Dodge obstacles · Collect components{'\n'}Answer questions · Survive!</Text>
 
         <View style={styles.startTips}>
           {[
-            { icon: '👆', text: 'Swipe UP to jump' },
-            { icon: '👇', text: 'Swipe DOWN to slide' },
-            { icon: '👈👉', text: 'Swipe LEFT / RIGHT to switch lane' },
-            { icon: '💡', text: 'Collect components → answer to earn XP' },
+            { icon: 'arrow-up', text: 'Swipe up to jump' },
+            { icon: 'arrow-down', text: 'Swipe down to slide' },
+            { icon: 'swap-horizontal', text: 'Swipe left or right to switch lane' },
+            { icon: 'help-circle-outline', text: 'Collect components, then answer to earn XP' },
           ].map((t, i) => (
             <View key={i} style={styles.tipRow}>
-              <Text style={styles.tipEmoji}>{t.icon}</Text>
+              <Ionicons name={t.icon} size={18} color={WHITE} style={styles.tipEmoji} />
               <Text style={styles.tipText}>{t.text}</Text>
             </View>
           ))}
@@ -303,13 +306,13 @@ function StartScreen({ onStart, onBack, highScore }) {
 
         {highScore > 0 && (
           <View style={styles.highScoreBadge}>
-            <Text style={styles.highScoreLabel}>🏆  Best Score: {highScore}</Text>
+            <Text style={styles.highScoreLabel}>Best score: {highScore}</Text>
           </View>
         )}
 
         <Animated.View style={{ transform: [{ scale: pulse }] }}>
           <TouchableOpacity style={styles.startBtn} onPress={onStart} activeOpacity={0.85}>
-            <Text style={styles.startBtnText}>▶  TAP TO RUN!</Text>
+            <Text style={styles.startBtnText}>Tap to run</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -331,14 +334,14 @@ function GameOverScreen({ score, highScore, collected, leaderboard, onRestart, o
   const isNewHigh = score > 0 && score >= highScore;
 
   return (
-    <LinearGradient colors={['#0B1226', DARK_BLUE, '#1D4ED8']} style={styles.fullScreen}>
+    <LinearGradient colors={['#0B1226', DARK_BLUE, '#0A66FF']} style={styles.fullScreen}>
       <StatusBar hidden />
       <Animated.View style={[styles.gameOverCard, { opacity: fadeIn, transform: [{ translateY: slideUp }] }]}>
-        <Text style={styles.gameOverEmoji}>{isNewHigh ? '🏆' : '💀'}</Text>
+        <Text style={styles.gameOverEmoji}>{isNewHigh ? '' : ''}</Text>
         <Text style={styles.gameOverTitle}>GAME OVER</Text>
         {finishRank != null && (
           <View style={styles.rankBadge}>
-            <Text style={styles.rankBadgeText}>{['🥇 1st','🥈 2nd','🥉 3rd'][finishRank - 1] || `#${finishRank}`} place</Text>
+            <Text style={styles.rankBadgeText}>{['1st', '2nd', '3rd'][finishRank - 1] || `#${finishRank}`} place</Text>
           </View>
         )}
 
@@ -349,7 +352,7 @@ function GameOverScreen({ score, highScore, collected, leaderboard, onRestart, o
 
         {isNewHigh && (
           <View style={styles.newHighBadge}>
-            <Text style={styles.newHighText}>✨ NEW HIGH SCORE! ✨</Text>
+            <Text style={styles.newHighText}> NEW HIGH SCORE! </Text>
           </View>
         )}
         {!isNewHigh && <Text style={styles.gameOverHigh}>Best: {highScore}</Text>}
@@ -369,18 +372,18 @@ function GameOverScreen({ score, highScore, collected, leaderboard, onRestart, o
         )}
 
         <TouchableOpacity style={styles.restartBtn} onPress={onRestart}>
-          <Text style={styles.restartBtnText}>▶  PLAY AGAIN</Text>
+          <Text style={styles.restartBtnText}>Play again</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.homeBtn} onPress={onHome}>
-          <Text style={styles.homeBtnText}>← Back to Dashboard</Text>
+          <Text style={styles.homeBtnText}>Back to dashboard</Text>
         </TouchableOpacity>
 
         {leaderboard.length > 0 && (
           <View style={styles.leaderboardWrap}>
-            <Text style={styles.leaderboardTitle}>🏆 Leaderboard</Text>
+            <Text style={styles.leaderboardTitle}> Leaderboard</Text>
             {leaderboard.map((entry, i) => (
               <View key={i} style={styles.leaderboardRow}>
-                <Text style={styles.leaderboardRank}>{['🥇','🥈','🥉','4️⃣','5️⃣'][i]}</Text>
+                <Text style={styles.leaderboardRank}>{['','','','4⃣','5⃣'][i]}</Text>
                 <Text style={styles.leaderboardName}>{entry.profiles?.full_name || 'Player'}</Text>
                 <Text style={styles.leaderboardScore}>{entry.score}</Text>
               </View>
@@ -943,7 +946,7 @@ export default function GameScreen({ navigation, route }) {
             transform: [{ translateX: anim }, { translateY: GROUND_Y }],
           }]}>
             <Text style={styles.ghostName} numberOfLines={1}>{(p.full_name || 'Player').split(' ')[0]}</Text>
-            <Text style={styles.ghostEmoji}>{p.finished ? '🏁' : '🧑‍💻'}</Text>
+            <Text style={styles.ghostEmoji}>{p.finished ? '' : ''}</Text>
           </Animated.View>
         );
       })}
@@ -961,7 +964,7 @@ export default function GameScreen({ navigation, route }) {
         <Animated.View style={[styles.playerBody, {
           transform: [{ scaleY: playerScaleY }, { scaleX: playerScaleX }, { rotate: leanInterp }],
         }]}>
-          <Text style={styles.playerEmoji}>🧑‍💻</Text>
+          <Text style={styles.playerEmoji}>You</Text>
         </Animated.View>
         {/* Legs */}
         <View style={styles.legsRow}>
@@ -994,7 +997,7 @@ export default function GameScreen({ navigation, route }) {
         <Animated.View style={[styles.milestoneBanner, { top: H * 0.35,
           transform: [{ scale: milestoneAnim }], opacity: milestoneAnim,
         }]}>
-          <Text style={styles.milestoneText}>🎯 {milestone} pts!</Text>
+          <Text style={styles.milestoneText}> {milestone} pts!</Text>
         </Animated.View>
       )}
 
@@ -1002,7 +1005,7 @@ export default function GameScreen({ navigation, route }) {
       <View style={[styles.hudRow, { top: insets.top + 10 }]} pointerEvents="box-none">
         <View style={styles.hudCard}>
           <TouchableOpacity onPress={quitGame} style={styles.hudQuitBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={styles.hudQuitBtnText}>✕</Text>
+            <Text style={styles.hudQuitBtnText}></Text>
           </TouchableOpacity>
 
           <View style={styles.hudDivider} />
@@ -1015,7 +1018,7 @@ export default function GameScreen({ navigation, route }) {
           <View style={styles.hudDivider} />
 
           <View style={styles.hudEnergyWrap}>
-            <Text style={styles.hudEnergyLabel}>⚡ ENERGY</Text>
+            <Text style={styles.hudEnergyLabel}> ENERGY</Text>
             <View style={styles.energyBarBg}>
               <Animated.View style={[styles.energyBarFillWrap, {
                 width: energyAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
@@ -1033,7 +1036,7 @@ export default function GameScreen({ navigation, route }) {
 
           <View style={styles.hudHearts}>
             {[0,1,2].map(i => (
-              <Text key={i} style={{ fontSize: 16, opacity: i < lives ? 1 : 0.25 }}>❤️</Text>
+              <Text key={i} style={{ fontSize: 16, opacity: i < lives ? 1 : 0.25 }}></Text>
             ))}
           </View>
         </View>
@@ -1049,7 +1052,7 @@ export default function GameScreen({ navigation, route }) {
           {otherPlayers.map(p => (
             <View key={p.user_id} style={styles.opponentChip}>
               <Text style={styles.opponentName} numberOfLines={1}>{(p.full_name || 'Player').split(' ')[0]}</Text>
-              <Text style={styles.opponentScore}>{p.finished ? '🏁' : p.score}</Text>
+              <Text style={styles.opponentScore}>{p.finished ? '' : p.score}</Text>
             </View>
           ))}
         </View>
@@ -1068,12 +1071,12 @@ export default function GameScreen({ navigation, route }) {
             <Text style={styles.questionText}>{question.question}</Text>
             {answerFeedback === 'correct' && (
               <View style={styles.feedbackBox}>
-                <Text style={styles.feedbackCorrect}>✅  Correct! +100 pts</Text>
+                <Text style={styles.feedbackCorrect}>  Correct! +100 pts</Text>
               </View>
             )}
             {answerFeedback === 'wrong' && (
               <View style={[styles.feedbackBox, { backgroundColor: RED + '15' }]}>
-                <Text style={styles.feedbackWrong}>❌  Answer: {question.answer}</Text>
+                <Text style={styles.feedbackWrong}>  Answer: {question.answer}</Text>
               </View>
             )}
             {!answerFeedback && (
@@ -1099,7 +1102,7 @@ export default function GameScreen({ navigation, route }) {
                     <Text style={styles.skipBtnText}>Skip</Text>
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.hintText}>💡 {question.component.hint}</Text>
+                <Text style={styles.hintText}> {question.component.hint}</Text>
               </>
             )}
           </View>
@@ -1159,7 +1162,7 @@ const styles = StyleSheet.create({
   playerBody: { width: PLAYER_W, height: PLAYER_H, alignItems: 'center', justifyContent: 'center' },
   playerEmoji: { fontSize: PLAYER_W - 2 },
   legsRow: { flexDirection: 'row', gap: 6, marginTop: -6 },
-  leg: { width: 6, height: 14, backgroundColor: '#1E40AF', borderRadius: 3 },
+  leg: { width: 6, height: 14, backgroundColor: '#0A55D6', borderRadius: 3 },
   playerShadow: { width: PLAYER_W * 0.6, height: 6, backgroundColor: 'rgba(0,0,0,0.18)', borderRadius: 4, marginTop: 2 },
 
   // HUD — floating glass panel, safe-area aware
@@ -1174,7 +1177,7 @@ const styles = StyleSheet.create({
   hudQuitBtn: { width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
   hudQuitBtnText: { fontSize: 13, fontWeight: '900', color: WHITE },
   gameBackBtn: {
-    position: 'absolute', left: 16, zIndex: 10, width: 40, height: 40, borderRadius: 20,
+    position: 'absolute', left: 16, zIndex: 10, width: 44, height: 44, borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center',
   },
   gameBackBtnText: { fontSize: 20, fontWeight: '900', color: WHITE, marginTop: -2 },
