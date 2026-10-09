@@ -14,20 +14,20 @@ import {
   startAttempt,
   takeHint,
 } from '../utils/troubleshootingLab';
+import { appTheme, useTheme } from '../context/ThemeContext';
 
-const GREEN = '#166534';
-const BLUE = '#0A66FF';
-const WHITE = '#FFFFFF';
-const BG = '#F7FBFD';
-const TEXT = '#0B1B3A';
-const MUTED = '#374151';
-const BORDER = '#D1D5DB';
-const CARD = '#FFFFFF';
+const GREEN = appTheme.success;
+const BLUE = appTheme.primary;
+const WHITE = appTheme.surface;
+const TEXT = appTheme.text;
+const MUTED = appTheme.textSecondary;
+const BORDER = appTheme.border;
+const CARD = appTheme.card;
 
 const DIFFICULTY_STYLE = {
-  easy: { color: '#166534', background: '#DCFCE7' },
-  medium: { color: '#92400E', background: '#FEF3C7' },
-  hard: { color: '#991B1B', background: '#FEE2E2' },
+  easy: { color: appTheme.successInk, background: appTheme.successWash },
+  medium: { color: appTheme.warningInk, background: appTheme.warningWash },
+  hard: { color: appTheme.errorInk, background: appTheme.errorWash },
 };
 
 function Chip({ label, selected, onPress }) {
@@ -45,6 +45,7 @@ function Chip({ label, selected, onPress }) {
 }
 
 export default function TroubleshootingScreen({ navigation }) {
+  const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const [progress, setProgress] = useState({ scenarios: {}, streak: 0, lastPlayed: null });
   const [category, setCategory] = useState('all');
@@ -89,8 +90,8 @@ export default function TroubleshootingScreen({ navigation }) {
 
   if (!scenario) {
     return (
-      <ScrollView style={[styles.container, { backgroundColor: BG }]} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
-        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+      <ScrollView style={[styles.container, { backgroundColor: theme.background }]} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
+        <View style={[styles.header, { paddingTop: insets.top + 16, backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
           <View style={styles.headerIcon}><Ionicons name="bug" size={28} color={'#0A66FF'} /></View>
           <Text style={styles.headerTitle} accessibilityRole="header">Troubleshooting Lab</Text>
           <Text style={styles.headerSubtitle}>Pick a case, run the checks, then commit a diagnosis.</Text>
@@ -145,8 +146,8 @@ export default function TroubleshootingScreen({ navigation }) {
 
   if (attempt?.committed) {
     return (
-      <ScrollView style={[styles.container, { backgroundColor: BG }]} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
-        <View style={[styles.playHeader, { paddingTop: insets.top + 12 }]}>
+      <ScrollView style={[styles.container, { backgroundColor: theme.background }]} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
+        <View style={[styles.playHeader, { paddingTop: insets.top + 12, backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
           <Text style={styles.playTitle} accessibilityRole="header">{scenario.title}</Text>
         </View>
         <View style={styles.card}>
@@ -170,8 +171,8 @@ export default function TroubleshootingScreen({ navigation }) {
 
   const node = currentNode(scenario, attempt);
   return (
-    <ScrollView style={[styles.container, { backgroundColor: BG }]} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
-      <View style={[styles.playHeader, { paddingTop: insets.top + 12 }]}>
+    <ScrollView style={[styles.container, { backgroundColor: theme.background }]} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
+      <View style={[styles.playHeader, { paddingTop: insets.top + 12, backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         <TouchableOpacity onPress={() => setScenario(null)} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Back to cases">
           <Ionicons name="arrow-back" size={20} color={TEXT} />
         </TouchableOpacity>
@@ -279,7 +280,7 @@ const styles = StyleSheet.create({
   primaryText: { color: WHITE, fontSize: 16, fontWeight: '800' },
   secondary: { minHeight: 44, borderRadius: 12, borderWidth: 2, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', marginHorizontal: 12, marginTop: 8, backgroundColor: CARD },
   secondaryText: { color: TEXT, fontWeight: '800', fontSize: 15 },
-  hint: { color: TEXT, backgroundColor: '#FEF3C7', borderRadius: 10, padding: 10, marginTop: 8, fontSize: 14, lineHeight: 20 },
+  hint: { color: TEXT, backgroundColor: appTheme.yellowWash, borderRadius: 10, padding: 10, marginTop: 8, fontSize: 14, lineHeight: 20 },
   feedback: { backgroundColor: CARD, borderRadius: 12, marginHorizontal: 12, marginTop: 8, padding: 12 },
   feedbackLabel: { color: TEXT, fontWeight: '800', fontSize: 14, marginBottom: 4 },
   resultHeading: { color: TEXT, fontSize: 20, fontWeight: '900' },

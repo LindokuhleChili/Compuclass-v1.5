@@ -3,11 +3,16 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIn
 import { Ionicons } from '@expo/vector-icons';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
+import { appTheme, useTheme } from '../context/ThemeContext';
+import { useShellBack } from '../context/ChromeContext';
+import { leaveScreen } from '../utils/screenNav';
 
-const BLUE = '#0A66FF'; const RED = '#D92D4A'; const GREEN = '#1F9D55';
-const WHITE = '#FFFFFF'; const BG = '#F7FBFD'; const TEXT = '#0B1B3A'; const MUTED = '#44526F'; const BORDER = '#DCE6EF';
+const BLUE = appTheme.primary; const RED = appTheme.error; const GREEN = appTheme.success;
+const WHITE = appTheme.surface; const BG = appTheme.background; const TEXT = appTheme.text; const MUTED = appTheme.textSecondary; const BORDER = appTheme.border;
 
 export default function QuizDetailScreen({ navigation, route }) {
+  const { theme } = useTheme();
+  const shellBack = useShellBack();
   const { quizId } = route.params;
   const [quiz, setQuiz] = useState(null);
   const loadQuizRef = useRef(() => {});
@@ -31,18 +36,20 @@ export default function QuizDetailScreen({ navigation, route }) {
   };
 
   if (!quiz) return (
-    <View style={styles.centered}>
-      <ActivityIndicator size="large" color={BLUE} />
+    <View style={[styles.centered, { backgroundColor: theme.background }]}>
+      <ActivityIndicator size="large" color={theme.primary} />
       <Text style={styles.loadingText}>Loading quiz...</Text>
     </View>
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="arrow-back" size={20} color={TEXT} />
-        </TouchableOpacity>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+        {shellBack ? <View style={styles.backBtn} /> : (
+          <TouchableOpacity onPress={() => leaveScreen(navigation)} style={[styles.backBtn, { backgroundColor: theme.tint }]} accessibilityRole="button" accessibilityLabel="Go back">
+            <Ionicons name="arrow-back" size={20} color={theme.text} />
+          </TouchableOpacity>
+        )}
         <Text style={[styles.headerTitle, { color: TEXT }]} accessibilityRole="header">Quiz Details</Text>
         <TouchableOpacity onPress={handleDeleteQuiz} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete quiz">
           <Ionicons name="trash" size={18} color={RED} />

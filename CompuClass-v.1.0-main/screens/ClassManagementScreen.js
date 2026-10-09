@@ -3,11 +3,16 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput, Flat
 import { Ionicons } from '@expo/vector-icons';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
+import { appTheme, useTheme } from '../context/ThemeContext';
+import { useShellBack } from '../context/ChromeContext';
+import { leaveScreen } from '../utils/screenNav';
 
-const BLUE = '#0A66FF'; const YELLOW = '#FFE680'; const GREEN = '#1F9D55'; const PURPLE = '#0A6F79';
-const WHITE = '#FFFFFF'; const BG = '#F7FBFD'; const TEXT = '#0B1B3A'; const MUTED = '#44526F'; const BORDER = '#DCE6EF';
+const BLUE = appTheme.primary; const YELLOW = appTheme.yellow; const GREEN = appTheme.success; const PURPLE = appTheme.accentInk;
+const WHITE = appTheme.surface; const BG = appTheme.background; const TEXT = appTheme.text; const MUTED = appTheme.textSecondary; const BORDER = appTheme.border;
 
 export default function ClassManagementScreen({ navigation }) {
+  const { theme } = useTheme();
+  const shellBack = useShellBack();
   const [classes, setClasses] = useState([]);
   const [students, setStudents] = useState([]);
   const [showCreateClass, setShowCreateClass] = useState(false);
@@ -96,11 +101,13 @@ export default function ClassManagementScreen({ navigation }) {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="arrow-back" size={20} color={TEXT} />
-        </TouchableOpacity>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+        {shellBack ? <View style={styles.backBtn} /> : (
+          <TouchableOpacity onPress={() => leaveScreen(navigation)} style={[styles.backBtn, { backgroundColor: theme.tint }]} accessibilityRole="button" accessibilityLabel="Go back">
+            <Ionicons name="arrow-back" size={20} color={theme.text} />
+          </TouchableOpacity>
+        )}
         <Text style={styles.headerTitle} accessibilityRole="header">Class Management</Text>
         <TouchableOpacity onPress={() => setShowCreateClass(true)} style={styles.addBtn} accessibilityRole="button" accessibilityLabel="Create class">
           <Ionicons name="add" size={22} color={BLUE} />

@@ -8,6 +8,7 @@ import { authService } from '../services/authService';
 import { useTheme } from '../context/ThemeContext';
 import { Icon } from '../components/ui/Icon';
 import { Heading, Body, Card, Badge, Button, IconTile, IconButton, Skeleton, Page, font } from '../components/ui/kit';
+import { leaveScreen } from '../utils/screenNav';
 const WHITE = '#FFFFFF';
 
 // Base XP mirrors the CASE in submit_quiz_attempt — keep the two in sync.
@@ -333,7 +334,7 @@ export default function QuizScreen({ route, navigation }) {
   return (
     <View style={[styles.container, { backgroundColor: BG }]}>
       <View style={[styles.header, { paddingTop: 12, backgroundColor: 'transparent' }]}>
-        <IconButton name="chevLeft" label="Back" onPress={() => navigation.goBack()} />
+        <IconButton name="chevLeft" label="Back" onPress={() => leaveScreen(navigation)} />
         <Text style={[styles.headerTitle, { color: TEXT }]} accessibilityRole="header">Question {currentQuestion + 1} of {questions.length}</Text>
         {timeLeft !== null && (
           <View style={[styles.timerPill, { backgroundColor: theme.tint }]}>

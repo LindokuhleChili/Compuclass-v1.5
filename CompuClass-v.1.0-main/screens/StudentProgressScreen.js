@@ -15,11 +15,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
+import { useShellBack } from '../context/ChromeContext';
+import { leaveScreen } from '../utils/screenNav';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
 //Student progress screen for lecturer to view student progress and add students to class. Progress data is loaded from Supabase and displayed in a list of student cards. Each card shows student's name, email, quizzes completed, average score, materials viewed and last activity. Lecturer can tap on a student card to view more details in a modal. Lecturer can also add new students by entering their email in a modal form.
 export default function StudentProgressScreen({ navigation }) {
   const { theme } = useTheme();
+  const shellBack = useShellBack();
   const [students, setStudents] = useState([]);
   const [classes, setClasses] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState(null);
@@ -162,12 +165,14 @@ export default function StudentProgressScreen({ navigation }) {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.surface }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <LinearGradient colors={theme.gradient} style={styles.header}>
         <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="Go back">
-            <Ionicons name="arrow-back" size={24} color={theme.text} />
-          </TouchableOpacity>
+          {shellBack ? <View style={styles.iconHit} /> : (
+            <TouchableOpacity onPress={() => leaveScreen(navigation)} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="Go back">
+              <Ionicons name="arrow-back" size={24} color={theme.text} />
+            </TouchableOpacity>
+          )}
           <Text style={[styles.headerTitle, { color: theme.text }]} accessibilityRole="header">Student Progress</Text>
           <View style={{ flexDirection: 'row', gap: 4 }}>
             <TouchableOpacity onPress={loadData} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="Refresh">

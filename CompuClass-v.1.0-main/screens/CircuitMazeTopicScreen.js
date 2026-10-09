@@ -19,6 +19,9 @@ import TopicCard from '../components/TopicCard';
 import ContinueLearningCard from '../components/ContinueLearningCard';
 import CircuitBackdrop from '../components/CircuitBackdrop';
 import { MAZE, TYPE, formatNumber } from '../components/mazeTheme';
+import { useTheme } from '../context/ThemeContext';
+import { useShellBack } from '../context/ChromeContext';
+import { leaveScreen } from '../utils/screenNav';
 
 const H_PADDING = 16;
 const GUTTER    = 12;
@@ -34,6 +37,8 @@ function answeredCount(perfMap, topicId) {
 }
 
 export default function CircuitMazeTopicScreen({ navigation }) {
+  const { theme } = useTheme();
+  const shellBack = useShellBack();
   const { width, height } = useWindowDimensions();
 
   const [progress, setProgress] = useState({});
@@ -95,15 +100,17 @@ export default function CircuitMazeTopicScreen({ navigation }) {
   const header = (
     <View style={s.headerBlock}>
       <View style={s.navRow}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={s.iconBtn}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Ionicons name="chevron-back" size={20} color={MAZE.text} />
-        </TouchableOpacity>
+        {shellBack ? <View style={s.iconBtn} /> : (
+          <TouchableOpacity
+            onPress={() => leaveScreen(navigation)}
+            style={[s.iconBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <Ionicons name="chevron-back" size={20} color={theme.text} />
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           onPress={() => navigation.navigate('Settings')}

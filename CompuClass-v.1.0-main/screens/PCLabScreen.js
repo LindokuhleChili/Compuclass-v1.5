@@ -11,9 +11,12 @@ import CPUAR from '../components/CPUAR';
 import GPUAR from '../components/GPUAR';
 import PSUAR from '../components/PSUAR';
 import { PROGRESS_KEYS, progressService } from '../services/progressService';
+import { appTheme, useTheme } from '../context/ThemeContext';
+import { useShellBack } from '../context/ChromeContext';
+import { leaveScreen } from '../utils/screenNav';
 
-const GREEN = '#1F9D55'; const WHITE = '#FFFFFF'; const BG = '#F7FBFD';
-const TEXT = '#0B1B3A'; const MUTED = '#44526F'; const BORDER = '#DCE6EF';
+const GREEN = appTheme.success; const WHITE = appTheme.surface; const BG = appTheme.background;
+const TEXT = appTheme.text; const MUTED = appTheme.textSecondary; const BORDER = appTheme.border;
 
 const components = [
   { id: 'motherboard', name: 'Motherboard',  icon: 'hardware-chip',    color: '#0A66FF' },
@@ -27,6 +30,8 @@ const components = [
 const steps = ['Install Motherboard', 'Install CPU', 'Install RAM', 'Install Graphics Card', 'Install Storage', 'Connect Power Supply'];
 
 export default function PCLabScreen({ navigation }) {
+  const { theme } = useTheme();
+  const shellBack = useShellBack();
   const insets = useSafeAreaInsets();
   // Live width/height so the grid and AR viewer follow window resizes and
   // adapt to tablets/laptops, not just phone-sized viewports.
@@ -103,7 +108,7 @@ export default function PCLabScreen({ navigation }) {
 
   const FullscreenView = ({ onBack, children }) => (
     <View style={styles.fullscreenContainer}>
-      <TouchableOpacity style={[styles.fullscreenBackBtn, { top: insets.top + 10 }]} onPress={onBack}>
+      <TouchableOpacity style={[styles.fullscreenBackBtn, { top: insets.top + 10 }]} onPress={onBack} accessibilityRole="button" accessibilityLabel="Back to PC Lab">
         <Ionicons name="arrow-back" size={24} color={WHITE} />
       </TouchableOpacity>
       {children}
@@ -119,7 +124,7 @@ export default function PCLabScreen({ navigation }) {
 
   if (isFullscreen) return (
     <View style={styles.fullscreenContainer}>
-      <TouchableOpacity style={[styles.fullscreenBackBtn, { top: insets.top + 10 }]} onPress={() => setIsFullscreen(false)}>
+      <TouchableOpacity style={[styles.fullscreenBackBtn, { top: insets.top + 10 }]} onPress={() => setIsFullscreen(false)} accessibilityRole="button" accessibilityLabel="Back to PC Lab">
         <Ionicons name="arrow-back" size={24} color={WHITE} />
       </TouchableOpacity>
       <RealAR />
@@ -149,14 +154,18 @@ export default function PCLabScreen({ navigation }) {
   );
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity
-        onPress={() => navigation.goBack()}
-        style={[styles.floatingBackBtn, { top: insets.top + 12 }]}
-        activeOpacity={0.75}
-      >
-        <Ionicons name="arrow-back" size={22} color={TEXT} />
-      </TouchableOpacity>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      {!shellBack && (
+        <TouchableOpacity
+          onPress={() => leaveScreen(navigation)}
+          style={[styles.floatingBackBtn, { top: insets.top + 12, backgroundColor: theme.surface, borderColor: theme.border }]}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="arrow-back" size={22} color={theme.text} />
+        </TouchableOpacity>
+      )}
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
       <View style={[styles.content, { maxWidth: 960, width: '100%', alignSelf: 'center', marginTop: insets.top + 64 }]}>
@@ -242,7 +251,7 @@ const styles = StyleSheet.create({
   componentNameInstalled: { color: MUTED },
   installedBadge: { position: 'absolute', top: 8, right: 8, backgroundColor: GREEN, borderRadius: 10, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
   fullscreenContainer: { flex: 1, backgroundColor: '#000' },
-  fullscreenBackBtn: { position: 'absolute', left: 20, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, padding: 10 },
+  fullscreenBackBtn: { position: 'absolute', left: 20, zIndex: 10, width: 44, height: 44, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   instructionsOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 2 },
   instructionsCard: { backgroundColor: WHITE, borderRadius: 20, padding: 24, marginHorizontal: 24, alignSelf: 'stretch', maxWidth: 520 },
   instructionsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },

@@ -11,6 +11,9 @@ import * as Haptics from 'expo-haptics';
 import { LEVELS_BY_TOPIC, LEVEL_THEMES, buildAdjacency, buildDistanceMap, stepBackFrom } from '../data/circuitMazeLayout';
 import { getQuestionForLevel, TOPICS } from '../data/circuitMazeQuestions';
 import { circuitMazeService } from '../services/circuitMazeService';
+import { useTheme } from '../context/ThemeContext';
+import { useShellBack } from '../context/ChromeContext';
+import { leaveScreen } from '../utils/screenNav';
 import { circuitMazeProgress } from '../services/circuitMazeProgress';
 import StageTransition from '../components/StageTransition';
 import ReviewScreen from '../components/ReviewScreen';
@@ -82,6 +85,8 @@ function DiffBadge({ diff }) {
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function CircuitMazeScreen({ navigation, route }) {
+  const { theme: glass } = useTheme();
+  const shellBack = useShellBack();
   const roomId    = route?.params?.roomId || null;
   const isMulti   = route?.params?.multiplayer === true;
   const topic     = route?.params?.topic || 'networking';
@@ -583,7 +588,7 @@ export default function CircuitMazeScreen({ navigation, route }) {
           <TouchableOpacity style={[st.restartBtn,{backgroundColor:theme.trace}]} onPress={restartGame}>
             <Text style={[st.restartText,{color:'#0A0E1A'}]}>Play again</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={st.exitBtn} onPress={() => navigation.goBack()}>
+          <TouchableOpacity style={st.exitBtn} onPress={() => leaveScreen(navigation)} accessibilityRole="button" accessibilityLabel="Exit maze">
             <Text style={st.exitText}>Exit</Text>
           </TouchableOpacity>
         </LinearGradient>
@@ -651,16 +656,18 @@ export default function CircuitMazeScreen({ navigation, route }) {
   return (
     <SafeAreaView style={[st.safe,{backgroundColor:theme.bg[0]}]}>
       <LinearGradient colors={theme.bg} style={st.container}>
-        <View style={st.header}>
-          <TouchableOpacity onPress={()=>navigation.goBack()} style={st.backBtn}>
-            <Ionicons name="chevron-back" size={22} color="#E0F7FF" />
-          </TouchableOpacity>
+        <View style={[st.header, { backgroundColor: glass.surface, borderBottomWidth: 1, borderBottomColor: glass.border }]}>
+          {shellBack ? <View style={st.backBtn} /> : (
+            <TouchableOpacity onPress={() => leaveScreen(navigation)} style={[st.backBtn, { backgroundColor: glass.tint }]} accessibilityRole="button" accessibilityLabel="Go back">
+              <Ionicons name="chevron-back" size={22} color={glass.text} />
+            </TouchableOpacity>
+          )}
           <View style={st.headerCenter}>
-            <Text style={[st.headerTitle,{color:theme.trace}]}> {topicMeta.label.toUpperCase()}</Text>
-            <Text style={[st.headerSub,{color:theme.nodeBorder}]}>{theme.label}</Text>
+            <Text style={[st.headerTitle,{color:glass.text}]}> {topicMeta.label.toUpperCase()}</Text>
+            <Text style={[st.headerSub,{color:glass.textSecondary}]}>{theme.label}</Text>
           </View>
-          <TouchableOpacity onPress={restartGame} style={st.backBtn}>
-            <Ionicons name="refresh" size={20} color="#4A7A9B" />
+          <TouchableOpacity onPress={restartGame} style={[st.backBtn, { backgroundColor: glass.tint }]} accessibilityRole="button" accessibilityLabel="Restart level">
+            <Ionicons name="refresh" size={20} color={glass.primary} />
           </TouchableOpacity>
         </View>
 

@@ -9,6 +9,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { circuitMazeService } from '../services/circuitMazeService';
 import { authService } from '../services/authService';
 import { getErrorMessage } from '../utils/errorMessages';
+import { useTheme } from '../context/ThemeContext';
+import { useShellBack } from '../context/ChromeContext';
+import { leaveScreen } from '../utils/screenNav';
 
 const C = {
   bg: '#0A0E1A', panel: '#0F1E30', border: '#1A3A5C',
@@ -17,6 +20,8 @@ const C = {
 };
 
 export default function CircuitMazeLobbyScreen({ navigation, route }) {
+  const { theme } = useTheme();
+  const shellBack = useShellBack();
   const [mode, setMode] = useState(null); // null | 'solo' | 'host' | 'join'
   const [joinCode, setJoinCode] = useState('');
   const [room, setRoom] = useState(null);
@@ -165,11 +170,13 @@ export default function CircuitMazeLobbyScreen({ navigation, route }) {
   return (
     <SafeAreaView style={s.safe}>
       <LinearGradient colors={[C.bg, '#060B14']} style={s.container}>
-        <View style={s.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-            <Ionicons name="chevron-back" size={22} color={C.text} />
-          </TouchableOpacity>
-          <Text style={s.headerTitle}> CIRCUIT MAZE</Text>
+        <View style={[s.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+          {shellBack ? <View style={s.backBtn} /> : (
+            <TouchableOpacity onPress={() => leaveScreen(navigation)} style={[s.backBtn, { backgroundColor: theme.tint }]} accessibilityRole="button" accessibilityLabel="Go back">
+              <Ionicons name="chevron-back" size={22} color={theme.text} />
+            </TouchableOpacity>
+          )}
+          <Text style={[s.headerTitle, { color: theme.text }]}> CIRCUIT MAZE</Text>
           <View style={{ width: 36 }} />
         </View>
 

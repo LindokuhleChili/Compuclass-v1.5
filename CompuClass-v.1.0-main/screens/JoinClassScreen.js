@@ -7,15 +7,20 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { classService } from '../services/classService';
 import { getErrorMessage } from '../utils/errorMessages';
+import { appTheme, useTheme } from '../context/ThemeContext';
+import { useShellBack } from '../context/ChromeContext';
+import { leaveScreen } from '../utils/screenNav';
 
-const BLUE = '#0A66FF';
-const WHITE = '#FFFFFF';
-const BG = '#F7FBFD';
-const TEXT = '#0B1B3A';
-const MUTED = '#44526F';
-const CARD = '#FFFFFF';
+const BLUE = appTheme.primary;
+const WHITE = appTheme.surface;
+const BG = appTheme.background;
+const TEXT = appTheme.text;
+const MUTED = appTheme.textSecondary;
+const CARD = appTheme.card;
 
 export default function JoinClassScreen({ navigation }) {
+  const { theme } = useTheme();
+  const shellBack = useShellBack();
   const insets = useSafeAreaInsets();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -62,11 +67,13 @@ export default function JoinClassScreen({ navigation }) {
   };
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom + 24 }]}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="arrow-back" size={20} color={TEXT} />
-        </TouchableOpacity>
+    <View style={[styles.container, { paddingBottom: insets.bottom + 24, backgroundColor: theme.background }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 12, backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+        {shellBack ? <View style={styles.backBtn} /> : (
+          <TouchableOpacity onPress={() => leaveScreen(navigation)} style={[styles.backBtn, { backgroundColor: theme.tint }]} accessibilityRole="button" accessibilityLabel="Go back">
+            <Ionicons name="arrow-back" size={20} color={theme.text} />
+          </TouchableOpacity>
+        )}
         <Text style={styles.headerTitle} accessibilityRole="header">Join a class</Text>
         <View style={{ width: 44 }} />
       </View>

@@ -9,6 +9,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { gameRunnerService } from '../services/gameRunnerService';
 import { authService } from '../services/authService';
 import { getErrorMessage } from '../utils/errorMessages';
+import { useTheme } from '../context/ThemeContext';
+import { useShellBack } from '../context/ChromeContext';
+import { leaveScreen } from '../utils/screenNav';
 
 const C = {
   bg: '#0B1226', panel: '#141B34', border: '#2A2F55',
@@ -17,6 +20,8 @@ const C = {
 };
 
 export default function GameRunnerLobbyScreen({ navigation }) {
+  const { theme } = useTheme();
+  const shellBack = useShellBack();
   const [mode, setMode] = useState(null); // null | 'host' | 'join'
   const [joinCode, setJoinCode] = useState('');
   const [room, setRoom] = useState(null);
@@ -163,11 +168,13 @@ export default function GameRunnerLobbyScreen({ navigation }) {
   return (
     <SafeAreaView style={s.safe}>
       <LinearGradient colors={[C.bg, '#060A16']} style={s.container}>
-        <View style={s.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-            <Ionicons name="chevron-back" size={22} color={C.text} />
-          </TouchableOpacity>
-          <Text style={s.headerTitle}> COMPURUNNER</Text>
+        <View style={[s.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+          {shellBack ? <View style={s.backBtn} /> : (
+            <TouchableOpacity onPress={() => leaveScreen(navigation)} style={[s.backBtn, { backgroundColor: theme.tint }]} accessibilityRole="button" accessibilityLabel="Go back">
+              <Ionicons name="chevron-back" size={22} color={theme.text} />
+            </TouchableOpacity>
+          )}
+          <Text style={[s.headerTitle, { color: theme.text }]}> COMPURUNNER</Text>
           <View style={{ width: 36 }} />
         </View>
 

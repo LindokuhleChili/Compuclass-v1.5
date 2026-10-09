@@ -11,9 +11,12 @@ import * as Speech from 'expo-speech';
 import { progressService } from '../services/progressService';
 import { aiService } from '../services/aiService';
 import { COMPUBOT_MAX_CHARS, compuBotErrorMessage } from '../utils/compuBotError';
+import { appTheme, useTheme } from '../context/ThemeContext';
+import { useShellBack } from '../context/ChromeContext';
+import { leaveScreen } from '../utils/screenNav';
 
-const BLUE = '#0A66FF'; const WHITE = '#FFFFFF'; const BG = '#F7FBFD';
-const TEXT = '#0B1B3A'; const MUTED = '#5E6B85'; const BUBBLE_AI = '#EFF6FF';
+const BLUE = appTheme.primary; const WHITE = '#FFFFFF'; const BG = appTheme.background;
+const TEXT = appTheme.text; const MUTED = appTheme.textTertiary; const BUBBLE_AI = appTheme.tint;
 const CHAT_STORAGE_KEY = 'compubot_chat_history';
 
 const QUICK_PROMPTS = [
@@ -60,6 +63,8 @@ export default function ChatbotScreen({ navigation, route }) {
   const [speakingId, setSpeakingId] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
   const listRef = useRef(null);
+  const { theme } = useTheme();
+  const shellBack = useShellBack();
   const insets = useSafeAreaInsets();
   const context = route?.params?.context || null;
   const chatHydrated = useRef(false);
@@ -179,11 +184,13 @@ export default function ChatbotScreen({ navigation, route }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color={TEXT} />
-        </TouchableOpacity>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+        {shellBack ? <View style={styles.backBtn} /> : (
+          <TouchableOpacity onPress={() => leaveScreen(navigation)} style={[styles.backBtn, { backgroundColor: theme.tint }]} accessibilityRole="button" accessibilityLabel="Go back">
+            <Ionicons name="arrow-back" size={22} color={theme.text} />
+          </TouchableOpacity>
+        )}
         <View style={styles.headerCenter}>
           <View style={styles.headerAvatar}>
             <Ionicons name="hardware-chip" size={16} color={WHITE} />
