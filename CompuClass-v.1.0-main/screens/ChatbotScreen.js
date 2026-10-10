@@ -1,8 +1,8 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, KeyboardAvoidingView, Platform,
-  SafeAreaView, Image, Clipboard, ToastAndroid, Alert, Animated,
+  View, Text, TextInput, Pressable, FlatList, ScrollView,
+  StyleSheet, KeyboardAvoidingView, Platform, Keyboard,
+  Image, Clipboard, ToastAndroid, Alert, Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,12 +11,11 @@ import * as Speech from 'expo-speech';
 import { progressService } from '../services/progressService';
 import { aiService } from '../services/aiService';
 import { COMPUBOT_MAX_CHARS, compuBotErrorMessage } from '../utils/compuBotError';
-import { appTheme, useTheme } from '../context/ThemeContext';
+import { useTheme } from '../context/ThemeContext';
 import { useShellBack } from '../context/ChromeContext';
 import { leaveScreen } from '../utils/screenNav';
+import { Glass, IconButton, Heading, Body, IconTile, font, useLayout } from '../components/ui/kit';
 
-const BLUE = appTheme.primary; const WHITE = '#FFFFFF'; const BG = appTheme.background;
-const TEXT = appTheme.text; const MUTED = appTheme.textTertiary; const BUBBLE_AI = appTheme.tint;
 const CHAT_STORAGE_KEY = 'compubot_chat_history';
 
 const QUICK_PROMPTS = [
@@ -29,6 +28,7 @@ const QUICK_PROMPTS = [
 ];
 
 function TypingDots() {
+  const { theme } = useTheme();
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
   const dot3 = useRef(new Animated.Value(0)).current;
@@ -48,11 +48,29 @@ function TypingDots() {
   }, [dot1, dot2, dot3]);
 
   return (
-    <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center', paddingVertical: 4 }}>
+    <View style={styles.dots}>
       {[dot1, dot2, dot3].map((dot, i) => (
-        <Animated.View key={i} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: BLUE, transform: [{ translateY: dot }] }} />
+        <Animated.View key={i} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: theme.primary, transform: [{ translateY: dot }] }} />
       ))}
     </View>
+  );
+}
+
+function GlassHit({ name, label, onPress, color }) {
+  const { theme } = useTheme();
+  return (
+    <Pressable
+      className="cc-glass"
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => [{
+        width: 44, height: 44, borderRadius: 999, alignItems: 'center', justifyContent: 'center',
+        backgroundColor: theme.glassFill, borderWidth: 1, borderColor: theme.glassBorder, opacity: pressed ? 0.85 : 1,
+      }, Platform.OS === 'web' ? { backdropFilter: 'blur(28px) saturate(1.5)' } : null]}
+    >
+      <Ionicons name={name} size={20} color={color || theme.text} />
+    </Pressable>
   );
 }
 
@@ -62,10 +80,12 @@ export default function ChatbotScreen({ navigation, route }) {
   const [loading, setLoading] = useState(false);
   const [speakingId, setSpeakingId] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
   const listRef = useRef(null);
   const { theme } = useTheme();
   const shellBack = useShellBack();
   const insets = useSafeAreaInsets();
+  const { phone, laptop, horizontal, bottom } = useLayout();
   const context = route?.params?.context || null;
   const chatHydrated = useRef(false);
 
@@ -80,6 +100,14 @@ export default function ChatbotScreen({ navigation, route }) {
     if (!chatHydrated.current) return;
     progressService.set(CHAT_STORAGE_KEY, messages);
   }, [messages]);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvent, () => setKeyboardOpen(true));
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardOpen(false));
+    return () => { show?.remove?.(); hide?.remove?.(); };
+  }, []);
 
   const scrollToBottom = () => {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
@@ -158,176 +186,203 @@ export default function ChatbotScreen({ navigation, route }) {
     return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const inputInset = keyboardOpen ? Math.max(insets.bottom, 12) : (phone ? bottom : 24);
+  const bubbleMax = laptop ? 400 : '78%';
+
   const renderMessage = ({ item }) => {
     const isUser = item.role === 'user';
     return (
       <View style={[styles.msgRow, isUser ? styles.msgRowUser : styles.msgRowAI]}>
-        {!isUser && <View style={styles.avatar}><Ionicons name="hardware-chip" size={14} color={WHITE} /></View>}
-        <TouchableOpacity
-          activeOpacity={0.8}
+        {!isUser && <IconTile name="bot" tone="teal" size={44} />}
+        <Pressable
           onLongPress={() => copyMessage(item.text)}
-          style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAI]}
+          accessibilityRole="text"
+          accessibilityLabel={item.text || 'Image message'}
+          style={{ maxWidth: bubbleMax, flexShrink: 1 }}
         >
-          {item.image && <Image source={{ uri: item.image }} style={styles.msgImage} resizeMode="cover" />}
-          {item.text ? <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>{item.text}</Text> : null}
-          <View style={styles.msgMeta}>
-            <Text style={[styles.timestamp, isUser && { color: WHITE + 'AA' }]}>{formatTime(item.timestamp)}</Text>
-            {!isUser && (
-              <TouchableOpacity onPress={() => speakMessage(item.text, item.id)} style={{ marginLeft: 6, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Read aloud">
-                <Ionicons name={speakingId === item.id ? 'volume-high' : 'volume-medium-outline'} size={13} color={speakingId === item.id ? BLUE : MUTED} />
-              </TouchableOpacity>
-            )}
-          </View>
-        </TouchableOpacity>
+          {isUser ? (
+            <View style={[styles.bubble, { backgroundColor: theme.primary, borderBottomRightRadius: 4 }]}>
+              {item.image && <Image source={{ uri: item.image }} style={styles.msgImage} resizeMode="cover" />}
+              {item.text ? <Text style={[{ fontSize: 15, lineHeight: 22, color: theme.surface }, font(theme, 'body')]}>{item.text}</Text> : null}
+              <View style={styles.msgMeta}>
+                <Text style={[{ fontSize: 11, color: theme.secondary }, font(theme, 'medium')]}>{formatTime(item.timestamp)}</Text>
+              </View>
+            </View>
+          ) : (
+            <Glass strong radius={16} style={[styles.bubble, { borderBottomLeftRadius: 4 }]}>
+              {item.image && <Image source={{ uri: item.image }} style={styles.msgImage} resizeMode="cover" />}
+              {item.text ? <Text style={[{ fontSize: 15, lineHeight: 22, color: theme.text }, font(theme, 'body')]}>{item.text}</Text> : null}
+              <View style={styles.msgMeta}>
+                <Text style={[{ fontSize: 11, color: theme.textTertiary }, font(theme, 'medium')]}>{formatTime(item.timestamp)}</Text>
+                <Pressable
+                  onPress={() => speakMessage(item.text, item.id)}
+                  style={styles.speakBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Read aloud"
+                >
+                  <Ionicons name={speakingId === item.id ? 'volume-high' : 'volume-medium-outline'} size={16} color={speakingId === item.id ? theme.primary : theme.textTertiary} />
+                </Pressable>
+              </View>
+            </Glass>
+          )}
+        </Pressable>
       </View>
     );
   };
 
+  const empty = (
+    <ScrollView contentContainerStyle={[styles.emptyState, { paddingHorizontal: horizontal }]} keyboardShouldPersistTaps="handled">
+      <IconTile name="bot" tone="teal" size={72} />
+      <Heading level={2} style={{ textAlign: 'center', marginTop: 16, marginBottom: 8 }}>Ask CompuBot anything</Heading>
+      <Body variant="small" style={{ textAlign: 'center', maxWidth: 420, marginBottom: 24 }}>Get help with PC components, troubleshooting, quizzes, and more.</Body>
+      <View style={styles.quickGrid}>
+        {QUICK_PROMPTS.map((p) => (
+          <Pressable
+            key={p.label}
+            className="cc-glass"
+            onPress={() => sendMessage(p.text)}
+            accessibilityRole="button"
+            accessibilityLabel={p.label}
+            style={({ pressed }) => [styles.quickChip, {
+              backgroundColor: theme.glassPanel,
+              borderColor: theme.glassBorder,
+              opacity: pressed ? 0.9 : 1,
+            }, Platform.OS === 'web' ? { backdropFilter: 'blur(28px) saturate(1.5)' } : null]}
+          >
+            <Text style={[{ fontSize: 14, color: theme.text }, font(theme, 'semibold')]}>{p.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </ScrollView>
+  );
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        {shellBack ? <View style={styles.backBtn} /> : (
-          <TouchableOpacity onPress={() => leaveScreen(navigation)} style={[styles.backBtn, { backgroundColor: theme.tint }]} accessibilityRole="button" accessibilityLabel="Go back">
-            <Ionicons name="arrow-back" size={22} color={theme.text} />
-          </TouchableOpacity>
-        )}
-        <View style={styles.headerCenter}>
-          <View style={styles.headerAvatar}>
-            <Ionicons name="hardware-chip" size={16} color={WHITE} />
+    <View testID="compubot-screen" style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={[styles.column, { paddingHorizontal: horizontal, paddingTop: shellBack ? 4 : insets.top + 12 }]}>
+        <View style={styles.header}>
+          {!shellBack && (
+            <IconButton name="chevLeft" label="Go back" onPress={() => leaveScreen(navigation)} />
+          )}
+          <IconTile name="bot" tone="teal" />
+          <View style={{ flex: 1 }}>
+            <Heading level={3}>CompuBot</Heading>
+            <Body variant="caption">AI Learning Assistant</Body>
           </View>
-          <View>
-            <Text style={styles.headerTitle} accessibilityRole="header">CompuBot</Text>
-            <Text style={styles.headerSub}>AI Learning Assistant</Text>
-          </View>
+          {messages.length > 0 && (
+            <GlassHit name="trash-outline" label="Clear chat" onPress={clearChat} color={theme.textSecondary} />
+          )}
         </View>
-        {messages.length > 0 && (
-          <TouchableOpacity onPress={clearChat} style={styles.clearBtn}>
-            <Ionicons name="trash-outline" size={18} color={MUTED} />
-          </TouchableOpacity>
-        )}
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        {messages.length === 0 ? (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIcon}>
-              <Ionicons name="chatbubbles" size={36} color={BLUE} />
-            </View>
-            <Text style={styles.emptyTitle}>Ask CompuBot anything</Text>
-            <Text style={styles.emptySub}>Get help with PC components, troubleshooting, quizzes, and more.</Text>
-            <View style={styles.quickGrid}>
-              {QUICK_PROMPTS.map((p, i) => (
-                <TouchableOpacity key={i} style={styles.quickChip} onPress={() => sendMessage(p.text)}>
-                  <Text style={styles.quickChipText}>{p.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        ) : (
-          <FlatList
-            ref={listRef}
-            data={messages}
-            keyExtractor={item => item.id.toString()}
-            renderItem={renderMessage}
-            contentContainerStyle={styles.messageList}
-            showsVerticalScrollIndicator={false}
-            onContentSizeChange={scrollToBottom}
-            ListFooterComponent={
-              loading ? (
-                <View style={styles.typingRow}>
-                  <View style={styles.avatar}><Ionicons name="hardware-chip" size={14} color={WHITE} /></View>
-                  <View style={styles.typingBubble}><TypingDots /></View>
-                </View>
-              ) : null
-            }
-          />
-        )}
-
-        {selectedImage && (
-          <View style={styles.imagePreviewBar}>
-            <Image source={{ uri: selectedImage.uri }} style={styles.imagePreview} />
-            <TouchableOpacity onPress={() => setSelectedImage(null)} style={styles.removeImageBtn}>
-              <Ionicons name="close-circle" size={20} color={MUTED} />
-            </TouchableOpacity>
-            <Text style={styles.imagePreviewText}>Image ready to send</Text>
-          </View>
-        )}
-
-        <View style={[styles.inputBar, { paddingBottom: insets.bottom > 0 ? insets.bottom : 12 }]}>
-          <TouchableOpacity onPress={takePhoto} style={styles.iconBtn}>
-            <Ionicons name="camera-outline" size={22} color={MUTED} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={pickImage} style={styles.iconBtn}>
-            <Ionicons name="image-outline" size={22} color={MUTED} />
-          </TouchableOpacity>
-          <View style={styles.inputColumn}>
-            <TextInput
-              style={styles.input}
-              placeholder="Ask a question..."
-              placeholderTextColor={MUTED}
-              value={input}
-              onChangeText={setInput}
-              multiline
-              maxLength={COMPUBOT_MAX_CHARS}
+      <KeyboardAvoidingView
+        style={styles.fill}
+        behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}
+      >
+        <View style={[styles.column, styles.fill]}>
+          {messages.length === 0 ? empty : (
+            <FlatList
+              ref={listRef}
+              data={messages}
+              keyExtractor={item => item.id.toString()}
+              renderItem={renderMessage}
+              contentContainerStyle={[styles.messageList, { paddingHorizontal: horizontal }]}
+              showsVerticalScrollIndicator={false}
+              onContentSizeChange={scrollToBottom}
+              keyboardShouldPersistTaps="handled"
+              ListFooterComponent={
+                loading ? (
+                  <View style={[styles.msgRow, styles.msgRowAI]}>
+                    <IconTile name="bot" tone="teal" size={44} />
+                    <Glass strong radius={16} style={styles.bubble}>
+                      <TypingDots />
+                    </Glass>
+                  </View>
+                ) : null
+              }
             />
-            <Text style={styles.charCount} accessibilityLiveRegion="polite">
-              {input.length}/{COMPUBOT_MAX_CHARS}
-              {input.length >= COMPUBOT_MAX_CHARS ? ' · This message stops at 500 characters' : ''}
-            </Text>
+          )}
+
+          {selectedImage && (
+            <View style={{ paddingHorizontal: horizontal, marginBottom: 8 }}>
+              <Glass strong radius={16} style={styles.imagePreviewBar}>
+                <Image source={{ uri: selectedImage.uri }} style={styles.imagePreview} />
+                <Pressable onPress={() => setSelectedImage(null)} style={styles.removeImageBtn} accessibilityRole="button" accessibilityLabel="Remove image">
+                  <Ionicons name="close-circle" size={20} color={theme.textSecondary} />
+                </Pressable>
+                <Text style={[{ fontSize: 13, color: theme.textSecondary }, font(theme, 'medium')]}>Image ready to send</Text>
+              </Glass>
+            </View>
+          )}
+
+          <View style={{ paddingHorizontal: horizontal, paddingBottom: inputInset, paddingTop: 8 }}>
+            <Glass strong radius={24} style={styles.inputBar}>
+              <GlassHit name="camera-outline" label="Take photo" onPress={takePhoto} color={theme.textSecondary} />
+              <GlassHit name="image-outline" label="Choose image" onPress={pickImage} color={theme.textSecondary} />
+              <View style={styles.inputColumn}>
+                <TextInput
+                  style={[styles.input, {
+                    color: theme.text,
+                    backgroundColor: theme.surface,
+                    borderColor: theme.inputBorder,
+                    borderRadius: theme.radiusButton,
+                  }, font(theme, 'body')]}
+                  placeholder="Ask a question..."
+                  placeholderTextColor={theme.textTertiary}
+                  value={input}
+                  onChangeText={setInput}
+                  multiline
+                  maxLength={COMPUBOT_MAX_CHARS}
+                  accessibilityLabel="Message"
+                />
+                <Text style={[{ fontSize: 11, color: theme.textTertiary, marginTop: 4, marginLeft: 4 }, font(theme, 'body')]} accessibilityLiveRegion="polite">
+                  {input.length}/{COMPUBOT_MAX_CHARS}
+                  {input.length >= COMPUBOT_MAX_CHARS ? ' · This message stops at 500 characters' : ''}
+                </Text>
+              </View>
+              <Pressable
+                style={({ pressed }) => [styles.sendBtn, {
+                  backgroundColor: theme.primary,
+                  borderRadius: theme.radiusButton,
+                  opacity: ((!input.trim() && !selectedImage) || loading) ? 0.45 : pressed ? 0.92 : 1,
+                }]}
+                onPress={() => sendMessage(input, selectedImage?.base64)}
+                disabled={(!input.trim() && !selectedImage) || loading}
+                accessibilityRole="button"
+                accessibilityLabel="Send message"
+                accessibilityState={{ disabled: (!input.trim() && !selectedImage) || loading }}
+              >
+                <Ionicons name="send" size={18} color={theme.surface} />
+              </Pressable>
+            </Glass>
           </View>
-          <TouchableOpacity
-            style={[styles.sendBtn, ((!input.trim() && !selectedImage) || loading) && styles.sendBtnDisabled]}
-            onPress={() => sendMessage(input, selectedImage?.base64)}
-            disabled={(!input.trim() && !selectedImage) || loading}
-          >
-            <Ionicons name="send" size={18} color={WHITE} />
-          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
-  header: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F7FBFD', gap: 12 },
-  backBtn: { width: 44, height: 44, borderRadius: 10, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
-  headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerAvatar: { width: 44, height: 44, borderRadius: 10, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 15, fontWeight: '800', color: TEXT },
-  headerSub: { fontSize: 11, color: MUTED },
-  clearBtn: { width: 44, height: 44, borderRadius: 10, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
-  emptyState: { flex: 1, alignItems: 'center', paddingHorizontal: 24, paddingTop: 48 },
-  emptyIcon: { width: 72, height: 72, borderRadius: 20, backgroundColor: BLUE + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  emptyTitle: { fontSize: 20, fontWeight: '900', color: TEXT, marginBottom: 8 },
-  emptySub: { fontSize: 13, color: MUTED, textAlign: 'center', lineHeight: 20, marginBottom: 28 },
+  container: { flex: 1 },
+  fill: { flex: 1 },
+  column: { width: '100%', maxWidth: 760, alignSelf: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, marginBottom: 8 },
+  emptyState: { flexGrow: 1, alignItems: 'center', paddingHorizontal: 8, paddingTop: 24, paddingBottom: 16 },
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
-  quickChip: { backgroundColor: WHITE, borderRadius: 20, paddingHorizontal: 14, minHeight: 44, justifyContent: 'center', borderWidth: 1, borderColor: '#DCE6EF' },
-  quickChipText: { fontSize: 12, fontWeight: '600', color: TEXT },
-  messageList: { padding: 16, gap: 12, paddingBottom: 8 },
+  quickChip: { minHeight: 44, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1, alignItems: 'center', justifyContent: 'center', maxWidth: 400 },
+  messageList: { paddingTop: 8, paddingBottom: 8, gap: 12 },
   msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   msgRowUser: { justifyContent: 'flex-end' },
   msgRowAI: { justifyContent: 'flex-start' },
-  avatar: { width: 28, height: 28, borderRadius: 8, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
-  bubble: { maxWidth: '78%', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },
-  bubbleUser: { backgroundColor: BLUE, borderBottomRightRadius: 4 },
-  bubbleAI: { backgroundColor: BUBBLE_AI, borderBottomLeftRadius: 4 },
-  bubbleText: { fontSize: 14, color: TEXT, lineHeight: 21 },
-  bubbleTextUser: { color: WHITE },
-  msgImage: { width: 200, height: 150, borderRadius: 10, marginBottom: 6 },
+  bubble: { paddingHorizontal: 14, paddingVertical: 10 },
+  msgImage: { width: 200, height: 150, borderRadius: 12, marginBottom: 6 },
   msgMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  timestamp: { fontSize: 10, color: MUTED },
-  typingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 8 },
-  typingBubble: { backgroundColor: BUBBLE_AI, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },
-  imagePreviewBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#F7FBFD', gap: 10 },
+  speakBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  dots: { flexDirection: 'row', gap: 4, alignItems: 'center', paddingVertical: 8 },
+  imagePreviewBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 10 },
   imagePreview: { width: 48, height: 48, borderRadius: 8 },
-  removeImageBtn: { position: 'absolute', top: 4, left: 52 },
-  imagePreviewText: { fontSize: 12, color: MUTED },
-  inputBar: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: WHITE, paddingHorizontal: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F7FBFD', gap: 8 },
-  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  removeImageBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  inputBar: { flexDirection: 'row', alignItems: 'flex-end', padding: 8, gap: 6 },
   inputColumn: { flex: 1 },
-  input: { backgroundColor: BG, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: TEXT, maxHeight: 100 },
-  charCount: { fontSize: 11, color: MUTED, marginTop: 4, marginLeft: 4 },
-  sendBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
-  sendBtnDisabled: { backgroundColor: BLUE + '50' },
+  input: { borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10, fontSize: 16, minHeight: 48, maxHeight: 120, width: '100%' },
+  sendBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
 });
