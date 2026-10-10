@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import { View, Text } from 'react-native';
 import WebView from './WebEmbed';
+import { useTheme } from '../context/ThemeContext';
+import { Glass, font } from './ui/kit';
 
-export default function RealAR() {
-
-
+export default function RealAR({ captionOffset = 12 }) {
+  const { theme } = useTheme();
   const htmlContent = `
     <!DOCTYPE html>
     <html>
@@ -12,8 +13,8 @@ export default function RealAR() {
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
         <style>
-          body { margin: 0; padding: 0; }
-          model-viewer { width: 100%; height: 100vh; background-color: #f0f0f0; }
+          body { margin: 0; padding: 0; background: ${theme.background}; }
+          model-viewer { width: 100%; height: 100vh; background-color: ${theme.background}; }
         </style>
       </head>
       <body>
@@ -27,41 +28,19 @@ export default function RealAR() {
       </body>
     </html>
   `;
-  
+
   return (
-    <View style={styles.container}>
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
       <WebView
         originWhitelist={['*']}
         source={{ html: htmlContent }}
-        style={styles.glView}
+        style={{ flex: 1, backgroundColor: theme.background }}
       />
-      <View style={styles.overlay}>
-        <Text style={styles.modelInfo}>Personal Computer - 3D View</Text>
+      <View pointerEvents="none" style={{ position: 'absolute', top: 12, left: captionOffset, right: 12 }}>
+        <Glass strong radius={14} style={{ paddingVertical: 12, paddingHorizontal: 16 }}>
+          <Text style={[{ color: theme.text, fontSize: 16, textAlign: 'center' }, font(theme, 'semibold')]}>Personal Computer - 3D View</Text>
+        </Glass>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  glView: {
-    flex: 1,
-  },
-  overlay: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    right: 20,
-    backgroundColor: 'rgba(59, 130, 246, 0.9)',
-    padding: 15,
-    borderRadius: 10,
-  },
-  modelInfo: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-});

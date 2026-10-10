@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Animated, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Alert, Animated, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -11,35 +11,61 @@ import CPUAR from '../components/CPUAR';
 import GPUAR from '../components/GPUAR';
 import PSUAR from '../components/PSUAR';
 import { PROGRESS_KEYS, progressService } from '../services/progressService';
-import { appTheme, useTheme } from '../context/ThemeContext';
+import { useTheme } from '../context/ThemeContext';
 import { useShellBack } from '../context/ChromeContext';
 import { leaveScreen } from '../utils/screenNav';
+import { Glass, IconButton, Heading, Body, Button, font, useLayout } from '../components/ui/kit';
 
-const GREEN = appTheme.success; const WHITE = appTheme.surface; const BG = appTheme.background;
-const TEXT = appTheme.text; const MUTED = appTheme.textSecondary; const BORDER = appTheme.border;
-
-const components = [
-  { id: 'motherboard', name: 'Motherboard',  icon: 'hardware-chip',    color: '#0A66FF' },
-  { id: 'cpu',         name: 'CPU',           icon: 'speedometer',      color: '#D92D4A' },
-  { id: 'ram',         name: 'RAM',           icon: 'albums',           color: '#0A6F79' },
-  { id: 'gpu',         name: 'Graphics Card', icon: 'tv',               color: '#E39B0B' },
-  { id: 'storage',     name: 'Storage (SSD)', icon: 'save',             color: '#1F9D55' },
-  { id: 'psu',         name: 'Power Supply',  icon: 'battery-charging', color: '#EC4899' },
+const COMPONENTS = [
+  { id: 'motherboard', name: 'Motherboard', icon: 'hardware-chip', tone: 'blue' },
+  { id: 'cpu', name: 'CPU', icon: 'speedometer', tone: 'yellow' },
+  { id: 'ram', name: 'RAM', icon: 'albums', tone: 'teal' },
+  { id: 'gpu', name: 'Graphics Card', icon: 'tv', tone: 'blue' },
+  { id: 'storage', name: 'Storage (SSD)', icon: 'save', tone: 'teal' },
+  { id: 'psu', name: 'Power Supply', icon: 'battery-charging', tone: 'yellow' },
 ];
 
-const steps = ['Install Motherboard', 'Install CPU', 'Install RAM', 'Install Graphics Card', 'Install Storage', 'Connect Power Supply'];
+const STEPS = ['Install Motherboard', 'Install CPU', 'Install RAM', 'Install Graphics Card', 'Install Storage', 'Connect Power Supply'];
+
+const INSTRUCTIONS = [
+  { icon: 'hand-left', tone: 'blue', text: 'Drag to rotate the 3D PC model' },
+  { icon: 'resize', tone: 'teal', text: 'Pinch to zoom in/out' },
+  { icon: 'construct', tone: 'yellow', text: 'Tap components to learn more' },
+];
+
+function toneColors(theme, tone) {
+  const map = {
+    blue: { bg: theme.tint, fg: theme.primary },
+    teal: { bg: theme.secondary, fg: theme.accentInk },
+    yellow: { bg: theme.yellowTint, fg: theme.yellowInk },
+  };
+  return map[tone] || map.blue;
+}
+
+function ToneIcon({ name, tone, size = 56, muted }) {
+  const { theme } = useTheme();
+  const colors = muted
+    ? { bg: theme.borderLight, fg: theme.textTertiary }
+    : toneColors(theme, tone);
+  return (
+    <View style={{ width: size, height: size, borderRadius: 16, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+      <Ionicons name={name} size={size >= 48 ? 26 : 18} color={colors.fg} />
+    </View>
+  );
+}
 
 export default function PCLabScreen({ navigation }) {
   const { theme } = useTheme();
   const shellBack = useShellBack();
   const insets = useSafeAreaInsets();
-  // Live width/height so the grid and AR viewer follow window resizes and
-  // adapt to tablets/laptops, not just phone-sized viewports.
   const { width, height } = useWindowDimensions();
-  const contentWidth = Math.min(width, 960);
-  const numColumns = width < 500 ? 2 : width < 900 ? 3 : 4;
+  const { laptop, horizontal, bottom } = useLayout();
+  const [columnWidth, setColumnWidth] = useState(0);
+  const column = columnWidth || Math.max(320, width - (laptop ? 256 : 0));
+  const content = Math.min(1200, Math.max(280, column - horizontal * 2));
+  const numColumns = content < 460 ? 2 : content < 820 ? 3 : 4;
   const cardGap = 16;
-  const cardWidth = (contentWidth - 32 - cardGap * (numColumns - 1)) / numColumns;
+  const cardWidth = (content - cardGap * (numColumns - 1)) / numColumns;
   const arHeight = Math.min(480, Math.max(260, height * 0.4));
   const [selectedComponents, setSelectedComponents] = useState([]);
   const [currentStep, setCurrentStep] = useState(0);
@@ -68,7 +94,7 @@ export default function PCLabScreen({ navigation }) {
   const [showStorageFullscreen, setShowStorageFullscreen] = useState(false);
   const [showPSUFullscreen, setShowPSUFullscreen] = useState(false);
 
-  const cardScales = useRef(components.map(() => new Animated.Value(1))).current;
+  const cardScales = useRef(COMPONENTS.map(() => new Animated.Value(1))).current;
 
   const animateCard = (index, onDone) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -89,173 +115,145 @@ export default function PCLabScreen({ navigation }) {
 
   const handleComponentPress = (id, index) => {
     animateCard(index, () => {
-      if (currentStep >= steps.length) return;
-      if (id === components[currentStep].id) {
+      if (currentStep >= STEPS.length) return;
+      if (id === COMPONENTS[currentStep].id) {
         setSelectedComponents([...selectedComponents, id]);
         setCurrentStep(currentStep + 1);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        if (currentStep === steps.length - 1) {
-          Alert.alert('Congratulations! ', 'You have successfully assembled your PC!', [
+        if (currentStep === STEPS.length - 1) {
+          Alert.alert('Congratulations!', 'You have successfully assembled your PC!', [
             { text: 'Start New Build', onPress: () => { setSelectedComponents([]); setCurrentStep(0); } },
           ]);
         }
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert('Wrong Component', `Next step: ${steps[currentStep]}`);
+        Alert.alert('Wrong Component', `Next step: ${STEPS[currentStep]}`);
       }
     });
   };
 
+  const backTop = shellBack ? 12 : insets.top + 12;
+
   const FullscreenView = ({ onBack, children }) => (
-    <View style={styles.fullscreenContainer}>
-      <TouchableOpacity style={[styles.fullscreenBackBtn, { top: insets.top + 10 }]} onPress={onBack} accessibilityRole="button" accessibilityLabel="Back to PC Lab">
-        <Ionicons name="arrow-back" size={24} color={WHITE} />
-      </TouchableOpacity>
+    <View style={[styles.fill, { backgroundColor: theme.background }]}>
+      <IconButton name="chevLeft" label="Back to PC Lab" onPress={onBack} style={[styles.floatBack, { top: backTop }]} />
       {children}
     </View>
   );
 
   if (showMotherboardFullscreen) return <FullscreenView onBack={() => setShowMotherboardFullscreen(false)}><MotherboardAR /></FullscreenView>;
-  if (showCPUFullscreen)         return <FullscreenView onBack={() => setShowCPUFullscreen(false)}><CPUAR /></FullscreenView>;
-  if (showRAMFullscreen)         return <FullscreenView onBack={() => setShowRAMFullscreen(false)}><RamAR /></FullscreenView>;
-  if (showGPUFullscreen)         return <FullscreenView onBack={() => setShowGPUFullscreen(false)}><GPUAR /></FullscreenView>;
-  if (showStorageFullscreen)     return <FullscreenView onBack={() => setShowStorageFullscreen(false)}><StorageAR /></FullscreenView>;
-  if (showPSUFullscreen)         return <FullscreenView onBack={() => setShowPSUFullscreen(false)}><PSUAR /></FullscreenView>;
+  if (showCPUFullscreen) return <FullscreenView onBack={() => setShowCPUFullscreen(false)}><CPUAR /></FullscreenView>;
+  if (showRAMFullscreen) return <FullscreenView onBack={() => setShowRAMFullscreen(false)}><RamAR /></FullscreenView>;
+  if (showGPUFullscreen) return <FullscreenView onBack={() => setShowGPUFullscreen(false)}><GPUAR /></FullscreenView>;
+  if (showStorageFullscreen) return <FullscreenView onBack={() => setShowStorageFullscreen(false)}><StorageAR /></FullscreenView>;
+  if (showPSUFullscreen) return <FullscreenView onBack={() => setShowPSUFullscreen(false)}><PSUAR /></FullscreenView>;
 
   if (isFullscreen) return (
-    <View style={styles.fullscreenContainer}>
-      <TouchableOpacity style={[styles.fullscreenBackBtn, { top: insets.top + 10 }]} onPress={() => setIsFullscreen(false)} accessibilityRole="button" accessibilityLabel="Back to PC Lab">
-        <Ionicons name="arrow-back" size={24} color={WHITE} />
-      </TouchableOpacity>
-      <RealAR />
+    <View style={[styles.fill, { backgroundColor: theme.background }]}>
+      <IconButton name="chevLeft" label="Back to PC Lab" onPress={() => setIsFullscreen(false)} style={[styles.floatBack, { top: backTop }]} />
+      <RealAR captionOffset={72} />
       {showInstructions && (
-        <View style={styles.instructionsOverlay}>
-          <View style={styles.instructionsCard}>
+        <View style={[styles.instructionsOverlay, { backgroundColor: theme.overlay }]}>
+          <Glass strong radius={24} style={styles.instructionsCard}>
             <View style={styles.instructionsHeader}>
-              <Text style={styles.instructionsTitle}>How to Use 3D Viewer</Text>
-              <TouchableOpacity onPress={() => setShowInstructions(false)}>
-                <Ionicons name="close" size={20} color={TEXT} />
-              </TouchableOpacity>
+              <Heading level={3}>How to Use 3D Viewer</Heading>
+              <IconButton name="close" label="Close instructions" onPress={() => setShowInstructions(false)} />
             </View>
-            {[
-              { icon: 'hand-left', color: '#0A66FF', text: 'Drag to rotate the 3D PC model' },
-              { icon: 'resize',    color: '#1F9D55', text: 'Pinch to zoom in/out' },
-              { icon: 'construct', color: '#E39B0B', text: 'Tap components to learn more' },
-            ].map((item, i) => (
-              <View key={i} style={styles.instructionRow}>
-                <Ionicons name={item.icon} size={18} color={item.color} />
-                <Text style={styles.instructionText}>{item.text}</Text>
-              </View>
-            ))}
-          </View>
+            {INSTRUCTIONS.map((item) => {
+              const colors = toneColors(theme, item.tone);
+              return (
+                <View key={item.text} style={styles.instructionRow}>
+                  <View style={[styles.instructionIcon, { backgroundColor: colors.bg }]}>
+                    <Ionicons name={item.icon} size={18} color={colors.fg} />
+                  </View>
+                  <Text style={[{ flex: 1, color: theme.textSecondary, fontSize: 14, lineHeight: 20 }, font(theme, 'body')]}>{item.text}</Text>
+                </View>
+              );
+            })}
+          </Glass>
         </View>
       )}
     </View>
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View testID="pc-lab-screen" onLayout={(e) => setColumnWidth(e.nativeEvent.layout.width)} style={[styles.fill, { backgroundColor: theme.background }]}>
       {!shellBack && (
-        <TouchableOpacity
-          onPress={() => leaveScreen(navigation)}
-          style={[styles.floatingBackBtn, { top: insets.top + 12, backgroundColor: theme.surface, borderColor: theme.border }]}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Ionicons name="arrow-back" size={22} color={theme.text} />
-        </TouchableOpacity>
+        <IconButton name="chevLeft" label="Go back" onPress={() => leaveScreen(navigation)} style={[styles.floatBack, { top: backTop }]} />
       )}
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
-      <View style={[styles.content, { maxWidth: 960, width: '100%', alignSelf: 'center', marginTop: insets.top + 64 }]}>
-        {/* 3D Model */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>3D PC Model</Text>
-          <TouchableOpacity
-            style={styles.expandBtn}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsFullscreen(true); setShowInstructions(true); }}
-            activeOpacity={0.75}
-          >
-            <Ionicons name="expand" size={16} color={GREEN} />
-            <Text style={styles.expandText}>Fullscreen</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={[styles.arContainer, { height: arHeight }]}><RealAR /></View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottom, paddingHorizontal: horizontal, paddingTop: shellBack ? 8 : insets.top + 60 }}>
+        <View style={{ width: '100%', maxWidth: 1200, alignSelf: 'center' }}>
+          <View style={styles.sectionHeader}>
+            <Heading level={2}>3D PC Model</Heading>
+            <Button
+              label="Fullscreen"
+              variant="secondary"
+              fit
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsFullscreen(true); setShowInstructions(true); }}
+              accessibilityLabel="Fullscreen"
+            />
+          </View>
+          <Glass strong radius={24} style={{ height: arHeight }}>
+            <RealAR />
+          </Glass>
 
-        {/* Components */}
-        <Text style={[styles.sectionTitle, { marginTop: 20, marginBottom: 4 }]}>Available Components</Text>
-        <Text style={styles.stepHint}>
-          {currentStep < steps.length ? `Next step: ${steps[currentStep]}` : 'Build complete'}
-        </Text>
-        <View style={styles.componentsGrid}>
-          {components.map((component, index) => {
-            const installed = selectedComponents.includes(component.id);
-            return (
-              <Animated.View key={component.id} style={{ transform: [{ scale: cardScales[index] }], width: cardWidth }}>
-                <TouchableOpacity
-                  style={[styles.componentCard, installed && styles.componentInstalled]}
-                  onPress={() => handleComponentPress(component.id, index)}
-                  disabled={installed}
-                  activeOpacity={0.75}
-                >
-                  <View style={[styles.componentIconWrap, { backgroundColor: installed ? '#DCE6EF' : component.color }]}>
-                    <Ionicons name={component.icon} size={26} color={installed ? MUTED : WHITE} />
-                  </View>
-                  <Text style={[styles.componentName, installed && styles.componentNameInstalled]}>{component.name}</Text>
-                  {installed && (
-                    <View style={styles.installedBadge}>
-                      <Ionicons name="checkmark" size={12} color={WHITE} />
-                    </View>
-                  )}
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => openComponentViewer(component.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`View ${component.name} model`}
-                  style={styles.viewModelBtn}
-                >
-                  <Text style={styles.viewModelText}>View model</Text>
-                </TouchableOpacity>
-              </Animated.View>
-            );
-          })}
+          <Heading level={2} style={{ marginTop: 28, marginBottom: 4 }}>Available Components</Heading>
+          <Body variant="small" style={[{ marginBottom: 16, color: theme.text }, font(theme, 'semibold')]}>
+            {currentStep < STEPS.length ? `Next step: ${STEPS[currentStep]}` : 'Build complete'}
+          </Body>
+          <View style={[styles.componentsGrid, { gap: cardGap }]}>
+            {COMPONENTS.map((component, index) => {
+              const installed = selectedComponents.includes(component.id);
+              return (
+                <Animated.View key={component.id} style={{ transform: [{ scale: cardScales[index] }], width: Math.min(cardWidth, 400) }}>
+                  <Pressable
+                    style={({ pressed }) => [{ opacity: installed ? 0.55 : pressed ? 0.92 : 1 }]}
+                    onPress={() => handleComponentPress(component.id, index)}
+                    disabled={installed}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: installed }}
+                    accessibilityLabel={installed ? `${component.name} installed` : component.name}
+                  >
+                    <Glass strong radius={16} style={styles.componentCard}>
+                      <ToneIcon name={component.icon} tone={component.tone} muted={installed} />
+                      <Text style={[{ marginTop: 10, fontSize: 13, textAlign: 'center', color: installed ? theme.textSecondary : theme.text }, font(theme, 'semibold')]}>{component.name}</Text>
+                      {installed && (
+                        <View style={[styles.installedBadge, { backgroundColor: theme.success }]}>
+                          <Ionicons name="checkmark" size={12} color={theme.surface} />
+                        </View>
+                      )}
+                    </Glass>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => openComponentViewer(component.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View ${component.name} model`}
+                    style={styles.viewModelBtn}
+                  >
+                    <Text style={[{ fontSize: 14, color: theme.primary }, font(theme, 'semibold')]}>View model</Text>
+                  </Pressable>
+                </Animated.View>
+              );
+            })}
+          </View>
         </View>
-      </View>
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
-  floatingBackBtn: {
-    position: 'absolute', left: 16, zIndex: 10,
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: WHITE, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center',
-  },
-  content: { paddingHorizontal: 16 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle: { fontSize: 17, fontWeight: '800', color: TEXT },
-  expandBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8, backgroundColor: GREEN + '20', borderRadius: 10 },
-  expandText: { fontSize: 12, fontWeight: '700', color: GREEN },
-  arContainer: { borderRadius: 16, overflow: 'hidden', borderWidth: 3, borderColor: GREEN },
-  componentsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
-  componentCard: { backgroundColor: WHITE, borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 3, position: 'relative' },
-  componentInstalled: { opacity: 0.5 },
-  componentIconWrap: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  componentName: { fontSize: 13, fontWeight: '700', color: TEXT, textAlign: 'center' },
-  stepHint: { fontSize: 14, fontWeight: '700', color: MUTED, marginBottom: 12 },
+  fill: { flex: 1 },
+  floatBack: { position: 'absolute', left: 16, zIndex: 10 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' },
+  componentsGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  componentCard: { padding: 16, alignItems: 'center', minHeight: 132 },
+  installedBadge: { position: 'absolute', top: 10, right: 10, borderRadius: 11, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
   viewModelBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  viewModelText: { fontSize: 13, fontWeight: '700', color: '#0A66FF' },
-  componentNameInstalled: { color: MUTED },
-  installedBadge: { position: 'absolute', top: 8, right: 8, backgroundColor: GREEN, borderRadius: 10, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
-  fullscreenContainer: { flex: 1, backgroundColor: '#000' },
-  fullscreenBackBtn: { position: 'absolute', left: 20, zIndex: 10, width: 44, height: 44, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  instructionsOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 2 },
-  instructionsCard: { backgroundColor: WHITE, borderRadius: 20, padding: 24, marginHorizontal: 24, alignSelf: 'stretch', maxWidth: 520 },
-  instructionsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  instructionsTitle: { fontSize: 17, fontWeight: '800', color: TEXT },
+  instructionsOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', zIndex: 2, padding: 20 },
+  instructionsCard: { padding: 24, width: '100%', maxWidth: 480 },
+  instructionsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12 },
   instructionRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 12 },
-  instructionText: { fontSize: 14, color: MUTED, flex: 1 },
+  instructionIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
 });

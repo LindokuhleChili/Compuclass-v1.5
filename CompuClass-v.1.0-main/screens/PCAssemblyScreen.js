@@ -1,25 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, Image, ScrollView, StyleSheet, Animated, PanResponder, TouchableOpacity,
+  View, Text, Image, ScrollView, StyleSheet, Animated, PanResponder, Pressable,
   Vibration, Platform, useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { PROGRESS_KEYS, progressService } from '../services/progressService';
-import { appTheme, useTheme } from '../context/ThemeContext';
+import { useTheme } from '../context/ThemeContext';
 import { useShellBack } from '../context/ChromeContext';
 import { leaveScreen } from '../utils/screenNav';
-
-const GREEN = appTheme.success; const WHITE = appTheme.surface; const BG = appTheme.background;
-const TEXT = appTheme.text; const MUTED = appTheme.textSecondary; const BORDER = appTheme.border;
-const RED = appTheme.error;
+import { Glass, IconButton, Heading, Body, font, useLayout } from '../components/ui/kit';
 
 const CASE_IMG = require('../assets/pc-assembly/case-open.png');
 const CASE_RATIO = 712 / 548; // width / height of case-open.png
 
-// Local to this screen on purpose — PCLabScreen.js's own component cards
-// (which open the AR viewers) are a separate feature and are not touched.
+// Local to this screen on purpose. PC Lab's component cards open the AR viewers
+// and stay a separate feature.
 //
 // `slot` is where the part sits inside the open case, as fractions of the
 // case picture (0..1). The CPU and RAM slots line up with the socket and
@@ -57,16 +54,12 @@ function slotRect(part, caseW, caseH) {
   return { x: s.left * caseW, y: s.top * caseH, width: s.width * caseW, height: s.height * caseH };
 }
 
-// How big the part is while being dragged: its real size in the case, blown
-// up just enough that tiny parts (CPU, RAM) are still visible under a finger.
 function dragSize(part, caseW, caseH) {
   const r = caseW ? slotRect(part, caseW, caseH) : { width: 100, height: 80 };
   const k = Math.max(1, Math.min(56 / Math.min(r.width, r.height), 160 / Math.max(r.width, r.height)));
   return { w: r.width * k, h: r.height * k, k };
 }
 
-// The part's picture, sized to its slot. RAM is drawn upright (rotated 90°)
-// because the DIMM slots run vertically on the motherboard.
 function PartPicture({ part, width, height, style }) {
   if (part.rotate) {
     return (
@@ -84,15 +77,13 @@ function PartPicture({ part, width, height, style }) {
   return <Image source={part.img} resizeMode="contain" style={[{ width, height }, style]} />;
 }
 
-// ── One slot inside the case picture ────────────────────────────────────────
 function CaseSlot({ part, state, caseW, caseH }) {
-  // state: 'locked' | 'active' | 'filled'
+  const { theme } = useTheme();
   const seat = useRef(new Animated.Value(1)).current;
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (state === 'filled') {
-      // A small "click into place" once the dragged part lands on the slot.
       seat.setValue(1.06);
       Animated.spring(seat, { toValue: 1, useNativeDriver: true, friction: 5, tension: 160 }).start();
     }
@@ -120,16 +111,17 @@ function CaseSlot({ part, state, caseW, caseH }) {
     );
   }
 
-  // Active: a pulsing outline only — no ghost, the student has to work out
-  // which component belongs there.
   const glow = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] });
-  return <Animated.View pointerEvents="none" style={[box, styles.slotOutline, { opacity: glow }]} />;
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[box, styles.slotOutline, { borderColor: theme.accent, opacity: glow }]}
+    />
+  );
 }
 
-// ── One card in the parts tray ──────────────────────────────────────────────
-// The card itself never moves: grabbing it lifts a cut-out copy of the part
-// (rendered by the screen) and leaves a faded placeholder behind.
 function PartCard({ part, lifted, handlers }) {
+  const { theme } = useTheme();
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
 
@@ -137,7 +129,6 @@ function PartCard({ part, lifted, handlers }) {
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      // Don't let the ScrollView steal the drag halfway across the screen.
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: (_, g) => handlersRef.current.onStart(part.id, g.x0, g.y0),
       onPanResponderMove: (_, g) => handlersRef.current.onMove(g.x0 + g.dx, g.y0 + g.dy),
@@ -147,10 +138,19 @@ function PartCard({ part, lifted, handlers }) {
   ).current;
 
   return (
-    <View {...panResponder.panHandlers} style={styles.card}>
+    <View
+      {...panResponder.panHandlers}
+      className="cc-glass"
+      style={[styles.card, {
+        backgroundColor: theme.glassPanel,
+        borderColor: theme.glassBorder,
+        shadowColor: theme.glassShadow,
+      }, Platform.OS === 'web' ? { backdropFilter: 'blur(28px) saturate(1.5)' } : null]}
+    >
+      <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: theme.glassTint }]} />
       <Image source={part.img} resizeMode="contain" style={[styles.cardImg, lifted && { opacity: 0.2 }]} />
-      <View style={styles.cardLabel}>
-        <Text style={styles.cardName} numberOfLines={1}>{part.name}</Text>
+      <View style={[styles.cardLabel, { backgroundColor: theme.secondary }]}>
+        <Text style={[{ fontSize: 12, textAlign: 'center', color: theme.text }, font(theme, 'semibold')]} numberOfLines={1}>{part.name}</Text>
       </View>
     </View>
   );
@@ -161,7 +161,10 @@ export default function PCAssemblyScreen({ navigation }) {
   const { theme } = useTheme();
   const shellBack = useShellBack();
   const { width } = useWindowDimensions();
-  const isWide = width >= 700;
+  const { laptop, horizontal, bottom } = useLayout();
+  const [columnWidth, setColumnWidth] = useState(0);
+  const column = columnWidth || Math.max(320, width - (laptop ? 256 : 0));
+  const isWide = column >= 880;
 
   const [installed, setInstalled] = useState([]);
   const progressHydrated = useRef(false);
@@ -181,13 +184,13 @@ export default function PCAssemblyScreen({ navigation }) {
   const [showHint, setShowHint] = useState(false);
   const [caseSize, setCaseSize] = useState({ w: 0, h: 0 });
   const [dragId, setDragId] = useState(null);
-  const [feedback, setFeedback] = useState(null); // { kind: 'ok' | 'error', text }
+  const [feedback, setFeedback] = useState(null);
 
   const containerRef = useRef(null);
   const caseRef = useRef(null);
   const containerOffset = useRef({ x: 0, y: 0 });
-  const activeDrag = useRef(null); // part id while the finger is down
-  const busy = useRef(false);      // true while a drop/return animation runs
+  const activeDrag = useRef(null);
+  const busy = useRef(false);
   const dragStart = useRef({ x: 0, y: 0 });
 
   const dragPos = useRef(new Animated.ValueXY()).current;
@@ -208,7 +211,6 @@ export default function PCAssemblyScreen({ navigation }) {
     containerRef.current?.measureInWindow((x, y) => { containerOffset.current = { x, y }; });
   };
 
-  // Window coords → position of the floating part's centre inside the screen.
   const toLocal = (x, y) => ({
     x: x - containerOffset.current.x,
     y: y - containerOffset.current.y - LIFT,
@@ -270,8 +272,6 @@ export default function PCAssemblyScreen({ navigation }) {
       activeDrag.current = null;
       busy.current = true;
 
-      // Measure the case at drop time (not on layout) so scrolling can't
-      // leave us with stale window coordinates.
       caseRef.current?.measureInWindow((cx, cy, cw, ch) => {
         const px = x - cx;
         const py = y - LIFT - cy;
@@ -284,8 +284,6 @@ export default function PCAssemblyScreen({ navigation }) {
           py >= r.y - HIT_PAD && py <= r.y + r.height + HIT_PAD;
 
         if (partId === expectedId && onSlot) {
-          // Glide into the slot and shrink back to its real size, then hand
-          // over to the CaseSlot so the part stays put.
           const { k } = dragSize(target, cw, ch);
           const centre = {
             x: cx + r.x + r.width / 2 - containerOffset.current.x,
@@ -336,137 +334,147 @@ export default function PCAssemblyScreen({ navigation }) {
 
   const dragPart = dragId ? PART_BY_ID[dragId] : null;
   const dragBox = dragPart ? dragSize(dragPart, caseSize.w, caseSize.h) : null;
+  const backTop = shellBack ? 12 : insets.top + 12;
+
+  const actionBtn = (filled) => ({
+    minHeight: 48,
+    paddingHorizontal: 16,
+    borderRadius: theme.radiusButton,
+    alignItems: 'center',
+    justifyContent: 'center',
+    maxWidth: 400,
+    backgroundColor: filled ? theme.primary : theme.surface,
+    borderWidth: filled ? 0 : 1,
+    borderColor: theme.border,
+  });
 
   return (
     <View
+      testID="pc-assembly-screen"
       ref={containerRef}
-      onLayout={() => requestAnimationFrame(measureContainer)}
+      onLayout={(e) => {
+        setColumnWidth(e.nativeEvent.layout.width);
+        requestAnimationFrame(measureContainer);
+      }}
       style={[styles.container, { backgroundColor: theme.background }]}
     >
       {!shellBack && (
-        <TouchableOpacity
-          onPress={() => leaveScreen(navigation)}
-          style={[styles.floatingBackBtn, { top: insets.top + 12, backgroundColor: theme.surface, borderColor: theme.border }]}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Ionicons name="arrow-back" size={22} color={theme.text} />
-        </TouchableOpacity>
+        <IconButton name="chevLeft" label="Go back" onPress={() => leaveScreen(navigation)} style={[styles.floatBack, { top: backTop }]} />
       )}
 
       <ScrollView
         scrollEnabled={!dragId}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}
+        contentContainerStyle={{ paddingBottom: bottom, paddingHorizontal: horizontal, paddingTop: shellBack ? 8 : insets.top + 60 }}
       >
-        <View style={[styles.content, { maxWidth: 1100, width: '100%', alignSelf: 'center', marginTop: insets.top + 64 }]}>
+        <View style={[styles.content, { maxWidth: 1100 }]}>
           <View style={styles.headerRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>PC Assembly Challenge </Text>
-              <Text style={styles.subtitle}>Drag the next part into the glowing spot, or use Place.</Text>
+              <Heading level={1}>PC Assembly Challenge</Heading>
+              <Body variant="small" style={{ marginTop: 4 }}>Drag the next part into the glowing spot, or use Place.</Body>
             </View>
-            <View style={styles.progressPill}>
-              <Text style={styles.progressText}>{installed.length}/{ORDER.length}</Text>
+            <View style={[styles.progressPill, { backgroundColor: theme.glassPanel, borderColor: theme.glassBorder }]}>
+              <Text style={[{ fontSize: 13, color: theme.text }, font(theme, 'semibold')]}>{installed.length}/{ORDER.length}</Text>
             </View>
           </View>
 
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${(installed.length / ORDER.length) * 100}%` }]} />
+          <View style={[styles.progressTrack, { backgroundColor: theme.borderLight }]}>
+            <View style={[styles.progressFill, { width: `${(installed.length / ORDER.length) * 100}%`, backgroundColor: theme.primary }]} />
           </View>
 
           <View style={[styles.workArea, isWide && styles.workAreaWide]}>
-            {/* The open case */}
             <View style={[styles.stage, isWide && styles.stageWide]}>
-              <Animated.View
-                ref={caseRef}
-                onLayout={(e) => setCaseSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
-                style={[styles.caseWrap, { aspectRatio: CASE_RATIO, transform: [{ translateX: caseShake }] }]}
-              >
-                <Image source={CASE_IMG} resizeMode="stretch" style={StyleSheet.absoluteFill} />
-                {PARTS.map((part) => (
-                  <CaseSlot key={part.id} part={part} state={zoneState(part.id)} caseW={caseSize.w} caseH={caseSize.h} />
-                ))}
+              <Glass strong radius={24} style={{ padding: 8 }}>
+                <Animated.View
+                  ref={caseRef}
+                  onLayout={(e) => setCaseSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+                  style={[styles.caseWrap, { aspectRatio: CASE_RATIO, transform: [{ translateX: caseShake }] }]}
+                >
+                  <Image source={CASE_IMG} resizeMode="stretch" style={StyleSheet.absoluteFill} />
+                  {PARTS.map((part) => (
+                    <CaseSlot key={part.id} part={part} state={zoneState(part.id)} caseW={caseSize.w} caseH={caseSize.h} />
+                  ))}
 
-                {/* "Incorrect" flash */}
-                <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.wrongOverlay, { opacity: flash }]}>
-                  <View style={styles.wrongBadge}>
-                    <Ionicons name="close-circle" size={20} color={WHITE} />
-                    <Text style={styles.wrongText}>Incorrect</Text>
-                  </View>
+                  <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.wrongOverlay, { borderColor: theme.error, backgroundColor: theme.errorWash, opacity: flash }]}>
+                    <View style={[styles.wrongBadge, { backgroundColor: theme.error }]}>
+                      <Ionicons name="close-circle" size={20} color={theme.surface} />
+                      <Text style={[{ color: theme.surface, fontSize: 15 }, font(theme, 'semibold')]}>Incorrect</Text>
+                    </View>
+                  </Animated.View>
                 </Animated.View>
-              </Animated.View>
+              </Glass>
 
-              {/* Instruction / feedback strip */}
               {done ? (
-                <View style={[styles.infoBox, styles.infoDone]}>
-                  <Ionicons name="trophy" size={22} color={GREEN} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.infoTitle}>Build complete! </Text>
-                    <Text style={styles.infoText}>
-                      {mistakes === 0 ? 'Perfect build — no mistakes!' : `Finished with ${mistakes} mistake${mistakes === 1 ? '' : 's'}.`}
-                    </Text>
+                <Glass strong radius={16} style={[styles.infoBox, { borderColor: theme.success }]}>
+                  <View style={[styles.infoIcon, { backgroundColor: theme.successWash }]}>
+                    <Ionicons name="trophy" size={22} color={theme.success} />
                   </View>
-                  <TouchableOpacity style={styles.resetBtn} onPress={reset} activeOpacity={0.8}>
-                    <Text style={styles.resetText}>New Build</Text>
-                  </TouchableOpacity>
-                </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[{ fontSize: 16, color: theme.text }, font(theme, 'h3')]}>Build complete!</Text>
+                    <Body variant="small" style={{ marginTop: 2 }}>
+                      {mistakes === 0 ? 'Perfect build — no mistakes!' : `Finished with ${mistakes} mistake${mistakes === 1 ? '' : 's'}.`}
+                    </Body>
+                  </View>
+                  <Pressable style={actionBtn(true)} onPress={reset} accessibilityRole="button" accessibilityLabel="New Build">
+                    <Text style={[{ color: theme.surface, fontSize: 15 }, font(theme, 'semibold')]}>New Build</Text>
+                  </Pressable>
+                </Glass>
               ) : (
-                <View style={styles.infoBox}>
+                <Glass strong radius={16} style={[styles.infoBox, showHint && { backgroundColor: theme.yellowWash }]}>
                   {showHint && <Image source={expected.img} resizeMode="contain" style={styles.infoImg} />}
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.infoTitle}>
+                    <Text style={[{ fontSize: 16, color: theme.text }, font(theme, 'h3')]}>
                       Step {installed.length + 1} of {ORDER.length}{showHint ? `: ${expected.name}` : ''}
                     </Text>
-                    <Text style={styles.infoText}>
+                    <Body variant="small" style={{ marginTop: 2 }}>
                       {showHint ? expected.tip : 'Which component goes into the glowing spot?'}
-                    </Text>
+                    </Body>
                     {feedback && (
-                      <Text style={[styles.feedback, { color: feedback.kind === 'ok' ? GREEN : RED }]}>
+                      <Text style={[{ fontSize: 13, marginTop: 6, color: feedback.kind === 'ok' ? theme.successInk : theme.errorInk }, font(theme, 'semibold')]}>
                         {feedback.text}
                       </Text>
                     )}
                   </View>
                   {!showHint && (
-                    <TouchableOpacity style={styles.hintBtn} onPress={() => setShowHint(true)} activeOpacity={0.8}>
-                      <Ionicons name="bulb-outline" size={16} color={TEXT} />
-                      <Text style={styles.hintText}>Hint</Text>
-                    </TouchableOpacity>
+                    <Pressable style={actionBtn(false)} onPress={() => setShowHint(true)} accessibilityRole="button" accessibilityLabel="Hint">
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="bulb-outline" size={16} color={theme.yellowInk} />
+                        <Text style={[{ fontSize: 15, color: theme.text }, font(theme, 'semibold')]}>Hint</Text>
+                      </View>
+                    </Pressable>
                   )}
-                </View>
+                </Glass>
               )}
             </View>
 
-            {/* The parts tray */}
-            <View style={[styles.tray, isWide && styles.trayWide]}>
-              <Text style={styles.trayTitle}>Drag & Drop Components</Text>
+            <Glass strong radius={24} style={[styles.tray, isWide && styles.trayWide]}>
+              <Heading level={3} style={{ marginBottom: 12 }}>Drag and drop components</Heading>
               <View style={styles.trayGrid}>
                 {remaining.map((part) => (
                   <View key={part.id} style={styles.trayItem}>
                     <PartCard part={part} lifted={dragId === part.id} handlers={handlers} />
-                    <TouchableOpacity
+                    <Pressable
                       onPress={() => installPart(part.id)}
-                      style={styles.placeBtn}
+                      style={[actionBtn(false), styles.placeBtn]}
                       accessibilityRole="button"
                       accessibilityLabel={`Place ${part.name}`}
                     >
-                      <Text style={styles.placeText}>Place</Text>
-                    </TouchableOpacity>
+                      <Text style={[{ fontSize: 15, color: theme.primary }, font(theme, 'semibold')]}>Place</Text>
+                    </Pressable>
                   </View>
                 ))}
                 {remaining.length === 0 && (
                   <View style={styles.doneRow}>
-                    <Ionicons name="checkmark-circle" size={20} color={GREEN} />
-                    <Text style={styles.doneText}>All parts installed</Text>
+                    <Ionicons name="checkmark-circle" size={20} color={theme.success} />
+                    <Text style={[{ fontSize: 14, color: theme.successInk }, font(theme, 'semibold')]}>All parts installed</Text>
                   </View>
                 )}
               </View>
-            </View>
+            </Glass>
           </View>
         </View>
       </ScrollView>
 
-      {/* The part in hand: just the cut-out component, no card behind it. */}
       {dragPart && (
         <Animated.View
           pointerEvents="none"
@@ -483,76 +491,35 @@ export default function PCAssemblyScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
-  floatingBackBtn: {
-    position: 'absolute', left: 16, zIndex: 10,
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: WHITE, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center',
-  },
-  content: { paddingHorizontal: 16 },
+  container: { flex: 1 },
+  floatBack: { position: 'absolute', left: 16, zIndex: 10 },
+  content: { width: '100%', alignSelf: 'center' },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  title: { fontSize: 20, fontWeight: '800', color: TEXT },
-  subtitle: { fontSize: 13, color: MUTED, marginTop: 4 },
-  progressPill: { backgroundColor: WHITE, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: BORDER },
-  progressText: { fontSize: 13, fontWeight: '800', color: TEXT },
-  progressTrack: { height: 6, borderRadius: 3, backgroundColor: BORDER, marginTop: 12, marginBottom: 16, overflow: 'hidden' },
-  progressFill: { height: 6, borderRadius: 3, backgroundColor: GREEN },
-
+  progressPill: { borderRadius: 999, minHeight: 44, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  progressTrack: { height: 8, borderRadius: 999, marginTop: 16, marginBottom: 20, overflow: 'hidden' },
+  progressFill: { height: 8, borderRadius: 999 },
   workArea: { flexDirection: 'column', gap: 20 },
   workAreaWide: { flexDirection: 'row', alignItems: 'flex-start' },
-
   stage: { gap: 12 },
   stageWide: { flex: 1.6 },
-  caseWrap: { width: '100%', position: 'relative' },
-
-  slotOutline: { borderWidth: 2, borderStyle: 'dashed', borderColor: GREEN, borderRadius: 8, backgroundColor: 'rgba(34,197,94,0.14)' },
-
-  wrongOverlay: {
-    borderWidth: 3, borderColor: RED, borderRadius: 12, backgroundColor: 'rgba(239,68,68,0.14)',
-    alignItems: 'center', justifyContent: 'flex-start', paddingTop: 14,
-  },
-  wrongBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: RED, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7,
-  },
-  wrongText: { color: WHITE, fontWeight: '800', fontSize: 15 },
-
+  caseWrap: { width: '100%', position: 'relative', borderRadius: 16, overflow: 'hidden' },
+  slotOutline: { borderWidth: 2, borderStyle: 'dashed', borderRadius: 8 },
+  wrongOverlay: { borderWidth: 3, borderRadius: 12, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 14 },
+  wrongBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 14, minHeight: 44 },
   dragLayer: { position: 'absolute', zIndex: 50, elevation: 50 },
-
-  infoBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: WHITE, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: BORDER,
-  },
-  infoDone: { borderColor: GREEN },
+  infoBox: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, flexWrap: 'wrap' },
+  infoIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   infoImg: { width: 56, height: 44 },
-  infoTitle: { fontSize: 14, fontWeight: '800', color: TEXT },
-  infoText: { fontSize: 12, color: MUTED, marginTop: 2 },
-  feedback: { fontSize: 12, fontWeight: '700', marginTop: 6 },
-  hintBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44,
-    borderWidth: 1, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 12,
-  },
-  hintText: { fontSize: 12, fontWeight: '700', color: TEXT },
-  resetBtn: { backgroundColor: GREEN, borderRadius: 10, paddingHorizontal: 14, minHeight: 44, justifyContent: 'center' },
-  resetText: { color: WHITE, fontWeight: '800', fontSize: 13 },
-
-  tray: { backgroundColor: '#F4F7FB', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: BORDER },
+  tray: { padding: 16 },
   trayWide: { flex: 1 },
-  trayTitle: { fontSize: 16, fontWeight: '800', color: TEXT, marginBottom: 12, marginLeft: 4 },
-  trayGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  trayItem: { width: '47%', flexGrow: 1 },
-  placeBtn: { minHeight: 44, marginTop: 6, borderRadius: 10, borderWidth: 1, borderColor: BORDER, backgroundColor: WHITE, alignItems: 'center', justifyContent: 'center' },
-  placeText: { fontSize: 13, fontWeight: '700', color: '#0A66FF' },
-
+  trayGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  trayItem: { width: '47%', flexGrow: 1, maxWidth: 400 },
+  placeBtn: { marginTop: 8, width: '100%' },
   card: {
-    width: '100%', backgroundColor: WHITE, borderRadius: 14, padding: 10, alignItems: 'center',
-    borderWidth: 1, borderColor: BORDER,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 3,
+    width: '100%', borderRadius: 16, padding: 10, alignItems: 'center', borderWidth: 1, overflow: 'hidden',
+    shadowOffset: { width: 0, height: 8 }, shadowOpacity: 1, shadowRadius: 24, elevation: 4,
   },
-  cardImg: { width: '100%', height: 70 },
-  cardLabel: { marginTop: 8, alignSelf: 'stretch', backgroundColor: '#E8EEF6', borderRadius: 8, paddingVertical: 5 },
-  cardName: { fontSize: 12, fontWeight: '700', color: TEXT, textAlign: 'center' },
-
+  cardImg: { width: '100%', height: 72 },
+  cardLabel: { marginTop: 8, alignSelf: 'stretch', borderRadius: 8, minHeight: 32, justifyContent: 'center', paddingHorizontal: 6 },
   doneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8 },
-  doneText: { fontSize: 14, fontWeight: '700', color: GREEN },
 });
