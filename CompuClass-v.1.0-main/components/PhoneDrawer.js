@@ -88,11 +88,24 @@ export function PhoneMenuButton({ open, onPress }) {
 
 export function EdgeSwipeCatcher({ enabled, onMove, onEnd }) {
   const insets = useSafeAreaInsets();
+  const zoneRef = useRef(null);
   const onMoveRef = useRef(onMove);
   const onEndRef = useRef(onEnd);
   onMoveRef.current = onMove;
   onEndRef.current = onEnd;
   const horizontal = useRef(false);
+
+  useEffect(() => {
+    if (!enabled || Platform.OS !== 'web') return undefined;
+    const node = zoneRef.current;
+    const el = node?.getNode?.() || node;
+    if (!el?.addEventListener) return undefined;
+    const stopBrowserPan = (event) => {
+      if (event.cancelable) event.preventDefault();
+    };
+    el.addEventListener('touchmove', stopBrowserPan, { passive: false });
+    return () => el.removeEventListener('touchmove', stopBrowserPan);
+  }, [enabled]);
 
   const pan = useRef(PanResponder.create({
     // Claim on contact so a fast swipe still tracks after it leaves the 24px strip.
@@ -100,8 +113,12 @@ export function EdgeSwipeCatcher({ enabled, onMove, onEnd }) {
     onMoveShouldSetPanResponder: () => true,
     onPanResponderTerminationRequest: () => false,
     onShouldBlockNativeResponder: () => true,
-    onPanResponderGrant: () => { horizontal.current = false; },
-    onPanResponderMove: (_, gesture) => {
+    onPanResponderGrant: (event) => {
+      event.preventDefault?.();
+      horizontal.current = false;
+    },
+    onPanResponderMove: (event, gesture) => {
+      event.preventDefault?.();
       if (!horizontal.current) {
         if (!claimEdgeSwipe({ dx: gesture.dx, dy: gesture.dy })) {
           if (Math.abs(gesture.dy) > 10 && Math.abs(gesture.dy) >= Math.abs(gesture.dx)) horizontal.current = 'vertical';
@@ -128,6 +145,7 @@ export function EdgeSwipeCatcher({ enabled, onMove, onEnd }) {
 
   return (
     <View
+      ref={zoneRef}
       testID="edge-swipe-zone"
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"

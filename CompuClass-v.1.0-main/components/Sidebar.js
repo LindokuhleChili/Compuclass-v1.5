@@ -67,6 +67,7 @@ function NavList({ currentScreen, onPress, user }) {
               accessibilityRole="button"
               accessibilityLabel={item.title}
               accessibilityState={{ selected: active }}
+              aria-selected={active}
               style={[styles.nav, active && { backgroundColor: '#fff', shadowColor: '#0B1B3A', shadowOpacity: 0.12, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } }]}
             >
               <Icon name={item.icon} size={20} color={active ? theme.primary : theme.textSecondary} />
@@ -78,7 +79,7 @@ function NavList({ currentScreen, onPress, user }) {
         {EXPLORE_NAV.map((item) => {
           const active = navKeyForRoute(currentScreen) === item.screen;
           return (
-            <Pressable key={item.screen} onPress={() => onPress(item)} accessibilityRole="button" accessibilityLabel={item.title} accessibilityState={{ selected: active }} style={[styles.nav, active && { backgroundColor: '#fff' }]}>
+            <Pressable key={item.screen} onPress={() => onPress(item)} accessibilityRole="button" accessibilityLabel={item.title} accessibilityState={{ selected: active }} aria-selected={active} style={[styles.nav, active && { backgroundColor: '#fff' }]}>
               <Icon name={item.icon} size={20} color={active ? theme.primary : theme.textSecondary} />
               <Text style={[{ flex: 1, fontSize: 14, lineHeight: 20, color: active ? theme.primary : theme.textSecondary }, font(theme, 'semibold')]}>{item.title}</Text>
             </Pressable>

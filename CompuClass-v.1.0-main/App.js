@@ -537,7 +537,7 @@ const styles = StyleSheet.create({
   tabPill: { flexDirection: 'row', padding: 4, alignItems: 'stretch' },
   tab: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', gap: 1, paddingTop: 6, paddingBottom: 7, paddingHorizontal: 8, borderRadius: 999 },
   backBar: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 4, zIndex: 6, alignItems: 'flex-start' },
-  stage: { flex: 1, overflow: 'hidden' },
+  stage: { flex: 1, overflow: 'hidden', position: 'relative' },
   topBar: { flexDirection: 'row', alignItems: 'center', gap: 12, zIndex: 5 },
   searchPill: { flex: 1, maxWidth: 400, height: 44, borderRadius: 999, borderWidth: 1, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 'auto' },
   me: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
