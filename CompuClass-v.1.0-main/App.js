@@ -51,6 +51,7 @@ import GameRunnerLobbyScreen from './screens/GameRunnerLobbyScreen';
 import JoinClassScreen from './screens/JoinClassScreen';
 import NotFoundScreen from './screens/NotFoundScreen';
 import Sidebar from './components/Sidebar';
+import { EdgeSwipeCatcher, PhoneMenuButton, usePhoneDrawer } from './components/PhoneDrawer';
 import ErrorBoundary from './components/ErrorBoundary';
 import { Icon } from './components/ui/Icon';
 import {
@@ -156,7 +157,7 @@ function BackBar({ routeName, onBack }) {
   );
 }
 
-function TopBar({ laptop, hidden, user, onSearch, onBell, onAvatar, dot }) {
+function TopBar({ laptop, phone, menuOpen, onMenu, hidden, user, onSearch, onBell, onAvatar, dot }) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   if (hidden) return null;
@@ -165,6 +166,7 @@ function TopBar({ laptop, hidden, user, onSearch, onBell, onAvatar, dot }) {
     <View style={[styles.topBar, { height: laptop ? 80 : undefined, paddingTop: laptop ? 0 : Math.max(insets.top, 12), paddingHorizontal: laptop ? 40 : 20 }]}>
       {!laptop && (
         <>
+          {phone ? <PhoneMenuButton open={menuOpen} onPress={onMenu} /> : null}
           <Mark size={44} />
           <Text style={[{ flex: 1, fontSize: 14, lineHeight: 20, color: theme.textSecondary }, font(theme, 'h2')]} numberOfLines={1}>Computer Learning Platform</Text>
           <IconButton name="search" label="Search" onPress={onSearch} />
@@ -230,6 +232,7 @@ function AppContent() {
   const laptop = width >= LAPTOP;
   const currentRouteRef = useRef('');
   const [routeName, setRouteName] = useState('');
+  const drawer = usePhoneDrawer(width, routeName);
 
   useEffect(() => { checkUser(); }, []);
 
@@ -409,6 +412,13 @@ function AppContent() {
 
   const hideChrome = HIDE_TOP_ROUTES.includes(routeName);
   const shellBack = Boolean(routeName) && !isRootRoute(routeName);
+  const handleBack = () => {
+    if (drawer.open || drawer.dragging) {
+      drawer.close();
+      return;
+    }
+    leaveScreen(navigationRef.current);
+  };
 
   return (
     <SafeAreaProvider>
@@ -445,6 +455,9 @@ function AppContent() {
                   )}
                   <TopBar
                     laptop={laptop}
+                    phone={drawer.phone}
+                    menuOpen={drawer.open}
+                    onMenu={drawer.toggle}
                     hidden={hideChrome}
                     user={account}
                     dot={announcements.length > 0}
@@ -452,7 +465,8 @@ function AppContent() {
                     onBell={() => setShowAnnouncements(true)}
                     onAvatar={() => handleNavigate('Profile')}
                   />
-                  <BackBar routeName={routeName} onBack={() => leaveScreen(navigationRef.current)} />
+                  <BackBar routeName={routeName} onBack={handleBack} />
+                  <View style={styles.stage}>
                   <Tab.Navigator
                     backBehavior="history"
                     tabBar={(props) => (laptop ? null : <PhoneTabBar {...props} />)}
@@ -485,6 +499,26 @@ function AppContent() {
                     <Tab.Screen name="Game" component={GameScreen} />
                     <Tab.Screen name="GameRunnerLobby" component={GameRunnerLobbyScreen} />
                   </Tab.Navigator>
+                  {drawer.phone && (
+                    <Sidebar
+                      retain
+                      visible={drawer.open || drawer.dragging}
+                      suspendAnimation={drawer.dragging}
+                      pointerEvents={drawer.dragging ? 'none' : 'auto'}
+                      translateX={drawer.translateX}
+                      onClose={drawer.close}
+                      onNavigate={handleNavigate}
+                      onHomePress={goHome}
+                      currentScreen={routeName}
+                      user={account}
+                    />
+                  )}
+                  <EdgeSwipeCatcher
+                    enabled={drawer.edgeEnabled && !drawer.open}
+                    onMove={drawer.onEdgeMove}
+                    onEnd={drawer.onEdgeEnd}
+                  />
+                  </View>
                 </View>
                 </ChromeProvider>
               </NavigationContainer>
@@ -503,6 +537,7 @@ const styles = StyleSheet.create({
   tabPill: { flexDirection: 'row', padding: 4, alignItems: 'stretch' },
   tab: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', gap: 1, paddingTop: 6, paddingBottom: 7, paddingHorizontal: 8, borderRadius: 999 },
   backBar: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 4, zIndex: 6, alignItems: 'flex-start' },
+  stage: { flex: 1, overflow: 'hidden', position: 'relative' },
   topBar: { flexDirection: 'row', alignItems: 'center', gap: 12, zIndex: 5 },
   searchPill: { flex: 1, maxWidth: 400, height: 44, borderRadius: 999, borderWidth: 1, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 'auto' },
   me: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },

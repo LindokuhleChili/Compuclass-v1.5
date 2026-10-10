@@ -44,6 +44,7 @@ const ICONS = {
   download: ['<path class="tn" d="M12 4v10"/>', '<path d="M12 3v11M8 10l4 4 4-4M5 19h14"/>'],
   refresh: ['', '<path d="M20 12a8 8 0 1 1-2.2-5.5M20 4v5h-5"/>'],
   close: ['', '<path d="M6 6l12 12M18 6 6 18"/>'],
+  menu: ['', '<path d="M4 7h16M4 12h16M4 17h16"/>'],
   plus: ['', '<path d="M12 5v14M5 12h14"/>'],
   info: ['<circle class="tn" cx="12" cy="12" r="9"/>', '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 8h.01"/>'],
   school: ['<path class="tn" d="M3 10 12 5l9 5-9 5z"/>', '<path d="M3 10 12 5l9 5-9 5zM7 12v5c2 2 8 2 10 0v-5"/>'],

@@ -238,14 +238,18 @@ export function Button({ label, onPress, variant = 'primary', icon, disabled, bl
   );
 }
 
-export function IconButton({ name, label, onPress, dot, style }) {
+export function IconButton({ name, label, onPress, dot, style, accessibilityState, testID }) {
   const { theme } = useTheme();
   return (
     <Pressable
+      testID={testID}
       className="cc-glass"
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={accessibilityState}
+      aria-expanded={accessibilityState?.expanded}
+      aria-selected={accessibilityState?.selected}
       style={({ pressed }) => [{
         width: 44, height: 44, borderRadius: 999, alignItems: 'center', justifyContent: 'center',
         backgroundColor: theme.glassFill, borderWidth: 1, borderColor: theme.glassBorder, opacity: pressed ? 0.85 : 1,
