@@ -1,6 +1,6 @@
 import 'react-native-url-polyfill/auto';
 import React, { useState, useEffect, useRef } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
@@ -63,7 +63,7 @@ import { authService } from './services/authService';
 import { supabase } from './config/supabase';
 import { sessionCheckDecision } from './utils/sessionCheck';
 import { isUnknownWebPath as pathIsUnknown, linkingConfig, onboardingRedirectPath } from './utils/webRoutes';
-import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { ThemeProvider, useTheme, appTheme } from './context/ThemeContext';
 import { ChromeProvider } from './context/ChromeContext';
 import { isRootRoute, leaveScreen } from './utils/screenNav';
 import { classService } from './services/classService';
@@ -428,6 +428,7 @@ function AppContent() {
             <View style={{ flex: 1 }}>
               <NavigationContainer
                 ref={navigationRef}
+                theme={{ ...DefaultTheme, colors: { ...DefaultTheme.colors, background: appTheme.background } }}
                 documentTitle={{ enabled: false }}
                 linking={{
                   prefixes: [Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : 'compuclass://'],

@@ -178,7 +178,7 @@ export default function CircuitMazeTopicScreen({ navigation }) {
 
   return (
     <SafeAreaView
-      style={[s.safe, { backgroundColor: 'transparent' }]}
+      style={[s.safe, { backgroundColor: theme.background }]}
       edges={['top', 'left', 'right']}
       onLayout={(event) => setBoardWidth(event.nativeEvent.layout.width)}
     >

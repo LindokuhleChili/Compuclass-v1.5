@@ -166,7 +166,7 @@ export default function GameRunnerLobbyScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={[s.safe, { backgroundColor: 'transparent' }]}>
+    <SafeAreaView style={[s.safe, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={s.header}>
           {shellBack ? <View style={{ width: 44 }} /> : (
