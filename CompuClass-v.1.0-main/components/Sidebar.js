@@ -1,10 +1,17 @@
 import React from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Modal, Animated, PanResponder, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Animated, PanResponder, useWindowDimensions, Easing, BackHandler, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { Icon } from './ui/Icon';
 import { Glass, Mark, Wordmark, Avatar, initials, font } from './ui/kit';
 import { navKeyForRoute } from '../utils/screenNav';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import {
+  claimDrawerClose,
+  drawerTransitionMs,
+  isDrawerDismissKey,
+  shouldCloseFromDrawer,
+} from '../utils/drawerGesture';
 
 const SIDEBAR_MAX_WIDTH = 360;
 export const getSidebarWidth = (windowWidth) => Math.min(windowWidth * 0.78, SIDEBAR_MAX_WIDTH);
@@ -27,6 +34,23 @@ export const EXPLORE_NAV = [
   { icon: 'bot', title: 'CompuBot', screen: 'Chatbot' },
 ];
 
+function animateDrawer(value, toValue, reduced, onEnd) {
+  value.stopAnimation();
+  if (drawerTransitionMs(reduced) === 0) {
+    value.setValue(toValue);
+    onEnd?.();
+    return;
+  }
+  Animated.timing(value, {
+    toValue,
+    duration: drawerTransitionMs(reduced),
+    easing: Easing.out(Easing.cubic),
+    useNativeDriver: true,
+  }).start(({ finished }) => {
+    if (finished) onEnd?.();
+  });
+}
+
 function NavList({ currentScreen, onPress, user }) {
   const { theme } = useTheme();
   const name = user?.user_metadata?.full_name || user?.profile?.full_name || 'Learner';
@@ -41,6 +65,7 @@ function NavList({ currentScreen, onPress, user }) {
               key={item.screen}
               onPress={() => onPress(item)}
               accessibilityRole="button"
+              accessibilityLabel={item.title}
               accessibilityState={{ selected: active }}
               style={[styles.nav, active && { backgroundColor: '#fff', shadowColor: '#0B1B3A', shadowOpacity: 0.12, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } }]}
             >
@@ -53,7 +78,7 @@ function NavList({ currentScreen, onPress, user }) {
         {EXPLORE_NAV.map((item) => {
           const active = navKeyForRoute(currentScreen) === item.screen;
           return (
-            <Pressable key={item.screen} onPress={() => onPress(item)} accessibilityRole="button" accessibilityState={{ selected: active }} style={[styles.nav, active && { backgroundColor: '#fff' }]}>
+            <Pressable key={item.screen} onPress={() => onPress(item)} accessibilityRole="button" accessibilityLabel={item.title} accessibilityState={{ selected: active }} style={[styles.nav, active && { backgroundColor: '#fff' }]}>
               <Icon name={item.icon} size={20} color={active ? theme.primary : theme.textSecondary} />
               <Text style={[{ flex: 1, fontSize: 14, lineHeight: 20, color: active ? theme.primary : theme.textSecondary }, font(theme, 'semibold')]}>{item.title}</Text>
             </Pressable>
@@ -73,36 +98,90 @@ function NavList({ currentScreen, onPress, user }) {
   );
 }
 
-export default function Sidebar({ visible, docked, onClose, onNavigate, onHomePress, translateX: externalTranslateX, currentScreen, user }) {
+export default function Sidebar({ visible, docked, onClose, onNavigate, onHomePress, translateX: externalTranslateX, suspendAnimation, pointerEvents, retain, currentScreen, user }) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const reduced = useReducedMotion();
   const { width: windowWidth } = useWindowDimensions();
   const sidebarWidth = docked ? 256 : getSidebarWidth(windowWidth);
   const hiddenX = getSidebarHiddenX(windowWidth);
   const hiddenXRef = React.useRef(hiddenX);
   hiddenXRef.current = hiddenX;
+  const reducedRef = React.useRef(reduced);
+  reducedRef.current = reduced;
+  const onCloseRef = React.useRef(onClose);
+  onCloseRef.current = onClose;
   const internalTranslateX = React.useRef(new Animated.Value(hiddenX)).current;
   const translateX = externalTranslateX || internalTranslateX;
-  const [modalVisible, setModalVisible] = React.useState(visible);
+  const [shown, setShown] = React.useState(!!visible);
+  const shownRef = React.useRef(!!visible);
+  const animGen = React.useRef(0);
 
   React.useEffect(() => {
     if (docked) return undefined;
-    if (visible) {
-      setModalVisible(true);
-      Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
-    } else {
-      Animated.spring(translateX, { toValue: hiddenXRef.current, useNativeDriver: true }).start(() => setModalVisible(false));
+    if (suspendAnimation) {
+      if (visible) {
+        shownRef.current = true;
+        setShown(true);
+      }
+      return undefined;
     }
+    const gen = ++animGen.current;
+    if (visible) {
+      shownRef.current = true;
+      setShown(true);
+      animateDrawer(translateX, 0, reducedRef.current);
+      return undefined;
+    }
+    if (!shownRef.current) return undefined;
+    animateDrawer(translateX, hiddenXRef.current, reducedRef.current, () => {
+      if (animGen.current !== gen) return;
+      shownRef.current = false;
+      setShown(false);
+    });
+    return undefined;
+    // translateX is a stable Animated.Value owned by this drawer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, docked, suspendAnimation, reduced]);
+
+  React.useEffect(() => {
+    if (!visible || docked) return undefined;
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return undefined;
+    const onKey = (event) => {
+      if (!isDrawerDismissKey(event)) return;
+      event.preventDefault?.();
+      onCloseRef.current?.();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener?.('keydown', onKey);
   }, [visible, docked]);
 
+  React.useEffect(() => {
+    if (!visible || docked || typeof BackHandler.addEventListener !== 'function') return undefined;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onCloseRef.current?.();
+      return true;
+    });
+    return () => sub?.remove?.();
+  }, [visible, docked]);
+
+  const finishCloseSwipe = React.useRef(() => {});
+  finishCloseSwipe.current = (gesture) => {
+    if (shouldCloseFromDrawer(gesture)) onCloseRef.current?.();
+    else animateDrawer(translateX, 0, reducedRef.current);
+  };
+
   const panResponder = React.useRef(PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 10,
-    onPanResponderMove: (_, g) => { if (g.dx < 0) translateX.setValue(g.dx); },
-    onPanResponderRelease: (_, g) => {
-      if (g.dx < -50) Animated.spring(translateX, { toValue: hiddenXRef.current, useNativeDriver: true }).start(onClose);
-      else Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+    onMoveShouldSetPanResponderCapture: (_, gesture) => claimDrawerClose(gesture),
+    onMoveShouldSetPanResponder: (_, gesture) => claimDrawerClose(gesture),
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderGrant: () => translateX.stopAnimation(),
+    onPanResponderMove: (_, gesture) => {
+      const next = gesture.dx < 0 ? Math.max(hiddenXRef.current, gesture.dx) : 0;
+      translateX.setValue(next);
     },
+    onPanResponderRelease: (_, gesture) => finishCloseSwipe.current(gesture),
+    onPanResponderTerminate: () => animateDrawer(translateX, 0, reducedRef.current),
   })).current;
 
   const onPress = (item) => {
@@ -129,23 +208,65 @@ export default function Sidebar({ visible, docked, onClose, onNavigate, onHomePr
     );
   }
 
-  if (!modalVisible) return null;
+  if (!shown && retain) {
+    return <View pointerEvents="none" collapsable={false} style={styles.overlay} />;
+  }
+  if (!shown) return null;
 
+  const backdropOpacity = translateX.interpolate({
+    inputRange: [hiddenX === 0 ? -1 : hiddenX, 0],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
   return (
-    <Modal visible={modalVisible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close menu" />
-        <Animated.View style={[styles.drawer, { width: sidebarWidth, backgroundColor: theme.background, transform: [{ translateX }] }]} {...panResponder.panHandlers}>
+    <View
+      testID="phone-drawer-overlay"
+      pointerEvents={pointerEvents === 'none' ? 'none' : 'auto'}
+      accessibilityViewIsModal
+      style={[styles.overlay, Platform.OS === 'web' ? { userSelect: 'none' } : null]}
+    >
+      <Animated.View pointerEvents="none" style={[styles.backdrop, { opacity: backdropOpacity, backgroundColor: theme.overlay }]} />
+      <Pressable
+        testID="drawer-backdrop"
+        style={StyleSheet.absoluteFill}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Close menu"
+      />
+      <Animated.View
+        testID="phone-drawer"
+        style={[
+          styles.drawer,
+          { width: sidebarWidth, transform: [{ translateX }] },
+          Platform.OS === 'web' ? { touchAction: 'pan-y' } : null,
+        ]}
+        {...panResponder.panHandlers}
+      >
+        <Glass sidebar radius={0} style={[styles.drawerGlass, { backgroundColor: theme.glassSidebar, borderRightColor: 'rgba(220,230,239,0.9)' }]}>
           {body}
-        </Animated.View>
-      </View>
-    </Modal>
+        </Glass>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(11,27,58,0.45)' },
-  drawer: { position: 'absolute', left: 0, top: 0, bottom: 0 },
+  overlay: { ...StyleSheet.absoluteFillObject, zIndex: 30, elevation: 30 },
+  backdrop: { ...StyleSheet.absoluteFillObject },
+  drawer: { position: 'absolute', left: 0, top: 0, bottom: 0, borderTopRightRadius: 24, borderBottomRightRadius: 24, overflow: 'hidden' },
+  drawerGlass: {
+    flex: 1,
+    height: '100%',
+    borderTopLeftRadius: 0,
+    borderBottomLeftRadius: 0,
+    borderTopRightRadius: 24,
+    borderBottomRightRadius: 24,
+    borderLeftWidth: 0,
+    borderTopWidth: 0,
+    borderBottomWidth: 0,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
   dock: { position: 'relative', height: '100%', borderRadius: 0, borderTopWidth: 0, borderBottomWidth: 0, borderLeftWidth: 0, shadowOpacity: 0, elevation: 0 },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingBottom: 24 },
   nav: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 44, paddingHorizontal: 12, borderRadius: 12 },
