@@ -34,3 +34,18 @@ export const formatNumber = (n) =>
 /** "Protocols, OSI, TCP/IP" → "Protocols • OSI • TCP/IP" */
 export const bulletise = (text) =>
   String(text || '').split(',').map(part => part.trim()).filter(Boolean).join('  •  ');
+
+// Topic picker cards stay on the Soft Glass palette. The maze board keeps
+// the neon topic colours from the question bank.
+const TOPIC_TONES = {
+  networking: { accent: '#0A66FF', wash: '#EDF4FF', ink: '#0A55D6', onAccent: '#FFFFFF' },
+  hardware: { accent: '#0A6F79', wash: '#DDF3F4', ink: '#0A6F79', onAccent: '#FFFFFF' },
+  software: { accent: '#FFE680', wash: '#FFF3B0', ink: '#7A5C00', onAccent: '#7A5C00' },
+  datasci: { accent: '#0A66FF', wash: '#EDF4FF', ink: '#0A55D6', onAccent: '#FFFFFF' },
+  cybersecurity: { accent: '#3BB8C4', wash: '#DDF3F4', ink: '#0A6F79', onAccent: '#0B1B3A' },
+  databases: { accent: '#FFE680', wash: '#FFF3B0', ink: '#7A5C00', onAccent: '#7A5C00' },
+};
+
+export function topicTone(topicId) {
+  return TOPIC_TONES[topicId] || TOPIC_TONES.networking;
+}

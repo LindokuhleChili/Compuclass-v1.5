@@ -9,7 +9,7 @@ import { View, StyleSheet } from 'react-native';
  *   segments when set, draws that many discrete cells instead of one bar
  *   height   track height, default 6
  */
-function ProgressBar({ ratio = 0, color = '#00FF9C', segments = 0, height = 6, style }) {
+function ProgressBar({ ratio = 0, color = '#00FF9C', segments = 0, height = 6, style, track = 'rgba(255,255,255,0.07)' }) {
   const clamped = Math.max(0, Math.min(1, Number(ratio) || 0));
 
   if (segments > 0) {
@@ -21,7 +21,7 @@ function ProgressBar({ ratio = 0, color = '#00FF9C', segments = 0, height = 6, s
             key={i}
             style={[
               s.cell,
-              { height, backgroundColor: i < filled ? color : 'rgba(255,255,255,0.07)' },
+              { height, backgroundColor: i < filled ? color : track },
               i < filled && { shadowColor: color },
             ]}
           />
@@ -31,7 +31,7 @@ function ProgressBar({ ratio = 0, color = '#00FF9C', segments = 0, height = 6, s
   }
 
   return (
-    <View style={[s.track, { height }, style]}>
+    <View style={[s.track, { height, backgroundColor: track }, style]}>
       <View style={[s.fill, { width: `${clamped * 100}%`, backgroundColor: color, height }]} />
     </View>
   );

@@ -133,9 +133,9 @@ export default function SettingsScreen({ onLogout }) {
       <View style={{ marginTop: 8, marginBottom: 24 }}>
         <Heading level={1}>Settings</Heading>
       </View>
-      <View style={laptop ? { flexDirection: 'row', gap: 40, alignItems: 'flex-start' } : { gap: 8 }}>
-        <View style={{ flex: 1 }}>{account}</View>
-        <View style={{ flex: 1, marginTop: laptop ? 0 : 32 }}>{display}</View>
+      <View style={laptop ? { flexDirection: 'row', gap: 32, alignItems: 'flex-start', flexWrap: 'wrap' } : { gap: 8 }}>
+        <View style={{ width: 400, maxWidth: '100%' }}>{account}</View>
+        <View style={{ width: 400, maxWidth: '100%', marginTop: laptop ? 0 : 32 }}>{display}</View>
       </View>
       <Sheet visible={about} onClose={() => setAbout(false)} title="About CompuClass">
         <Body>Version 1.0.0</Body>

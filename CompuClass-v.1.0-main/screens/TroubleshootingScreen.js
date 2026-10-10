@@ -117,13 +117,14 @@ export default function TroubleshootingScreen({ navigation }) {
         </View>
         <Text style={styles.sectionTitle}>Cases</Text>
         {visible.length === 0 ? <Text style={styles.empty}>No cases match these filters.</Text> : null}
+        <View style={styles.caseGrid}>
         {visible.map((item) => {
           const record = progress.scenarios?.[item.id];
           const tone = DIFFICULTY_STYLE[item.difficulty];
           return (
             <TouchableOpacity
               key={item.id}
-              style={[styles.card, record?.completed && styles.cardDone]}
+              style={[styles.card, styles.caseCard, record?.completed && styles.cardDone]}
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); openScenario(item); }}
               accessibilityRole="button"
               accessibilityLabel={`${item.title}. ${record?.completed ? 'Completed' : 'Not completed'}.`}
@@ -140,6 +141,7 @@ export default function TroubleshootingScreen({ navigation }) {
             </TouchableOpacity>
           );
         })}
+        </View>
       </ScrollView>
     );
   }
@@ -150,7 +152,7 @@ export default function TroubleshootingScreen({ navigation }) {
         <View style={[styles.playHeader, { paddingTop: insets.top + 12, backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
           <Text style={styles.playTitle} accessibilityRole="header">{scenario.title}</Text>
         </View>
-        <View style={styles.card}>
+        <View style={[styles.card, styles.playCard]}>
           <Text style={styles.resultHeading}>{attempt.correct ? 'Diagnosis correct' : 'Diagnosis missed'}</Text>
           <Text style={styles.score}>{attempt.score} points</Text>
           <Text style={styles.cardSummary}>{attempt.checksUsed} checks, {attempt.hintsTaken} hints.</Text>
@@ -178,12 +180,12 @@ export default function TroubleshootingScreen({ navigation }) {
         </TouchableOpacity>
         <Text style={styles.playTitle} accessibilityRole="header">{scenario.title}</Text>
       </View>
-      <View style={styles.card}>
+      <View style={[styles.card, styles.playCard]}>
         <Text style={styles.body}>{scenario.summary}</Text>
         <Text style={styles.blockLabel}>Symptoms</Text>
         {scenario.symptoms.map((symptom) => <Text key={symptom} style={styles.body}>• {symptom}</Text>)}
       </View>
-      <View style={styles.card}>
+      <View style={[styles.card, styles.playCard]}>
         <Text style={styles.blockLabel}>Next check</Text>
         <Text style={styles.body}>{node?.prompt}</Text>
         {node?.checks?.map((check) => (
@@ -211,7 +213,7 @@ export default function TroubleshootingScreen({ navigation }) {
         </View>
       ))}
       {choosing ? (
-        <View style={styles.card}>
+        <View style={[styles.card, styles.playCard]}>
           <Text style={styles.blockLabel}>Commit a diagnosis</Text>
           {scenario.diagnoses.map((item) => (
             <TouchableOpacity key={item.id} style={styles.choice} onPress={() => finish(item.id)} accessibilityRole="button" accessibilityLabel={item.label}>
@@ -259,7 +261,10 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: BLUE, borderColor: BLUE },
   chipText: { color: TEXT, fontWeight: '700', fontSize: 13 },
   chipTextOn: { color: WHITE },
+  caseGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, paddingHorizontal: 16, width: '100%', maxWidth: 1280, alignSelf: 'center' },
   card: { backgroundColor: CARD, borderRadius: 14, marginHorizontal: 12, marginTop: 10, padding: 14 },
+  caseCard: { flexGrow: 1, flexBasis: 300, maxWidth: 400, marginHorizontal: 0, marginTop: 0 },
+  playCard: { width: '100%', maxWidth: 720, alignSelf: 'center' },
   cardDone: { borderWidth: 2, borderColor: GREEN },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   cardTitle: { color: TEXT, fontSize: 16, fontWeight: '800', flex: 1 },
@@ -275,10 +280,10 @@ const styles = StyleSheet.create({
   body: { color: MUTED, fontSize: 15, lineHeight: 22 },
   choice: { minHeight: 44, borderWidth: 2, borderColor: BORDER, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, justifyContent: 'center', marginTop: 8 },
   choiceText: { color: TEXT, fontSize: 15, fontWeight: '700' },
-  primary: { minHeight: 48, backgroundColor: BLUE, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginHorizontal: 12, marginTop: 12, maxWidth: 400 },
+  primary: { minHeight: 48, height: 48, backgroundColor: BLUE, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 12, maxWidth: 400, width: '100%', alignSelf: 'center' },
   primaryOff: { opacity: 0.45 },
   primaryText: { color: WHITE, fontSize: 16, fontWeight: '800' },
-  secondary: { minHeight: 44, borderRadius: 12, borderWidth: 2, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', marginHorizontal: 12, marginTop: 8, backgroundColor: CARD },
+  secondary: { minHeight: 48, height: 48, borderRadius: 14, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', marginTop: 8, backgroundColor: CARD, maxWidth: 400, width: '100%', alignSelf: 'center' },
   secondaryText: { color: TEXT, fontWeight: '800', fontSize: 15 },
   hint: { color: TEXT, backgroundColor: appTheme.yellowWash, borderRadius: 10, padding: 10, marginTop: 8, fontSize: 14, lineHeight: 20 },
   feedback: { backgroundColor: CARD, borderRadius: 12, marginHorizontal: 12, marginTop: 8, padding: 12 },

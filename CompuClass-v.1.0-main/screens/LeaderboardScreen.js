@@ -149,7 +149,7 @@ export default function LeaderboardScreen({ navigation }) {
         />
       </View>
       {classes.length === 0 && (
-        <Pressable onPress={() => navigation.navigate('JoinClass')} accessibilityRole="button" accessibilityLabel="Join a class" style={{ minHeight: 44, justifyContent: 'center', marginBottom: 8 }}>
+        <Pressable onPress={() => navigation.navigate('JoinClass')} accessibilityRole="button" accessibilityLabel="Join a class" style={{ alignSelf: 'flex-start', maxWidth: 400, minHeight: 44, justifyContent: 'center', marginBottom: 8, paddingVertical: 8 }}>
           <Text style={[{ color: theme.primary, fontSize: 14 }, font(theme, 'semibold')]}>Join a class to see your class board</Text>
         </Pressable>
       )}

@@ -62,7 +62,7 @@ import { setPageMeta } from './utils/pageMeta';
 import { authService } from './services/authService';
 import { supabase } from './config/supabase';
 import { sessionCheckDecision } from './utils/sessionCheck';
-import { isUnknownWebPath as pathIsUnknown, linkingConfig } from './utils/webRoutes';
+import { isUnknownWebPath as pathIsUnknown, linkingConfig, onboardingRedirectPath } from './utils/webRoutes';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { ChromeProvider } from './context/ChromeContext';
 import { isRootRoute, leaveScreen } from './utils/screenNav';
@@ -358,6 +358,16 @@ function AppContent() {
 
   if (notFound) return <NotFoundScreen onGoHome={() => window.location.replace('/')} />;
 
+  if (!isFirstLaunch && Platform.OS === 'web' && typeof window !== 'undefined') {
+    const nextPath = onboardingRedirectPath({
+      pathname: window.location.pathname,
+      onboarded: true,
+      loggedIn: isLoggedIn,
+      role: userRole,
+    });
+    if (nextPath) window.history.replaceState(null, '', nextPath);
+  }
+
   if (offlineStartup && !isLoggedIn) return (
     <View style={[styles.offlineGate, { backgroundColor: theme.background }]}>
       <StatusBar style="dark" />
@@ -493,7 +503,7 @@ const styles = StyleSheet.create({
   tab: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', gap: 1, paddingTop: 6, paddingBottom: 7, paddingHorizontal: 8, borderRadius: 999 },
   backBar: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 4, zIndex: 6, alignItems: 'flex-start' },
   topBar: { flexDirection: 'row', alignItems: 'center', gap: 12, zIndex: 5 },
-  searchPill: { flex: 1, maxWidth: 420, height: 44, borderRadius: 999, borderWidth: 1, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 'auto' },
+  searchPill: { flex: 1, maxWidth: 400, height: 44, borderRadius: 999, borderWidth: 1, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 'auto' },
   me: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   offlineGate: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 },
   offlineBtn: { minHeight: 48, minWidth: 44, paddingHorizontal: 24, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
