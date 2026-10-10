@@ -114,7 +114,7 @@ export default function SearchScreen({ navigation }) {
       <View style={[styles.topBar, { paddingTop: insets.top + 12, backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         <Text style={styles.topTitle} accessibilityRole="header">Search</Text>
         <Text style={styles.topSubtitle}>Find quizzes, documents and more</Text>
-        <View style={[styles.searchBar, { backgroundColor: CARD }]}>
+        <View style={[styles.searchBar, { backgroundColor: CARD, borderColor: '#C9D6E3' }]}>
           <Ionicons name="search-outline" size={18} color={MUTED} />
           <TextInput
             ref={inputRef}
@@ -215,8 +215,8 @@ const styles = StyleSheet.create({
   topTitle: { fontSize: 24, fontWeight: '800', color: TEXT, marginBottom: 2 },
   topSubtitle: { fontSize: 13, color: MUTED, marginBottom: 14 },
   clearBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  searchBar: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, paddingHorizontal: 14, height: 48, gap: 10 },
-  searchInput: { flex: 1, fontSize: 15, fontWeight: '600' },
+  searchBar: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, paddingHorizontal: 14, minHeight: 52, height: 52, gap: 10, width: '100%', maxWidth: 400, alignSelf: 'flex-start', borderWidth: 1 },
+  searchInput: { flex: 1, fontSize: 16, fontWeight: '600', height: 44, minHeight: 44, paddingVertical: 10, paddingHorizontal: 4, outlineStyle: 'none' },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
   emptyState: { alignItems: 'center', paddingVertical: 48 },
   emptyIconWrap: { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },

@@ -5,6 +5,17 @@
 
 export const PUBLIC_WEB_PATHS = ['', '/', '/index.html'];
 
+// First-run welcome. It is a real route, not a 404. After onboarding is
+// stored, visitors are sent to sign-in or their home instead.
+export const ONBOARDING_PATH = '/onboarding';
+
+export function onboardingRedirectPath({ pathname, onboarded, loggedIn, role }) {
+  if ((pathname || '/') !== ONBOARDING_PATH) return null;
+  if (!onboarded) return null;
+  if (!loggedIn) return '/';
+  return role === 'lecturer' ? '/lecturer' : '/dashboard';
+}
+
 export const LOGGED_IN_WEB_SCREENS = {
   Quiz: 'quiz',
   Profile: 'profile',
@@ -39,6 +50,7 @@ export const LECTURER_WEB_SCREENS = {
 
 function knownPaths() {
   const paths = new Set(PUBLIC_WEB_PATHS);
+  paths.add(ONBOARDING_PATH);
   Object.values(LOGGED_IN_WEB_SCREENS).forEach((path) => paths.add(`/${path}`));
   paths.add('/lecturer');
   Object.values(LECTURER_WEB_SCREENS).forEach((path) => {

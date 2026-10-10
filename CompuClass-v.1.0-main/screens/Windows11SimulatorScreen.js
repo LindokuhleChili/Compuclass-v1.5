@@ -73,28 +73,31 @@ export default function Windows11SimulatorScreen() {
     }
   };
 
+  const glassBtn = [styles.glassBtn, { backgroundColor: theme.glassFill, borderColor: theme.glassBorder }];
+
   if (Platform.OS === 'web') return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {!isFullscreen && (
-        <>
-          {!shellBack && (
-            <TouchableOpacity onPress={() => leaveScreen(navigation)} accessibilityRole="button" accessibilityLabel="Go back" style={[styles.floatingBtn, styles.floatingBackBtn, { top: insets.top + 12, backgroundColor: theme.surface }]}>
-              <Ionicons name="arrow-back" size={18} color={theme.text} />
+        <View style={[styles.header, { paddingTop: insets.top + 8, borderBottomColor: theme.border }]}>
+          {shellBack ? <View style={styles.glassBtn} /> : (
+            <TouchableOpacity onPress={() => leaveScreen(navigation)} accessibilityRole="button" accessibilityLabel="Go back" style={glassBtn}>
+              <Ionicons name="chevron-back" size={22} color={theme.text} />
             </TouchableOpacity>
           )}
-          <TouchableOpacity onPress={toggleFullscreen} style={[styles.floatingBtn, styles.floatingFullscreenBtn, { top: insets.top + 12 }]}>
-            <Ionicons name="expand-outline" size={18} color={WHITE} />
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Windows 11</Text>
+          <TouchableOpacity onPress={toggleFullscreen} accessibilityRole="button" accessibilityLabel="Fullscreen" style={glassBtn}>
+            <Ionicons name="expand-outline" size={18} color={theme.text} />
           </TouchableOpacity>
-        </>
+        </View>
       )}
-      <View style={[styles.webviewContainer, isFullscreen && styles.fullscreenContainer]}>
+      <View style={[styles.webviewContainer, isFullscreen && styles.fullscreenContainer, !isFullscreen && styles.stage]}>
         {isFullscreen && (
           <TouchableOpacity onPress={toggleFullscreen} style={styles.exitFullscreenBtn}>
             <Ionicons name="contract-outline" size={18} color={WHITE} />
           </TouchableOpacity>
         )}
         {loading && (
-          <View style={styles.loadingOverlay}>
+          <View style={[styles.loadingOverlay, { backgroundColor: theme.background }]}>
             <ActivityIndicator size="large" color={BLUE} />
             <Text style={styles.loadingText}>Loading Windows 11...</Text>
           </View>
@@ -107,7 +110,7 @@ export default function Windows11SimulatorScreen() {
         />
       </View>
       {!isFullscreen && (
-        <View style={styles.footer}>
+        <View style={[styles.footer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
           <Ionicons name="information-circle" size={16} color={BLUE} />
           <Text style={styles.footerText}>This is a full Windows 11 simulation. Explore and learn!</Text>
         </View>
@@ -135,23 +138,26 @@ export default function Windows11SimulatorScreen() {
 
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         <StatusBar hidden={false} />
-        {!shellBack && (
-          <TouchableOpacity onPress={() => leaveScreen(navigation)} accessibilityRole="button" accessibilityLabel="Go back" style={[styles.floatingBtn, styles.floatingBackBtn, { top: insets.top + 12, backgroundColor: theme.surface }]}>
-            <Ionicons name="arrow-back" size={18} color={theme.text} />
-          </TouchableOpacity>
-        )}
-        <View style={[styles.floatingBtnGroup, { top: insets.top + 12 }]}>
-          <TouchableOpacity onPress={handleRefresh} style={styles.floatingBtn}>
-            <Ionicons name="refresh-outline" size={18} color={WHITE} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={toggleFullscreen} style={styles.floatingBtn}>
-            <Ionicons name="expand-outline" size={18} color={WHITE} />
-          </TouchableOpacity>
+        <View style={[styles.header, { paddingTop: insets.top + 8, borderBottomColor: theme.border }]}>
+          {shellBack ? <View style={styles.glassBtn} /> : (
+            <TouchableOpacity onPress={() => leaveScreen(navigation)} accessibilityRole="button" accessibilityLabel="Go back" style={glassBtn}>
+              <Ionicons name="chevron-back" size={22} color={theme.text} />
+            </TouchableOpacity>
+          )}
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Windows 11</Text>
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={handleRefresh} accessibilityRole="button" accessibilityLabel="Refresh" style={glassBtn}>
+              <Ionicons name="refresh-outline" size={18} color={theme.text} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={toggleFullscreen} accessibilityRole="button" accessibilityLabel="Fullscreen" style={glassBtn}>
+              <Ionicons name="expand-outline" size={18} color={theme.text} />
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <View style={styles.webviewContainer}>
+        <View style={[styles.webviewContainer, styles.stage]}>
           {loading && (
-            <View style={styles.loadingOverlay}>
+            <View style={[styles.loadingOverlay, { backgroundColor: theme.background }]}>
               <ActivityIndicator size="large" color={BLUE} />
               <Text style={styles.loadingText}>Loading Windows 11...</Text>
               <Text style={styles.loadingSubtext}>This may take 30–60 seconds</Text>
@@ -170,7 +176,7 @@ export default function Windows11SimulatorScreen() {
           />
         </View>
 
-        <View style={styles.footer}>
+        <View style={[styles.footer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
           <Ionicons name="information-circle" size={16} color={BLUE} />
           <Text style={styles.footerText}>This is a full Windows 11 simulation. Explore and learn!</Text>
         </View>
@@ -181,17 +187,18 @@ export default function Windows11SimulatorScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
-  floatingBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(17,24,39,0.55)', alignItems: 'center', justifyContent: 'center',
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: 'transparent' },
+  headerTitle: { flex: 1, fontSize: 18, fontWeight: '800', textAlign: 'center' },
+  headerActions: { flexDirection: 'row', gap: 8 },
+  glassBtn: {
+    width: 44, height: 44, borderRadius: 22, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
   },
-  floatingBackBtn: { position: 'absolute', left: 16, zIndex: 1000 },
-  floatingFullscreenBtn: { position: 'absolute', right: 16, zIndex: 1000 },
-  floatingBtnGroup: { position: 'absolute', right: 16, zIndex: 1000, flexDirection: 'row', gap: 8 },
-  webviewContainer: { flex: 1, backgroundColor: '#000' },
+  webviewContainer: { flex: 1, backgroundColor: BG },
+  stage: { marginHorizontal: 16, marginBottom: 12, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: BORDER },
   webview: { flex: 1 },
-  fullscreenContainer: { flex: 1, backgroundColor: '#000' },
-  exitFullscreenBtn: { position: 'absolute', top: 40, right: 20, zIndex: 1000, width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' },
+  fullscreenContainer: { flex: 1, backgroundColor: '#000', marginHorizontal: 0, marginBottom: 0, borderRadius: 0, borderWidth: 0 },
+  exitFullscreenBtn: { position: 'absolute', top: 40, right: 20, zIndex: 1000, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' },
   loadingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: BG, zIndex: 1 },
   loadingText: { marginTop: 14, fontSize: 18, color: TEXT, fontWeight: '800' },
   loadingSubtext: { marginTop: 6, fontSize: 14, color: MUTED, textAlign: 'center', paddingHorizontal: 24 },

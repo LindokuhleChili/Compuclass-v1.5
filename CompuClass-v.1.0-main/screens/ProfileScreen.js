@@ -142,8 +142,8 @@ export default function ProfileScreen({ onLogout }) {
         ))}
       </Card>
 
-      <View style={laptop ? { flexDirection: 'row', gap: 40, alignItems: 'flex-start' } : undefined}>
-        <View style={{ flex: 1 }}>
+      <View style={laptop ? { flexDirection: 'row', gap: 32, alignItems: 'flex-start', flexWrap: 'wrap' } : undefined}>
+        <View style={{ width: 400, maxWidth: '100%' }}>
           <Heading level={2} style={{ marginBottom: 16 }}>Account</Heading>
           <Card>
             {[
@@ -181,10 +181,7 @@ export default function ProfileScreen({ onLogout }) {
       </View>
 
       <Sheet visible={showEditModal} onClose={() => setShowEditModal(false)} title="Edit profile">
-        <Pressable onPress={handlePickAvatar} accessibilityRole="button" accessibilityLabel="Choose avatar" style={{ minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-          <Icon name="user" size={20} color={theme.primary} />
-          <Text style={[{ color: theme.primary }, font(theme, 'semibold')]}>{avatarFile ? 'Photo selected' : 'Choose a photo'}</Text>
-        </Pressable>
+        <Button block label={avatarFile ? 'Photo selected' : 'Choose a photo'} icon="user" variant="secondary" onPress={handlePickAvatar} accessibilityLabel="Choose avatar" style={{ marginBottom: 16 }} />
         <Field label="Full name" icon="user" placeholder="Full Name" value={fullName} onChangeText={setFullName} autoCapitalize="words" />
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <Button label="Cancel" variant="secondary" onPress={() => setShowEditModal(false)} style={{ flex: 1 }} />

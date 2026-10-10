@@ -1,10 +1,13 @@
 import React, { useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import ProgressBar from './ProgressBar';
-import { MAZE, TYPE, bulletise } from './mazeTheme';
+import { TYPE, bulletise, topicTone } from './mazeTheme';
 import { TOPIC_STATE } from '../services/circuitMazeProgress';
+
+const TEXT = '#0B1B3A';
+const MUTED = '#44526F';
+const TRACK = '#E6EDF4';
 
 /**
  * TopicCard
@@ -19,6 +22,7 @@ import { TOPIC_STATE } from '../services/circuitMazeProgress';
 function TopicCard({ topic, progress, locked = false, lockHint, width, onPress }) {
   const scale = useRef(new Animated.Value(1)).current;
   const glow  = useRef(new Animated.Value(0)).current;
+  const tone = topicTone(topic.id);
 
   const animate = (toScale, toGlow) => {
     Animated.parallel([
@@ -30,7 +34,7 @@ function TopicCard({ topic, progress, locked = false, lockHint, width, onPress }
   const { levelsCleared, total, ratio, state } = progress;
   const done       = state === TOPIC_STATE.COMPLETED;
   const started    = state === TOPIC_STATE.IN_PROGRESS;
-  const accent     = locked ? MAZE.muted : topic.color;
+  const accent     = locked ? MUTED : tone.ink;
 
   const a11yLabel = locked
     ? `${topic.label}, locked. ${lockHint || 'Not yet available'}`
@@ -52,24 +56,18 @@ function TopicCard({ topic, progress, locked = false, lockHint, width, onPress }
         accessibilityState={{ disabled: locked, selected: started }}
       >
         <View style={[s.shell, locked && s.shellLocked]}>
-          {/* Press glow — a colour wash that fades in rather than a new layer */}
           <Animated.View
             pointerEvents="none"
-            style={[s.pressGlow, { backgroundColor: accent, opacity: glow.interpolate({ inputRange: [0, 1], outputRange: [0, 0.09] }) }]}
+            style={[s.pressGlow, { backgroundColor: tone.wash, opacity: glow.interpolate({ inputRange: [0, 1], outputRange: [0, 0.85] }) }]}
           />
-          <LinearGradient
-            colors={locked ? ['#0B1220', '#080D18'] : [accent + '18', MAZE.card]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[s.card, { borderColor: locked ? 'rgba(255,255,255,0.05)' : accent + '40' }]}
-          >
+          <View style={[s.card, { backgroundColor: '#FFFFFF', borderColor: locked ? '#E6EDF4' : tone.wash }]}>
             <View style={s.topRow}>
-              <View style={[s.iconWrap, { backgroundColor: accent + '1F', borderColor: accent + '33' }]}>
+              <View style={[s.iconWrap, { backgroundColor: locked ? '#EAF0F6' : tone.wash }]}>
                 <Ionicons name={locked ? 'lock-closed' : topic.icon} size={20} color={accent} />
               </View>
               {done && (
-                <View style={[s.badge, { borderColor: accent + '55', backgroundColor: accent + '14' }]}>
-                  <Ionicons name="checkmark" size={11} color={accent} />
+                <View style={[s.badge, { borderColor: tone.wash, backgroundColor: tone.wash }]}>
+                  <Ionicons name="checkmark" size={11} color={tone.ink} />
                 </View>
               )}
             </View>
@@ -86,19 +84,20 @@ function TopicCard({ topic, progress, locked = false, lockHint, width, onPress }
               {done ? (
                 <Text style={[s.meta, { color: accent }]} maxFontSizeMultiplier={1.2}>Completed</Text>
               ) : (
-                <Text style={[s.meta, { color: locked ? MAZE.muted : MAZE.textDim }]} maxFontSizeMultiplier={1.2}>
+                <Text style={[s.meta, { color: MUTED }]} maxFontSizeMultiplier={1.2}>
                   Level {levelsCleared} / {total}
                 </Text>
               )}
               <ProgressBar
                 ratio={locked ? 0 : ratio}
-                color={accent}
+                color={locked ? MUTED : tone.ink}
+                track={TRACK}
                 segments={total}
                 height={5}
                 style={s.bar}
               />
             </View>
-          </LinearGradient>
+          </View>
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -109,22 +108,21 @@ const s = StyleSheet.create({
   shell: {
     borderRadius: 18,
     overflow: 'hidden',
-    // Depth without a coloured halo, which Android cannot tint anyway.
-    shadowColor: '#000',
-    shadowOpacity: 0.45,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 4,
+    shadowColor: '#0B1B3A',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
-  shellLocked: { opacity: 0.5 },
+  shellLocked: { opacity: 0.55 },
   pressGlow:   { ...StyleSheet.absoluteFillObject, zIndex: 2, borderRadius: 18 },
   card:        { borderRadius: 18, borderWidth: 1, padding: 14, gap: 7, minHeight: 152, justifyContent: 'flex-start' },
   topRow:      { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  iconWrap:    { width: 38, height: 38, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  iconWrap:    { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   badge:       { width: 20, height: 20, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  title:       { ...TYPE.cardTitle, color: '#EAF6FF' },
-  titleLocked: { color: MAZE.textDim },
-  desc:        { ...TYPE.cardDesc, color: MAZE.muted },
+  title:       { ...TYPE.cardTitle, color: TEXT },
+  titleLocked: { color: MUTED },
+  desc:        { ...TYPE.cardDesc, color: MUTED },
   footer:      { marginTop: 'auto', gap: 6, paddingTop: 4 },
   meta:        TYPE.meta,
   bar:         { width: '100%' },
