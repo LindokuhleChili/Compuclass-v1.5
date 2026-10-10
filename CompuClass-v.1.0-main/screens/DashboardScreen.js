@@ -1,11 +1,15 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../config/supabase';
 import { authService } from '../services/authService';
 import { classService } from '../services/classService';
 import { filterByClassScope } from '../utils/classScope';
 import { gamificationService } from '../services/gamificationservice';
+import {
+  ACTIVITY_SCREENS, WINDOWS_SCREEN, chooseContinueLearning, latestActivityScreen,
+} from '../utils/continueLearning';
 import { useTheme } from '../context/ThemeContext';
 import { Icon } from '../components/ui/Icon';
 import { GameArt } from '../components/ui/art';
@@ -49,6 +53,7 @@ export default function DashboardScreen({ navigation }) {
   const [enrolledClass, setEnrolledClass] = useState(null);
   const [stats, setStats] = useState({ passed: 0, points: 0, streak: 0 });
   const [announcements, setAnnouncements] = useState([]);
+  const [continueTarget, setContinueTarget] = useState(null);
   const tip = TIPS[new Date().getDate() % TIPS.length];
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
@@ -76,10 +81,12 @@ export default function DashboardScreen({ navigation }) {
 
       const attemptedIds = new Set(allAttempts?.map((a) => a.quiz_id) || []);
       const pendingIds = assignedQuizIds.filter((id) => !attemptedIds.has(id));
+      let pending = [];
       if (pendingIds.length > 0) {
         const { data: pendingData } = await supabase.from('quizzes').select('*').in('id', pendingIds).limit(3);
-        setPendingQuizzes(pendingData || []);
-      } else setPendingQuizzes([]);
+        pending = pendingData || [];
+      }
+      setPendingQuizzes(pending);
 
       const passed = allAttempts?.filter((a) => a.score >= PASS_SCORE).length || 0;
       let streak = gamify?.current_streak || 0;
@@ -96,39 +103,86 @@ export default function DashboardScreen({ navigation }) {
       }
       setStats({ passed, points: gamify?.xp || 0, streak });
 
-      const { data: announcementsData } = await supabase.from('announcements').select('*').order('created_at', { ascending: false }).limit(3);
       const scope = await classService.classScopeForCurrentUser();
+      const { data: announcementsData } = await supabase.from('announcements').select('*').order('created_at', { ascending: false }).limit(3);
       setAnnouncements(filterByClassScope(announcementsData || [], scope));
-    } catch { /* keep the last good dashboard */ }
+
+      let materials = [];
+      try {
+        const { data: folderRows } = await supabase.from('folders').select('id, name, created_at, class_id').order('created_at', { ascending: false });
+        materials = filterByClassScope(folderRows || [], scope).map((folder) => ({
+          id: folder.id,
+          title: folder.name,
+          created_at: folder.created_at,
+          read: false,
+        }));
+      } catch { materials = []; }
+
+      const events = [];
+      const latestAttempt = allAttempts?.[0]?.completed_at;
+      if (latestAttempt) events.push({ screen: 'Quiz', at: latestAttempt });
+      try {
+        const { data: sessions } = await supabase
+          .from('windows_simulation_sessions')
+          .select('session_start, session_end')
+          .eq('user_id', u.id)
+          .order('session_start', { ascending: false })
+          .limit(1);
+        const session = Array.isArray(sessions) ? sessions[0] : null;
+        if (session?.session_start) events.push({ screen: WINDOWS_SCREEN, at: session.session_end || session.session_start });
+      } catch { /* no simulator history */ }
+      try {
+        const raw = await AsyncStorage.getItem('progress_updated_at');
+        const meta = raw ? JSON.parse(raw) : {};
+        Object.entries(ACTIVITY_SCREENS).forEach(([key, screen]) => {
+          if (meta?.[key]) events.push({ screen, at: meta[key] });
+        });
+      } catch { /* local progress times are optional */ }
+
+      setContinueTarget(chooseContinueLearning({
+        pendingQuizzes: pending,
+        materials,
+        lastScreen: latestActivityScreen(events),
+        now: new Date(),
+      }));
+    } catch {
+      setContinueTarget((current) => current || chooseContinueLearning({ now: new Date() }));
+    }
     finally { setLoading(false); }
   };
 
   const displayName = user?.user_metadata?.full_name || user?.profile?.full_name || '';
   const firstName = displayName.split(' ')[0];
   const dateLabel = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
-  const continueQuiz = pendingQuizzes[0];
-
   const hero = (
     <View style={[styles.hero, { borderColor: theme.border }]}>
       <View style={styles.heroBlob} />
       <View style={styles.heroMark}><Mark size={laptop ? 220 : 120} /></View>
       <Glass strong radius={laptop ? 24 : 20} style={[styles.heroPanel, laptop && { width: 480, right: undefined }]}>
         <Text style={[{ fontSize: 12, lineHeight: 16, color: theme.textSecondary, marginBottom: 4 }, font(theme, 'semibold')]}>Continue learning</Text>
-        <Text style={[{ fontSize: laptop ? 22 : 17, lineHeight: laptop ? 30 : 24, color: theme.text }, font(theme, 'h2')]}>
-          {continueQuiz ? continueQuiz.title : 'Windows 11 lab'}
-        </Text>
+        {loading && !continueTarget ? (
+          <Skeleton height={28} width="70%" />
+        ) : (
+          <Text testID="continue-title" style={[{ fontSize: laptop ? 22 : 17, lineHeight: laptop ? 30 : 24, color: theme.text }, font(theme, 'h2')]} numberOfLines={2}>
+            {continueTarget?.title || 'Choose a lesson'}
+          </Text>
+        )}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 12 }}>
           <View style={{ flex: 1 }}>
-            <View style={[styles.track, { backgroundColor: '#E6EDF4' }]}>
-              <View style={[styles.fill, { width: continueQuiz ? '18%' : '44%', backgroundColor: theme.primary }]} />
+            <View style={[styles.track, { backgroundColor: theme.borderLight }]}>
+              <View style={[styles.fill, { width: continueTarget ? '16%' : '0%', backgroundColor: continueTarget?.kind === 'windows' ? theme.accent : theme.primary }]} />
             </View>
             <Text style={[{ fontSize: 12, lineHeight: 16, color: theme.textSecondary, marginTop: 6 }, font(theme, 'body')]}>
-              {continueQuiz ? `Pass mark ${continueQuiz.passing_score || 70}%` : 'Files, folders and Settings'}
+              {continueTarget?.detail || 'Loading your next step'}
             </Text>
           </View>
           <Button
             label="Resume"
-            onPress={() => navigation.navigate(continueQuiz ? 'Quiz' : 'Windows 11', continueQuiz ? { quizId: continueQuiz.id } : undefined)}
+            onPress={() => {
+              if (!continueTarget?.screen) return;
+              navigation.navigate(continueTarget.screen, continueTarget.params);
+            }}
+            disabled={!continueTarget?.screen}
             fit
             style={{ height: 44, minHeight: 44 }}
           />

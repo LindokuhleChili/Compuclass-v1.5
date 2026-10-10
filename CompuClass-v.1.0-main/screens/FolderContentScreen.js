@@ -4,12 +4,15 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { lecturerService } from '../services/lecturerService';
 import { useTheme } from '../context/ThemeContext';
+import { useShellBack } from '../context/ChromeContext';
+import { leaveScreen } from '../utils/screenNav';
 import { getErrorMessage } from '../utils/errorMessages';
 import { openStoredDocument } from '../utils/fileDownload';
 import ClassScopePicker from '../components/ClassScopePicker';
 
 export default function FolderContentScreen({ route, navigation }) {
   const { theme } = useTheme();
+  const shellBack = useShellBack();
   const { folder } = route.params;
   const [documents, setDocuments] = useState([]);
   const [quizzes, setQuizzes] = useState([]);
@@ -100,11 +103,13 @@ export default function FolderContentScreen({ route, navigation }) {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.surface }]}>
-      <View style={[styles.header, { backgroundColor: theme.card }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={theme.text} />
-        </TouchableOpacity>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={[styles.header, { backgroundColor: theme.card, borderBottomWidth: 1, borderBottomColor: theme.border }]}>
+        {shellBack ? <View style={styles.backSlot} /> : (
+          <TouchableOpacity onPress={() => leaveScreen(navigation)} style={styles.backSlot} accessibilityRole="button" accessibilityLabel="Go back">
+            <Ionicons name="arrow-back" size={22} color={theme.text} />
+          </TouchableOpacity>
+        )}
         <Text style={[styles.headerTitle, { color: theme.text }]}>{folder.name}</Text>
       </View>
 
@@ -247,6 +252,7 @@ export default function FolderContentScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
+  backSlot: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#fff', gap: 12 },
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#1F2937' },
   content: { flex: 1, padding: 16 },

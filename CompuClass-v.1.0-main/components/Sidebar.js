@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { Icon } from './ui/Icon';
 import { Glass, Mark, Wordmark, Avatar, initials, font } from './ui/kit';
+import { navKeyForRoute } from '../utils/screenNav';
 
 const SIDEBAR_MAX_WIDTH = 360;
 export const getSidebarWidth = (windowWidth) => Math.min(windowWidth * 0.78, SIDEBAR_MAX_WIDTH);
@@ -34,7 +35,7 @@ function NavList({ currentScreen, onPress, user }) {
     <>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator={false}>
         {PRIMARY_NAV.map((item) => {
-          const active = currentScreen === item.screen || (item.screen === 'Home' && (currentScreen === 'Dashboard' || currentScreen === 'Lecturer' || currentScreen === 'LecturerDashboard'));
+          const active = navKeyForRoute(currentScreen) === item.screen;
           return (
             <Pressable
               key={item.screen}
@@ -50,9 +51,9 @@ function NavList({ currentScreen, onPress, user }) {
         })}
         <Text style={[{ fontSize: 12, lineHeight: 16, color: theme.textTertiary, paddingHorizontal: 12, paddingTop: 24, paddingBottom: 8 }, font(theme, 'semibold')]}>Explore</Text>
         {EXPLORE_NAV.map((item) => {
-          const active = currentScreen === item.screen;
+          const active = navKeyForRoute(currentScreen) === item.screen;
           return (
-            <Pressable key={item.screen} onPress={() => onPress(item)} accessibilityRole="button" style={[styles.nav, active && { backgroundColor: '#fff' }]}>
+            <Pressable key={item.screen} onPress={() => onPress(item)} accessibilityRole="button" accessibilityState={{ selected: active }} style={[styles.nav, active && { backgroundColor: '#fff' }]}>
               <Icon name={item.icon} size={20} color={active ? theme.primary : theme.textSecondary} />
               <Text style={[{ flex: 1, fontSize: 14, lineHeight: 20, color: active ? theme.primary : theme.textSecondary }, font(theme, 'semibold')]}>{item.title}</Text>
             </Pressable>

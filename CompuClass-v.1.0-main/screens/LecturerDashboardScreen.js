@@ -6,10 +6,11 @@ import * as Haptics from 'expo-haptics';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
 import ClassScopePicker from '../components/ClassScopePicker';
+import { appTheme, useTheme } from '../context/ThemeContext';
 
-const BLUE = '#0A66FF'; const YELLOW = '#FFE680'; const RED = '#D92D4A';
-const GREEN = '#1F9D55'; const PURPLE = '#0A6F79'; const WHITE = '#FFFFFF';
-const BG = '#F7FBFD'; const TEXT = '#0B1B3A'; const MUTED = '#44526F'; const BORDER = '#DCE6EF';
+const BLUE = appTheme.primary; const YELLOW = appTheme.yellow; const RED = appTheme.error;
+const GREEN = appTheme.success; const PURPLE = appTheme.accentInk; const WHITE = appTheme.surface;
+const BG = appTheme.background; const TEXT = appTheme.text; const MUTED = appTheme.textSecondary; const BORDER = appTheme.border;
 
 const quickActions = (navigation, lecturerService) => [
   { icon: 'people', label: 'Student Progress', color: BLUE, onPress: () => navigation.navigate('StudentProgress') },
@@ -33,6 +34,7 @@ const quickActions = (navigation, lecturerService) => [
 ];
 
 export default function LecturerDashboardScreen({ navigation }) {
+  const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const [folders, setFolders] = useState([]);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
@@ -98,8 +100,8 @@ export default function LecturerDashboardScreen({ navigation }) {
   const actions = quickActions(navigation, lecturerService);
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 20, backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         <View style={styles.headerIconWrap}>
           <Ionicons name="desktop" size={28} color={BLUE} />
         </View>

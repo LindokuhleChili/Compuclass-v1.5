@@ -64,6 +64,8 @@ import { supabase } from './config/supabase';
 import { sessionCheckDecision } from './utils/sessionCheck';
 import { isUnknownWebPath as pathIsUnknown, linkingConfig } from './utils/webRoutes';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { ChromeProvider } from './context/ChromeContext';
+import { isRootRoute, leaveScreen } from './utils/screenNav';
 import { classService } from './services/classService';
 import { filterByClassScope } from './utils/classScope';
 
@@ -77,7 +79,8 @@ const ONBOARDING_KEY = 'onboardingComplete';
 const isUnknownWebPath = () =>
   Platform.OS === 'web' && typeof window !== 'undefined' && pathIsUnknown(window.location.pathname);
 
-const FULLSCREEN_ROUTES = ['CircuitMaze', 'CircuitMazeLobby', 'CircuitMazeTopic', 'Chatbot', 'Game', 'GameRunnerLobby', 'Windows 11', 'PC Lab', 'PC Assembly'];
+const HIDE_TAB_ROUTES = ['CircuitMaze', 'CircuitMazeLobby', 'CircuitMazeTopic', 'Game', 'GameRunnerLobby'];
+const HIDE_TOP_ROUTES = ['CircuitMaze', 'Game', 'Windows 11'];
 const TAB_ORDER = ['Dashboard', 'Lecturer', 'Materials', 'Quiz', 'Leaderboard', 'Profile'];
 const TAB_META = {
   Dashboard: { icon: 'home', label: 'Home' },
@@ -112,7 +115,7 @@ function PhoneTabBar({ state, navigation }) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const current = state.routes[state.index]?.name || '';
-  if (FULLSCREEN_ROUTES.includes(current)) return null;
+  if (HIDE_TAB_ROUTES.includes(current)) return null;
   const highlighted = highlightFor(current);
   const visible = TAB_ORDER.map((name) => state.routes.find((r) => r.name === name)).filter(Boolean);
 
@@ -140,6 +143,15 @@ function PhoneTabBar({ state, navigation }) {
           );
         })}
       </Glass>
+    </View>
+  );
+}
+
+function BackBar({ routeName, onBack }) {
+  if (!routeName || isRootRoute(routeName)) return null;
+  return (
+    <View style={styles.backBar}>
+      <IconButton name="chevLeft" label="Back" onPress={onBack} />
     </View>
   );
 }
@@ -385,7 +397,8 @@ function AppContent() {
     );
   }
 
-  const hideChrome = FULLSCREEN_ROUTES.includes(routeName);
+  const hideChrome = HIDE_TOP_ROUTES.includes(routeName);
+  const shellBack = Boolean(routeName) && !isRootRoute(routeName);
 
   return (
     <SafeAreaProvider>
@@ -413,6 +426,7 @@ function AppContent() {
                 onReady={syncRoute}
                 onStateChange={syncRoute}
               >
+                <ChromeProvider value={{ shellBack }}>
                 <View style={{ flex: 1 }}>
                   <StatusBar style="dark" />
                   {offlineStartup && (
@@ -427,7 +441,9 @@ function AppContent() {
                     onBell={() => setShowAnnouncements(true)}
                     onAvatar={() => handleNavigate('Profile')}
                   />
+                  <BackBar routeName={routeName} onBack={() => leaveScreen(navigationRef.current)} />
                   <Tab.Navigator
+                    backBehavior="history"
                     tabBar={(props) => (laptop ? null : <PhoneTabBar {...props} />)}
                     screenOptions={{ headerShown: false }}
                   >
@@ -459,6 +475,7 @@ function AppContent() {
                     <Tab.Screen name="GameRunnerLobby" component={GameRunnerLobbyScreen} />
                   </Tab.Navigator>
                 </View>
+                </ChromeProvider>
               </NavigationContainer>
             </View>
           </View>
@@ -474,6 +491,7 @@ const styles = StyleSheet.create({
   tabWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: 16, paddingHorizontal: 25, zIndex: 20 },
   tabPill: { flexDirection: 'row', padding: 4, alignItems: 'stretch' },
   tab: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', gap: 1, paddingTop: 6, paddingBottom: 7, paddingHorizontal: 8, borderRadius: 999 },
+  backBar: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 4, zIndex: 6, alignItems: 'flex-start' },
   topBar: { flexDirection: 'row', alignItems: 'center', gap: 12, zIndex: 5 },
   searchPill: { flex: 1, maxWidth: 420, height: 44, borderRadius: 999, borderWidth: 1, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 'auto' },
   me: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },

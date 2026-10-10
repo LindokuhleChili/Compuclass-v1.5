@@ -12,6 +12,9 @@ import { PROGRESS_KEYS, progressService } from '../services/progressService';
 import { supabase } from '../config/supabase';
 import { authService } from '../services/authService';
 import { gameRunnerService } from '../services/gameRunnerService';
+import { useTheme } from '../context/ThemeContext';
+import { useShellBack } from '../context/ChromeContext';
+import { leaveScreen } from '../utils/screenNav';
 
 const BLUE = '#0A66FF'; const YELLOW = '#FFE680'; const RED = '#D92D4A';
 const GREEN = '#1F9D55'; const WHITE = '#FFFFFF'; const TEXT = '#0B1B3A';
@@ -249,6 +252,8 @@ function ScorePopup({ x, y, value, color, onDone }) {
 
 // ── Start Screen ──────────────────────────────────────────────────────────────
 function StartScreen({ onStart, onBack, highScore }) {
+  const { theme } = useTheme();
+  const shellBack = useShellBack();
   const insets = useSafeAreaInsets();
   const pulse = useRef(new Animated.Value(1)).current;
   const float = useRef(new Animated.Value(0)).current;
@@ -270,15 +275,15 @@ function StartScreen({ onStart, onBack, highScore }) {
       <View style={[styles.decorCircle, { width: 200, height: 200, top: -60, right: -60, backgroundColor: 'rgba(255,255,255,0.06)' }]} />
       <View style={[styles.decorCircle, { width: 140, height: 140, bottom: 80, left: -40, backgroundColor: 'rgba(255,255,255,0.04)' }]} />
 
-      {onBack && (
+      {onBack && !shellBack && (
         <TouchableOpacity
-          style={[styles.gameBackBtn, { top: insets.top + 10 }]}
+          style={[styles.gameBackBtn, { top: insets.top + 10, backgroundColor: theme.surface }]}
           onPress={onBack}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Ionicons name="arrow-back" size={22} color={WHITE} />
+          <Ionicons name="arrow-back" size={22} color={theme.text} />
         </TouchableOpacity>
       )}
 
@@ -901,7 +906,7 @@ export default function GameScreen({ navigation, route }) {
   const legL = legAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: ['20deg', '0deg', '-20deg'] });
   const legR = legAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-20deg', '0deg', '20deg'] });
 
-  if (phase === 'start') return <StartScreen onStart={startGame} onBack={() => navigation.goBack()} highScore={highScore} />;
+  if (phase === 'start') return <StartScreen onStart={startGame} onBack={() => leaveScreen(navigation)} highScore={highScore} />;
   if (phase === 'gameover') return (
     <GameOverScreen score={score} highScore={highScore} collected={collected} leaderboard={leaderboard}
       onRestart={startGame} onHome={() => navigation.goBack()} finishRank={isMulti ? finishRank : null} />

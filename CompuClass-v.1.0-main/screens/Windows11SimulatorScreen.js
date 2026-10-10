@@ -8,12 +8,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../config/supabase';
 import { authService } from '../services/authService';
 import { useNavigation } from '@react-navigation/native';
+import { appTheme, useTheme } from '../context/ThemeContext';
+import { useShellBack } from '../context/ChromeContext';
+import { leaveScreen } from '../utils/screenNav';
 
-const BLUE = '#0A66FF'; const WHITE = '#FFFFFF'; const BG = '#F7FBFD';
-const TEXT = '#0B1B3A'; const MUTED = '#44526F'; const BORDER = '#DCE6EF';
+const BLUE = appTheme.primary; const WHITE = appTheme.surface; const BG = appTheme.background;
+const TEXT = appTheme.text; const MUTED = appTheme.textSecondary; const BORDER = appTheme.border;
 
 export default function Windows11SimulatorScreen() {
   const navigation = useNavigation();
+  const { theme } = useTheme();
+  const shellBack = useShellBack();
   const insets = useSafeAreaInsets();
   const webViewRef = useRef(null);
   const [loading, setLoading] = useState(true);
@@ -69,12 +74,14 @@ export default function Windows11SimulatorScreen() {
   };
 
   if (Platform.OS === 'web') return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       {!isFullscreen && (
         <>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.floatingBtn, styles.floatingBackBtn, { top: insets.top + 12 }]}>
-            <Ionicons name="arrow-back" size={18} color={WHITE} />
-          </TouchableOpacity>
+          {!shellBack && (
+            <TouchableOpacity onPress={() => leaveScreen(navigation)} accessibilityRole="button" accessibilityLabel="Go back" style={[styles.floatingBtn, styles.floatingBackBtn, { top: insets.top + 12, backgroundColor: theme.surface }]}>
+              <Ionicons name="arrow-back" size={18} color={theme.text} />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity onPress={toggleFullscreen} style={[styles.floatingBtn, styles.floatingFullscreenBtn, { top: insets.top + 12 }]}>
             <Ionicons name="expand-outline" size={18} color={WHITE} />
           </TouchableOpacity>
@@ -126,11 +133,13 @@ export default function Windows11SimulatorScreen() {
         </View>
       </Modal>
 
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
         <StatusBar hidden={false} />
-        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.floatingBtn, styles.floatingBackBtn, { top: insets.top + 12 }]}>
-          <Ionicons name="arrow-back" size={18} color={WHITE} />
-        </TouchableOpacity>
+        {!shellBack && (
+          <TouchableOpacity onPress={() => leaveScreen(navigation)} accessibilityRole="button" accessibilityLabel="Go back" style={[styles.floatingBtn, styles.floatingBackBtn, { top: insets.top + 12, backgroundColor: theme.surface }]}>
+            <Ionicons name="arrow-back" size={18} color={theme.text} />
+          </TouchableOpacity>
+        )}
         <View style={[styles.floatingBtnGroup, { top: insets.top + 12 }]}>
           <TouchableOpacity onPress={handleRefresh} style={styles.floatingBtn}>
             <Ionicons name="refresh-outline" size={18} color={WHITE} />

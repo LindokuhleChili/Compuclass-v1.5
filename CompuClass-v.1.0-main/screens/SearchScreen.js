@@ -9,9 +9,10 @@ import { openStoredDocument } from '../utils/fileDownload';
 import { getErrorMessage } from '../utils/errorMessages';
 import { classService } from '../services/classService';
 import { filterByClassScope } from '../utils/classScope';
-const BLUE = '#0A66FF'; const PURPLE = '#0A6F79';
-const WHITE = '#FFFFFF'; const BG = '#F7FBFD'; const TEXT = '#0B1B3A';
-const MUTED = '#44526F'; const CARD = '#FFFFFF';
+import { appTheme, useTheme } from '../context/ThemeContext';
+const BLUE = appTheme.primary; const PURPLE = appTheme.accentInk;
+const WHITE = appTheme.surface; const TEXT = appTheme.text;
+const MUTED = appTheme.textSecondary; const CARD = appTheme.card;
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -38,6 +39,7 @@ function SkeletonCard() {
 }
 
 export default function SearchScreen({ navigation }) {
+  const { theme } = useTheme();
   const insets = useSafeAreaInsets();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -108,8 +110,8 @@ export default function SearchScreen({ navigation }) {
   const hasResults = quizzes.length > 0 || documents.length > 0;
 
   return (
-    <View style={[styles.container, { backgroundColor: BG }]}>
-      <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={[styles.topBar, { paddingTop: insets.top + 12, backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         <Text style={styles.topTitle} accessibilityRole="header">Search</Text>
         <Text style={styles.topSubtitle}>Find quizzes, documents and more</Text>
         <View style={[styles.searchBar, { backgroundColor: CARD }]}>

@@ -7,10 +7,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { PROGRESS_KEYS, progressService } from '../services/progressService';
+import { appTheme, useTheme } from '../context/ThemeContext';
+import { useShellBack } from '../context/ChromeContext';
+import { leaveScreen } from '../utils/screenNav';
 
-const GREEN = '#1F9D55'; const WHITE = '#FFFFFF'; const BG = '#E9EEF4';
-const TEXT = '#0B1B3A'; const MUTED = '#44526F'; const BORDER = '#D6DEE8';
-const RED = '#D92D4A';
+const GREEN = appTheme.success; const WHITE = appTheme.surface; const BG = appTheme.background;
+const TEXT = appTheme.text; const MUTED = appTheme.textSecondary; const BORDER = appTheme.border;
+const RED = appTheme.error;
 
 const CASE_IMG = require('../assets/pc-assembly/case-open.png');
 const CASE_RATIO = 712 / 548; // width / height of case-open.png
@@ -155,6 +158,8 @@ function PartCard({ part, lifted, handlers }) {
 
 export default function PCAssemblyScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const { theme } = useTheme();
+  const shellBack = useShellBack();
   const { width } = useWindowDimensions();
   const isWide = width >= 700;
 
@@ -336,17 +341,19 @@ export default function PCAssemblyScreen({ navigation }) {
     <View
       ref={containerRef}
       onLayout={() => requestAnimationFrame(measureContainer)}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.background }]}
     >
-      <TouchableOpacity
-        onPress={() => navigation.goBack()}
-        style={[styles.floatingBackBtn, { top: insets.top + 12 }]}
-        activeOpacity={0.75}
-        accessibilityRole="button"
-        accessibilityLabel="Go back"
-      >
-        <Ionicons name="arrow-back" size={22} color={TEXT} />
-      </TouchableOpacity>
+      {!shellBack && (
+        <TouchableOpacity
+          onPress={() => leaveScreen(navigation)}
+          style={[styles.floatingBackBtn, { top: insets.top + 12, backgroundColor: theme.surface, borderColor: theme.border }]}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="arrow-back" size={22} color={theme.text} />
+        </TouchableOpacity>
+      )}
 
       <ScrollView
         scrollEnabled={!dragId}

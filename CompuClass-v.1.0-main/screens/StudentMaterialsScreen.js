@@ -21,7 +21,7 @@ function folderTone(name = '') {
   return { icon: 'folder', tone: 'blue' };
 }
 
-export default function StudentMaterialsScreen({ navigation }) {
+export default function StudentMaterialsScreen({ navigation, route }) {
   const { theme } = useTheme();
   const { laptop } = useLayout();
   const [folders, setFolders] = useState([]);
@@ -33,6 +33,12 @@ export default function StudentMaterialsScreen({ navigation }) {
 
   useEffect(() => { loadFolders(); }, []);
   useEffect(() => { if (selectedFolder) loadFolderContent(selectedFolder.id); }, [selectedFolder]);
+  useEffect(() => {
+    const folderId = route?.params?.folderId;
+    if (!folderId || !folders.length) return;
+    const match = folders.find((folder) => folder.id === folderId);
+    if (match) setSelectedFolder(match);
+  }, [folders, route?.params?.folderId]);
 
   const loadFolders = async () => {
     try {
@@ -82,7 +88,7 @@ export default function StudentMaterialsScreen({ navigation }) {
     return (
       <Page>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 24 }}>
-          <IconButton name="chevLeft" label="Back to materials" onPress={() => setSelectedFolder(null)} />
+          <IconButton name="chevLeft" label="Back to materials" onPress={() => { setSelectedFolder(null); navigation.setParams?.({ folderId: undefined, folderName: undefined }); }} />
           <Heading level={1} style={{ flex: 1 }}>{selectedFolder.name}</Heading>
         </View>
         <Heading level={2} style={{ marginBottom: 12 }}>Documents</Heading>

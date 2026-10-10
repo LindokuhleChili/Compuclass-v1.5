@@ -12,12 +12,15 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
+import { useShellBack } from '../context/ChromeContext';
+import { leaveScreen } from '../utils/screenNav';
 import { lecturerService } from '../services/lecturerService';
 import { classService } from '../services/classService';
 import { getErrorMessage } from '../utils/errorMessages';
 
 export default function ClassDetailScreen({ navigation, route }) {
   const { theme } = useTheme();
+  const shellBack = useShellBack();
   const { classId } = route.params;
   const [classData, setClassData] = useState(null);
   const [students, setStudents] = useState([]);
@@ -68,12 +71,14 @@ export default function ClassDetailScreen({ navigation, route }) {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.surface }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <LinearGradient colors={theme.gradient} style={styles.header}>
         <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="Go back">
-            <Ionicons name="arrow-back" size={24} color={theme.text} />
-          </TouchableOpacity>
+          {shellBack ? <View style={styles.iconHit} /> : (
+            <TouchableOpacity onPress={() => leaveScreen(navigation)} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="Go back">
+              <Ionicons name="arrow-back" size={24} color={theme.text} />
+            </TouchableOpacity>
+          )}
           <Text style={[styles.headerTitle, { color: theme.text }]} accessibilityRole="header">Class Details</Text>
           <View style={{ width: 24 }} />
         </View>

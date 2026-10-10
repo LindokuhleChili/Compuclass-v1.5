@@ -26,4 +26,14 @@ describe('Sidebar', () => {
     expect(onNavigate).toHaveBeenCalledWith('PC Lab');
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('marks the sidebar item for the screen that is open, including lecturer pages', () => {
+    const { getByRole, rerender } = render(
+      <Sidebar docked visible currentScreen="PC Lab" onClose={jest.fn()} onNavigate={jest.fn()} onHomePress={jest.fn()} />
+    );
+    expect(getByRole('button', { name: 'PC Lab' }).props.accessibilityState).toMatchObject({ selected: true });
+
+    rerender(<Sidebar docked visible currentScreen="FolderContent" onClose={jest.fn()} onNavigate={jest.fn()} onHomePress={jest.fn()} />);
+    expect(getByRole('button', { name: 'Home' }).props.accessibilityState).toMatchObject({ selected: true });
+  });
 });
