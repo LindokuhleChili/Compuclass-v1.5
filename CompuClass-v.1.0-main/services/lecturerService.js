@@ -142,12 +142,12 @@ export const lecturerService = {
       .select('*')
       .eq('folder_id', folderId)
       .order('created_at', { ascending: false });
-    
+
     if (error) {
       console.error('Documents error:', error);
-      return [];
+      throw error;
     }
-    
+
     return data || [];
   },
 
@@ -232,28 +232,50 @@ export const lecturerService = {
       if (!folderId || folderId === 'default') {
         return [];
       }
-      
+
+      // A nested count embed fails the whole select when quiz_questions is not
+      // readable, which used to hide every quiz in the folder. Load the quiz
+      // rows first, then count questions separately.
       const { data, error } = await supabase
         .from('quizzes')
-        .select(`
-          *,
-          quiz_questions(count)
-        `)
+        .select('*')
         .eq('folder_id', folderId)
         .order('created_at', { ascending: false });
-      
+
       if (error) {
         console.error('Quizzes error:', error);
-        return [];
+        throw error;
       }
-      
-      return (data || []).map(quiz => ({
-        ...quiz,
-        quiz_questions: Array(quiz.quiz_questions?.[0]?.count || 0).fill({})
-      }));
+
+      const quizzes = data || [];
+      const counts = {};
+      const ids = quizzes.map((quiz) => quiz.id).filter(Boolean);
+      if (ids.length > 0) {
+        const { data: questions, error: questionsError } = await supabase
+          .from('quiz_questions')
+          .select('quiz_id')
+          .in('quiz_id', ids);
+        if (questionsError) {
+          console.error('Quiz question count error:', questionsError);
+        } else {
+          (questions || []).forEach((row) => {
+            if (!row?.quiz_id) return;
+            counts[row.quiz_id] = (counts[row.quiz_id] || 0) + 1;
+          });
+        }
+      }
+
+      return quizzes.map((quiz) => {
+        const count = counts[quiz.id] || 0;
+        return {
+          ...quiz,
+          question_count: count,
+          quiz_questions: Array(count).fill({}),
+        };
+      });
     } catch (err) {
       console.error('Quizzes exception:', err);
-      return [];
+      throw err;
     }
   },
 
@@ -399,13 +421,43 @@ export const lecturerService = {
   // Student Management Functions
   async getStudents() {
     const { data, error } = await supabase.rpc('get_students_with_emails');
-    
+
     if (error) {
       console.error('Students error:', error);
-      return [];
+      throw error;
     }
-    
+
     return data || [];
+  },
+
+  async getQuizResults(quizId) {
+    const { data, error } = await supabase
+      .from('quiz_attempts')
+      .select('id, user_id, score, completed_at')
+      .eq('quiz_id', quizId)
+      .order('completed_at', { ascending: false });
+    if (error) {
+      console.error('Quiz results error:', error);
+      throw error;
+    }
+    const attempts = data || [];
+    const ids = [...new Set(attempts.map((attempt) => attempt.user_id).filter(Boolean))];
+    const names = {};
+    if (ids.length > 0) {
+      const { data: profiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', ids);
+      if (profileError) {
+        console.error('Quiz result names error:', profileError);
+      } else {
+        (profiles || []).forEach((profile) => { names[profile.id] = profile.full_name; });
+      }
+    }
+    return attempts.map((attempt) => ({
+      ...attempt,
+      full_name: names[attempt.user_id] || 'Student',
+    }));
   },
 
   async addStudent(email, classId) {

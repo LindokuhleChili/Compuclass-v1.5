@@ -24,6 +24,7 @@ export default function ClassDetailScreen({ navigation, route }) {
   const { classId } = route.params;
   const [classData, setClassData] = useState(null);
   const [students, setStudents] = useState([]);
+  const [status, setStatus] = useState('loading');
   const loadClassDetailRef = useRef(() => {});
 
   useEffect(() => {
@@ -31,12 +32,15 @@ export default function ClassDetailScreen({ navigation, route }) {
   }, []);
 
   const loadClassDetail = async () => {
+    setStatus('loading');
     try {
       const data = await lecturerService.getClassDetail(classId);
       setClassData(data.class);
       setStudents(data.students);
+      setStatus('ready');
     } catch (error) {
       console.error('Class detail error:', error);
+      setStatus('error');
       Alert.alert('Error', getErrorMessage(error, { context: 'ClassDetail' }));
     }
   };
@@ -61,6 +65,17 @@ export default function ClassDetailScreen({ navigation, route }) {
       }
     ]);
   };
+
+  if (status === 'error') {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background, alignItems: 'center', justifyContent: 'center', padding: 24 }]} accessibilityRole="alert">
+        <Text style={[styles.className, { color: theme.text }]}>Could not load this class</Text>
+        <TouchableOpacity onPress={loadClassDetail} accessibilityRole="button" accessibilityLabel="Try again" style={{ marginTop: 16 }}>
+          <Text style={{ color: theme.primary, fontWeight: '800' }}>Try again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (!classData) {
     return (

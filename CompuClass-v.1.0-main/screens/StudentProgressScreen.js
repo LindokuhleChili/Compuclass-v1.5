@@ -19,6 +19,7 @@ import { useShellBack } from '../context/ChromeContext';
 import { leaveScreen } from '../utils/screenNav';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
+import { classAverageScore, formatShortDate } from '../utils/quizFlow';
 //Student progress screen for lecturer to view student progress and add students to class. Progress data is loaded from Supabase and displayed in a list of student cards. Each card shows student's name, email, quizzes completed, average score, materials viewed and last activity. Lecturer can tap on a student card to view more details in a modal. Lecturer can also add new students by entering their email in a modal form.
 export default function StudentProgressScreen({ navigation }) {
   const { theme } = useTheme();
@@ -32,11 +33,19 @@ export default function StudentProgressScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [progressData, setProgressData] = useState({});
+  const [status, setStatus] = useState('loading');
+  const [attempts, setAttempts] = useState([]);
+  const [attemptsStatus, setAttemptsStatus] = useState('idle');
 
   const loadData = async () => {
-    await loadStudents();
-    await loadProgressData();
-    await loadClasses();
+    setStatus((current) => (current === 'ready' ? 'ready' : 'loading'));
+    try {
+      await Promise.all([loadStudents(), loadProgressData(), loadClasses()]);
+      setStatus('ready');
+    } catch (error) {
+      setStatus('error');
+      Alert.alert('Error', getErrorMessage(error, { context: 'StudentProgress' }));
+    }
   };
   const loadDataRef = useRef(loadData);
   loadDataRef.current = loadData;
@@ -48,12 +57,8 @@ export default function StudentProgressScreen({ navigation }) {
   );
 
   const loadStudents = async () => {
-    try {
-      const data = await lecturerService.getStudents();
-      setStudents(data);
-    } catch (error) {
-      Alert.alert('Error', getErrorMessage(error, { context: 'StudentProgress' }));
-    }
+    const data = await lecturerService.getStudents();
+    setStudents(data || []);
   };
 
   const loadProgressData = async () => {
@@ -98,6 +103,20 @@ export default function StudentProgressScreen({ navigation }) {
     }
   };
 
+  const openStudent = async (student) => {
+    setSelectedStudent(student);
+    setAttempts([]);
+    setAttemptsStatus('loading');
+    try {
+      const detail = await lecturerService.getStudentDetail(student.id);
+      setAttempts(detail?.quizAttempts || []);
+      setAttemptsStatus('ready');
+    } catch (error) {
+      console.error('Student quiz history error:', error);
+      setAttemptsStatus('error');
+    }
+  };
+
   const filteredStudents = students.filter(student =>
     student.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     student.email?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -119,7 +138,7 @@ export default function StudentProgressScreen({ navigation }) {
     return (
       <TouchableOpacity
         style={[styles.studentCard, { backgroundColor: theme.card }]}
-        onPress={() => setSelectedStudent(item)}
+        onPress={() => openStudent(item)}
       >
         <View style={styles.studentHeader}>
           <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
@@ -209,7 +228,7 @@ export default function StudentProgressScreen({ navigation }) {
         </View>
         <View style={[styles.overviewCard, { backgroundColor: theme.card }]}>
           <Text style={[styles.overviewNumber, { color: theme.success }]}>
-            {Math.round(Object.values(progressData).reduce((acc, p) => acc + (p.averageScore || 0), 0) / Math.max(Object.keys(progressData).length, 1))}%
+            {classAverageScore(progressData) == null ? '—' : `${classAverageScore(progressData)}%`}
           </Text>
           <Text style={[styles.overviewLabel, { color: theme.textSecondary }]}>
             Class Average
@@ -217,13 +236,36 @@ export default function StudentProgressScreen({ navigation }) {
         </View>
       </View>
 
+      {status === 'loading' ? (
+        <View style={styles.emptyWrap} accessibilityRole="progressbar">
+          <Text style={[styles.emptyTitle, { color: theme.text }]}>Loading students</Text>
+        </View>
+      ) : status === 'error' ? (
+        <View style={styles.emptyWrap} accessibilityRole="alert">
+          <Text style={[styles.emptyTitle, { color: theme.text }]}>Could not load student progress</Text>
+          <TouchableOpacity onPress={loadData} accessibilityRole="button" accessibilityLabel="Try again">
+            <Text style={[styles.emptyAction, { color: theme.primary }]}>Try again</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
       <FlatList
         data={filteredStudents}
         renderItem={renderStudentCard}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.studentsList}
         showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={styles.emptyWrap}>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>
+              {searchQuery ? 'No students match that search' : 'No students yet'}
+            </Text>
+            <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
+              {searchQuery ? 'Try a different name or email.' : 'Students appear here after they create a CompuClass account.'}
+            </Text>
+          </View>
+        }
       />
+      )}
 
       {/* Add Student Modal */}
       <Modal visible={showAddStudent} animationType="slide" transparent>
@@ -341,6 +383,23 @@ export default function StudentProgressScreen({ navigation }) {
                             {stats.averageScore}%
                           </Text>
                         </View>
+                        <View style={styles.detailSection}>
+                          <Text style={[styles.sectionTitle, { color: theme.text }]}>Quiz results</Text>
+                          {attemptsStatus === 'loading' ? (
+                            <Text style={[styles.detailText, { color: theme.textSecondary }]}>Loading quiz results...</Text>
+                          ) : attemptsStatus === 'error' ? (
+                            <Text style={[styles.detailText, { color: theme.textSecondary }]}>Quiz history could not be loaded.</Text>
+                          ) : attempts.length === 0 ? (
+                            <Text style={[styles.detailText, { color: theme.textSecondary }]}>No quiz attempts yet.</Text>
+                          ) : attempts.map((attempt) => (
+                            <View key={attempt.id || `${attempt.quiz_id}-${attempt.completed_at}`} style={styles.progressItem}>
+                              <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>
+                                {attempt.quizzes?.title || 'Quiz'}{formatShortDate(attempt.completed_at) ? ` · ${formatShortDate(attempt.completed_at)}` : ''}
+                              </Text>
+                              <Text style={[styles.progressValue, { color: theme.primary }]}>{attempt.score}%</Text>
+                            </View>
+                          ))}
+                        </View>
                         <View style={styles.progressItem}>
                           <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>
                             Materials Viewed
@@ -382,6 +441,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   searchInput: { flex: 1, fontSize: 16 },
+  emptyWrap: { alignItems: 'center', paddingHorizontal: 32, paddingVertical: 40 },
+  emptyTitle: { fontSize: 16, fontWeight: '800', textAlign: 'center' },
+  emptyBody: { fontSize: 13, marginTop: 6, textAlign: 'center' },
+  emptyAction: { fontSize: 15, fontWeight: '800', marginTop: 12 },
   statsOverview: {
     flexDirection: 'row',
     paddingHorizontal: 16,

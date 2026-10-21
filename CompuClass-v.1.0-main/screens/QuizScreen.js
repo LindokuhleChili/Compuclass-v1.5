@@ -9,6 +9,7 @@ import { useTheme } from '../context/ThemeContext';
 import { Icon } from '../components/ui/Icon';
 import { Heading, Body, Card, Badge, Button, IconTile, IconButton, Skeleton, Page, font } from '../components/ui/kit';
 import { leaveScreen } from '../utils/screenNav';
+import { advanceQuiz, bestScoresByQuiz, normalizeOptions, passingMark, uniqueIds } from '../utils/quizFlow';
 const WHITE = '#FFFFFF';
 
 // Base XP mirrors the CASE in submit_quiz_attempt — keep the two in sync.
@@ -18,18 +19,19 @@ const DIFFICULTY = {
   hard:   { label: 'Hard',   color: '#D92D4A', icon: 'target', xp: 15 },
 };
 
-function PressableQuiz({ theme, quiz, onPress }) {
+function PressableQuiz({ theme, quiz, onPress, bestScore }) {
+  const done = bestScore != null;
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={`Start ${quiz.title}`} style={{ marginBottom: 12 }}>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={`${done ? 'Retake' : 'Start'} ${quiz.title}`} style={{ marginBottom: 12 }}>
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, minHeight: 72 }}>
         <IconTile name="quiz" tone="teal" />
         <View style={{ flex: 1 }}>
           <Text style={[{ color: theme.text }, font(theme, 'h3')]}>{quiz.title}</Text>
           {quiz.description ? <Body variant="small">{quiz.description}</Body> : null}
-          <Body variant="caption">Pass mark {quiz.passing_score}%</Body>
+          <Body variant="caption">Pass mark {passingMark(quiz)}%</Body>
         </View>
-        <Badge label="To do" kind="yellow" />
-        <Button label="Start" fit onPress={onPress} style={{ height: 44, minHeight: 44 }} />
+        <Badge label={done ? `Best ${bestScore}%` : 'To do'} kind={done ? 'ok' : 'yellow'} />
+        <Button label={done ? 'Retake' : 'Start'} fit onPress={onPress} style={{ height: 44, minHeight: 44 }} />
       </Card>
     </TouchableOpacity>
   );
@@ -60,6 +62,9 @@ export default function QuizScreen({ route, navigation }) {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
   const [timeLeft, setTimeLeft] = useState(null);
+  const [bestScores, setBestScores] = useState({});
+  const [submitError, setSubmitError] = useState(false);
+  const [quizMissing, setQuizMissing] = useState(false);
 
   // Refs so the timer's interval callback always sees fresh values
   // without having to restart the interval every render.
@@ -69,6 +74,9 @@ export default function QuizScreen({ route, navigation }) {
   const answersRef = useRef([]);
   const questionsRef = useRef([]);
   const currentIndexRef = useRef(0);
+  const advancingRef = useRef(false);
+  const pendingAnswersRef = useRef(null);
+  const submitQuizRef = useRef(async () => {});
 
   useEffect(() => { selectedAnswerRef.current = selectedAnswer; }, [selectedAnswer]);
   useEffect(() => { answersRef.current = answers; }, [answers]);
@@ -83,7 +91,7 @@ export default function QuizScreen({ route, navigation }) {
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     const q = questions[currentQuestion];
-    if (!q || quizCompleted) return;
+    if (!q || quizCompleted || submitError) return;
     if (!q.time_limit_seconds) { setTimeLeft(null); return; }
 
     setTimeLeft(q.time_limit_seconds);
@@ -101,7 +109,7 @@ export default function QuizScreen({ route, navigation }) {
 
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQuestion, questions.length]);
+  }, [currentQuestion, questions, quizCompleted, submitError]);
 
   const loadAvailableQuizzes = async () => {
     setListError(false);
@@ -109,14 +117,16 @@ export default function QuizScreen({ route, navigation }) {
       const user = await authService.getCurrentUser();
       const { data: classStudents, error: classError } = await supabase.from('class_students').select('class_id').eq('student_id', user.id);
       if (classError) throw classError;
-      const classIds = classStudents?.map((cs) => cs.class_id) || [];
-      if (classIds.length === 0) { setAvailableQuizzes([]); setLoading(false); return; }
+      const classIds = uniqueIds(classStudents?.map((cs) => cs.class_id));
+      if (classIds.length === 0) { setAvailableQuizzes([]); setBestScores({}); setLoading(false); return; }
       const { data: assignments, error: assignmentError } = await supabase.from('quiz_assignments').select('quiz_id').in('class_id', classIds);
       if (assignmentError) throw assignmentError;
-      const quizIds = assignments?.map((a) => a.quiz_id) || [];
-      if (quizIds.length === 0) { setAvailableQuizzes([]); setLoading(false); return; }
+      const quizIds = uniqueIds(assignments?.map((a) => a.quiz_id));
+      if (quizIds.length === 0) { setAvailableQuizzes([]); setBestScores({}); setLoading(false); return; }
       const { data: quizzes, error: quizError } = await supabase.from('quizzes').select('*').in('id', quizIds);
       if (quizError) throw quizError;
+      const { data: attempts, error: attemptsError } = await supabase.from('quiz_attempts').select('quiz_id, score').eq('user_id', user.id);
+      setBestScores(attemptsError ? {} : bestScoresByQuiz(attempts));
       setAvailableQuizzes(quizzes || []);
     } catch (error) {
       // Previously swallowed, so a failed load looked like "No quizzes assigned yet".
@@ -137,35 +147,40 @@ export default function QuizScreen({ route, navigation }) {
         .rpc('get_quiz_questions_for_attempt', { p_quiz_id: quizId });
       if (questionsError) throw questionsError;
 
+      const ordered = (questionsData || []).slice().sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
       setQuiz(quizData);
-      setQuestions((questionsData || []).slice().sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)));
+      setQuestions(ordered);
+      setQuizMissing(ordered.length === 0);
     } catch {
       Alert.alert('Error', 'Failed to load quiz');
-      navigation.goBack();
+      leaveScreen(navigation);
     } finally { setLoading(false); }
   };
   loadQuizRef.current = loadQuiz;
 
   const advanceQuestion = useCallback((finalAnswer, finalTimeLeft) => {
-    const qs = questionsRef.current;
-    const idx = currentIndexRef.current;
-    const currentQ = qs[idx];
-    if (!currentQ) return;
-
-    const newAnswers = [...answersRef.current, {
-      question_id: currentQ.id,
-      selected_answer: finalAnswer,
-      time_remaining_seconds: currentQ.time_limit_seconds ? finalTimeLeft : null,
-    }];
-    setAnswers(newAnswers);
-
-    if (idx + 1 < qs.length) {
-      setCurrentQuestion(idx + 1);
+    // The timer and the Next button can both fire. A second call used to
+    // append the same answer again and skip a question, and a failed submit
+    // did it a second time on retry.
+    if (advancingRef.current) return;
+    const step = advanceQuiz({
+      questions: questionsRef.current,
+      index: currentIndexRef.current,
+      answers: answersRef.current,
+      selected: finalAnswer,
+      timeLeft: finalTimeLeft,
+    });
+    if (step.status === 'idle') return;
+    advancingRef.current = true;
+    setAnswers(step.answers);
+    if (step.status === 'next') {
+      setCurrentQuestion(step.index);
       setSelectedAnswer(null);
-    } else {
-      submitQuiz(newAnswers);
+      advancingRef.current = false;
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    pendingAnswersRef.current = step.answers;
+    submitQuizRef.current(step.answers);
   }, []);
 
   const handleNextPress = () => {
@@ -176,25 +191,34 @@ export default function QuizScreen({ route, navigation }) {
   };
 
   const submitQuiz = async (finalAnswers) => {
+    const payload = finalAnswers || pendingAnswersRef.current;
+    if (!payload) return;
+    pendingAnswersRef.current = payload;
     setSubmitting(true);
+    setSubmitError(false);
     try {
       const { data, error } = await supabase.rpc('submit_quiz_attempt', {
         p_quiz_id: quizId,
-        p_answers: finalAnswers,
+        p_answers: payload,
       });
-      if (error) throw error;
+      if (error || data == null) throw error || new Error('empty result');
       setResult(data);
       setQuizCompleted(true);
-      if (data?.leveled_up) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      else Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
-      Alert.alert('Error', 'Could not submit your quiz. Check your connection and try again.');
-    } finally { setSubmitting(false); }
+      setSubmitError(true);
+    } finally {
+      setSubmitting(false);
+      advancingRef.current = false;
+    }
   };
+  submitQuizRef.current = submitQuiz;
 
   const resetQuiz = () => {
+    advancingRef.current = false;
+    pendingAnswersRef.current = null;
     setCurrentQuestion(0); setSelectedAnswer(null); setAnswers([]);
-    setQuizCompleted(false); setResult(null); setTimeLeft(null);
+    setQuizCompleted(false); setResult(null); setTimeLeft(null); setSubmitError(false);
   };
 
   if (loading) return (
@@ -240,7 +264,7 @@ export default function QuizScreen({ route, navigation }) {
             </TouchableOpacity>
           </View>
         ) : availableQuizzes.map((q) => (
-          <PressableQuiz key={q.id} theme={theme} quiz={q} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('Quiz', { quizId: q.id }); }} />
+          <PressableQuiz key={q.id} theme={theme} quiz={q} bestScore={bestScores[q.id]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('Quiz', { quizId: q.id }); }} />
         ))}
       </View>
     </Page>
@@ -325,9 +349,36 @@ export default function QuizScreen({ route, navigation }) {
     );
   }
 
+  if (submitError) return (
+    <Page>
+      <View style={styles.emptyState} accessibilityRole="alert">
+        <Ionicons name="cloud-offline-outline" size={64} color={BORDER} />
+        <Text style={[styles.emptyText, { color: TEXT }]}>Could not submit your quiz</Text>
+        <Text style={[styles.emptySubtext, { color: MUTED }]}>Your answers are still here. Check your connection and try again.</Text>
+        <TouchableOpacity onPress={() => submitQuiz(pendingAnswersRef.current)} style={styles.retryBtn} accessibilityRole="button" accessibilityLabel="Try submitting again">
+          <Text style={styles.retryText}>Try again</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => leaveScreen(navigation)} style={[styles.retryBtn, { backgroundColor: 'transparent' }]} accessibilityRole="button" accessibilityLabel="Back to quizzes">
+          <Text style={[styles.retryText, { color: BLUE }]}>Back to quizzes</Text>
+        </TouchableOpacity>
+      </View>
+    </Page>
+  );
+
   const currentQ = questions[currentQuestion];
-  if (!currentQ) return null;
-  const options = typeof currentQ.options === 'string' ? JSON.parse(currentQ.options) : currentQ.options;
+  if (!currentQ || quizMissing) return (
+    <Page>
+      <View style={styles.emptyState}>
+        <Ionicons name="document-text-outline" size={64} color={BORDER} />
+        <Text style={[styles.emptyText, { color: TEXT }]}>This quiz has no questions yet</Text>
+        <Text style={[styles.emptySubtext, { color: MUTED }]}>Ask your lecturer to add questions before you start.</Text>
+        <TouchableOpacity onPress={() => leaveScreen(navigation)} style={styles.retryBtn} accessibilityRole="button" accessibilityLabel="Back to quizzes">
+          <Text style={styles.retryText}>Back to quizzes</Text>
+        </TouchableOpacity>
+      </View>
+    </Page>
+  );
+  const options = normalizeOptions(currentQ.options);
   const timerColor = timeLeft === null ? MUTED : timeLeft <= 5 ? RED : timeLeft <= 10 ? YELLOW : GREEN;
   const difficultyMeta = DIFFICULTY[currentQ.difficulty] || DIFFICULTY.medium;
 
@@ -353,7 +404,10 @@ export default function QuizScreen({ route, navigation }) {
         </View>
         <Text style={[styles.questionText, { color: TEXT }]}>{currentQ.question}</Text>
         <View style={styles.optionsWrap}>
-          {Array.isArray(options) && options.map((option, index) => (
+          {options.length === 0 ? (
+            <Text style={[styles.emptySubtext, { color: MUTED }]}>This question has no answer choices.</Text>
+          ) : null}
+          {options.map((option, index) => (
             <TouchableOpacity key={index} style={[styles.optionBtn, { backgroundColor: CARD, borderColor: BORDER }, selectedAnswer === option && styles.optionBtnSelected]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedAnswer(option); }} activeOpacity={0.75}>
               <View style={[styles.optionLetter, { backgroundColor: BG }, selectedAnswer === option && { backgroundColor: BLUE }]}>
                 <Text style={[styles.optionLetterText, { color: TEXT }, selectedAnswer === option && { color: WHITE }]}>{String.fromCharCode(65 + index)}</Text>
@@ -406,7 +460,7 @@ const styles = StyleSheet.create({
   optionLetter: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#F7FBFD', alignItems: 'center', justifyContent: 'center' },
   optionLetterText: { fontSize: 14, fontWeight: '800', color: '#0B1B3A' },
   optionText: { fontSize: 15, color: '#0B1B3A', flex: 1 },
-  nextBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0A66FF', marginHorizontal: 16, marginTop: 16, height: 48, borderRadius: 14, gap: 8, alignSelf: 'center', width: '100%', maxWidth: 400 },
+  nextBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0A66FF', marginHorizontal: 16, marginTop: 12, marginBottom: 4, height: 48, borderRadius: 14, gap: 8, alignSelf: 'center', width: '92%', maxWidth: 400 },
   nextBtnDisabled: { backgroundColor: '#D1D5DB', shadowOpacity: 0 },
   nextBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
   resultBanner: { alignItems: 'center', padding: 40 },
@@ -435,6 +489,6 @@ const styles = StyleSheet.create({
   reviewQ: { fontSize: 14, fontWeight: '700', color: '#0B1B3A', marginBottom: 8 },
   reviewA: { fontSize: 13, fontWeight: '700', marginBottom: 4 },
   correctA: { fontSize: 13, color: '#1F9D55', fontWeight: '600' },
-  chatbotBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginHorizontal: 16, marginBottom: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: '#0A66FF' + '12', borderWidth: 1.5, borderColor: '#0A66FF' + '30' },
+  chatbotBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginHorizontal: 16, marginBottom: 24, paddingVertical: 10, borderRadius: 12, backgroundColor: '#0A66FF' + '12', borderWidth: 1.5, borderColor: '#0A66FF' + '30', alignSelf: 'center', width: '92%', maxWidth: 400 },
   chatbotBtnText: { fontSize: 13, fontWeight: '700', color: '#0A66FF' },
 });

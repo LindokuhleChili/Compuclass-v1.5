@@ -10,6 +10,7 @@ import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PROGRESS_KEYS, progressService } from '../services/progressService';
 import { supabase } from '../config/supabase';
+import { saveRunnerScore } from '../utils/gameScore';
 import { authService } from '../services/authService';
 import { gameRunnerService } from '../services/gameRunnerService';
 import { useTheme } from '../context/ThemeContext';
@@ -525,7 +526,10 @@ export default function GameScreen({ navigation, route }) {
         await AsyncStorage.setItem('compurunner_highscore', String(best));
         setHighScore(best);
         const user = await authService.getCurrentUser();
-        if (user) await supabase.from('game_scores').upsert({ user_id: user.id, score: best }, { onConflict: 'user_id' });
+        if (user) {
+          const saved = await saveRunnerScore(supabase, user.id, best);
+          if (!saved.saved) console.error('Runner score was not saved');
+        }
         loadLeaderboard();
       }
       await progressService.set(PROGRESS_KEYS.compuRunner, { highScore: best, unlockedIds: [...unlocked] });

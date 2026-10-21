@@ -69,6 +69,7 @@ import { ChromeProvider } from './context/ChromeContext';
 import { isRootRoute, leaveScreen } from './utils/screenNav';
 import { classService } from './services/classService';
 import { filterByClassScope } from './utils/classScope';
+import { isScreenPreview, ScreenPreview } from './preview/ScreenPreview';
 
 installWebAlert();
 installWebStyles();
@@ -234,7 +235,14 @@ function AppContent() {
   const [routeName, setRouteName] = useState('');
   const drawer = usePhoneDrawer(width, routeName);
 
-  useEffect(() => { checkUser(); }, []);
+  useEffect(() => {
+    if (isScreenPreview()) {
+      setLoading(false);
+      setIsFirstLaunch(false);
+      return;
+    }
+    checkUser();
+  }, []);
 
   const preAuthPage = notFound ? 'NotFound'
     : isFirstLaunch ? 'Onboarding'
@@ -355,6 +363,16 @@ function AppContent() {
       <View style={[styles.boot, { backgroundColor: theme.background }]}>
         <StatusBar style="dark" />
         <Mark size={72} />
+      </View>
+    );
+  }
+
+  if (isScreenPreview()) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.background }}>
+        <StatusBar style="dark" />
+        <ColourField />
+        <ScreenPreview />
       </View>
     );
   }

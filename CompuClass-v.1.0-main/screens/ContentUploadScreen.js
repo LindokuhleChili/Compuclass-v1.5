@@ -32,6 +32,7 @@ export default function ContentUploadScreen({ navigation, route }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [classes, setClasses] = useState([]);
   const [classId, setClassId] = useState(null);
+  const [docStatus, setDocStatus] = useState('loading');
   const initializeFolderRef = useRef(() => {});
 
   useEffect(() => {
@@ -55,7 +56,8 @@ export default function ContentUploadScreen({ navigation, route }) {
         setFolderId(currentFolderId);
       } catch (error) {
         console.error('Folder init error:', error);
-        Alert.alert('Error', 'Failed to initialize folder');
+        setDocStatus('error');
+        Alert.alert('Error', getErrorMessage(error, { context: 'ContentUpload', fallback: 'Failed to initialize folder' }));
         return;
       }
     }
@@ -65,11 +67,14 @@ export default function ContentUploadScreen({ navigation, route }) {
   initializeFolderRef.current = initializeFolder;
 
   const loadDocuments = async (folderIdToUse = folderId) => {
+    setDocStatus('loading');
     try {
       const data = await lecturerService.getDocuments(folderIdToUse);
       setDocuments(data);
+      setDocStatus('ready');
     } catch (error) {
       console.error('Documents error:', error);
+      setDocStatus('error');
     }
   };
 
@@ -109,23 +114,16 @@ export default function ContentUploadScreen({ navigation, route }) {
     }
 
     setLoading(true);
-    setUploadProgress(0);
+    setUploadProgress(8);
 
+    let progressInterval;
     try {
-      // Simulate upload progress
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
-          }
-          return prev + 10;
-        });
+      progressInterval = setInterval(() => {
+        setUploadProgress((prev) => (prev >= 90 ? prev : prev + 8));
       }, 200);
 
       await lecturerService.uploadDocument(folderId, selectedFile, title, classId);
-      
-      clearInterval(progressInterval);
+
       setUploadProgress(100);
       
       setTimeout(() => {
@@ -140,6 +138,7 @@ export default function ContentUploadScreen({ navigation, route }) {
     } catch (error) {
       Alert.alert('Error', getErrorMessage(error, { context: 'ContentUpload' }));
     } finally {
+      if (progressInterval) clearInterval(progressInterval);
       setLoading(false);
     }
   };
@@ -264,7 +263,18 @@ export default function ContentUploadScreen({ navigation, route }) {
       </View>
 
       <ScrollView style={styles.documentsContainer}>
-        {documents.length > 0 ? (
+        {docStatus === 'loading' ? (
+          <View style={styles.emptyState} accessibilityRole="progressbar">
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Loading documents</Text>
+          </View>
+        ) : docStatus === 'error' ? (
+          <View style={styles.emptyState} accessibilityRole="alert">
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Could not load documents</Text>
+            <TouchableOpacity onPress={() => loadDocuments()} accessibilityRole="button" accessibilityLabel="Try again">
+              <Text style={[styles.emptySubtext, { color: theme.primary }]}>Try again</Text>
+            </TouchableOpacity>
+          </View>
+        ) : documents.length > 0 ? (
           documents.map(renderDocument)
         ) : (
           <View style={styles.emptyState}>

@@ -1,41 +1,61 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, TextInput, Modal } from 'react-native';
+import React, { useState, useCallback, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, Share, Clipboard } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
 import ClassScopePicker from '../components/ClassScopePicker';
 import { appTheme, useTheme } from '../context/ThemeContext';
+import {
+  Page, Heading, Body, Card, Glass, Badge, Button, IconTile, SectionHeader, Skeleton, font,
+} from '../components/ui/kit';
 
-const BLUE = appTheme.primary; const YELLOW = appTheme.yellow; const RED = appTheme.error;
-const GREEN = appTheme.success; const PURPLE = appTheme.accentInk; const WHITE = appTheme.surface;
-const BG = appTheme.background; const TEXT = appTheme.text; const MUTED = appTheme.textSecondary; const BORDER = appTheme.border;
+const BLUE = appTheme.primary;
+const WHITE = appTheme.surface;
+const TEXT = appTheme.text;
+const MUTED = appTheme.textSecondary;
+const BORDER = appTheme.border;
+const BG = appTheme.background;
 
-const quickActions = (navigation, lecturerService) => [
-  { icon: 'people', label: 'Student Progress', color: BLUE, onPress: () => navigation.navigate('StudentProgress') },
-  { icon: 'school', label: 'Class Management', color: PURPLE, onPress: () => navigation.navigate('ClassManagement') },
-  { icon: 'cloud-upload', label: 'Upload Content', color: GREEN, onPress: async () => {
+const quickActions = (navigation, service) => [
+  { icon: 'user', label: 'Student progress', tone: 'blue', onPress: () => navigation.navigate('StudentProgress') },
+  { icon: 'school', label: 'Classes', tone: 'teal', onPress: () => navigation.navigate('ClassManagement') },
+  { icon: 'folder', label: 'Upload content', tone: 'blue', onPress: async () => {
     try {
-      const f = await lecturerService.getFolders();
-      let folderId = f[0]?.id;
-      if (!folderId) { const nf = await lecturerService.createFolder('General', 'General documents'); folderId = nf.id; }
+      const folders = await service.getFolders();
+      let folderId = folders?.[0]?.id;
+      if (!folderId) {
+        const created = await service.createFolder('General', 'General documents');
+        folderId = created.id;
+      }
       navigation.navigate('ContentUpload', { folderId });
     } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'LecturerDashboard' })); }
   }},
-  { icon: 'help-circle', label: 'Create Quiz', color: YELLOW, onPress: async () => {
+  { icon: 'quiz', label: 'Create quiz', tone: 'yellow', onPress: async () => {
     try {
-      const f = await lecturerService.getFolders();
-      let folderId = f[0]?.id;
-      if (!folderId) { const nf = await lecturerService.createFolder('General', 'General quizzes'); folderId = nf.id; }
+      const folders = await service.getFolders();
+      let folderId = folders?.[0]?.id;
+      if (!folderId) {
+        const created = await service.createFolder('General', 'General quizzes');
+        folderId = created.id;
+      }
       navigation.navigate('QuizCreation', { folderId });
     } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'LecturerDashboard' })); }
   }},
 ];
 
+function Stat({ label, value, tone }) {
+  return (
+    <Glass radius={16} style={styles.stat}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Badge label={label} kind={tone} />
+    </Glass>
+  );
+}
+
 export default function LecturerDashboardScreen({ navigation }) {
   const { theme } = useTheme();
-  const insets = useSafeAreaInsets();
   const [folders, setFolders] = useState([]);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [showAnnouncement, setShowAnnouncement] = useState(false);
@@ -47,31 +67,38 @@ export default function LecturerDashboardScreen({ navigation }) {
   const [classes, setClasses] = useState([]);
   const [announcementClassId, setAnnouncementClassId] = useState(null);
   const [folderClassId, setFolderClassId] = useState(null);
+  const [status, setStatus] = useState('loading');
+  const loadRef = useRef(() => {});
 
-  const loadClasses = async () => {
-    const data = await lecturerService.getClasses();
-    setClasses(Array.isArray(data) ? data : []);
+  const loadHome = async () => {
+    try {
+      const [folderData, classData] = await Promise.all([
+        lecturerService.getFolders(),
+        lecturerService.getClasses(),
+      ]);
+      setFolders(Array.isArray(folderData) ? folderData : []);
+      setClasses(Array.isArray(classData) ? classData : []);
+      setStatus('ready');
+    } catch (error) {
+      setStatus('error');
+      Alert.alert('Error', getErrorMessage(error, { context: 'LecturerDashboard' }));
+    }
   };
-
-  useEffect(() => { loadFolders(); }, []);
-
-  const loadFolders = async () => {
-    try { const data = await lecturerService.getFolders(); setFolders(data); }
-    catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'LecturerDashboard' })); }
-  };
+  loadRef.current = loadHome;
+  useFocusEffect(useCallback(() => { loadRef.current(); }, []));
 
   const handlePostAnnouncement = async () => {
     if (!announcementTitle.trim()) { Alert.alert('Error', 'Please enter a title'); return; }
     setLoading(true);
     try {
       const { supabase } = await import('../config/supabase');
-      const row = { title: announcementTitle, body: announcementBody };
+      const row = { title: announcementTitle.trim(), body: announcementBody.trim() };
       if (announcementClassId) row.class_id = announcementClassId;
       const { error } = await supabase.from('announcements').insert(row);
       if (error) throw error;
       setShowAnnouncement(false); setAnnouncementTitle(''); setAnnouncementBody(''); setAnnouncementClassId(null);
-      Alert.alert('Posted!', announcementClassId ? 'Announcement sent to that class.' : 'Announcement sent to all students.');
-    } catch (error) { Alert.alert('Error', error.message); }
+      Alert.alert('Posted', announcementClassId ? 'Announcement sent to that class.' : 'Announcement sent to all students.');
+    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'LecturerDashboard' })); }
     finally { setLoading(false); }
   };
 
@@ -81,7 +108,7 @@ export default function LecturerDashboardScreen({ navigation }) {
     try {
       await lecturerService.createFolder(folderName, folderDescription, folderClassId);
       setShowCreateFolder(false); setFolderName(''); setFolderDescription(''); setFolderClassId(null);
-      loadFolders();
+      loadHome();
       Alert.alert('Success', 'Folder created successfully');
     } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'LecturerDashboard' })); }
     finally { setLoading(false); }
@@ -91,101 +118,147 @@ export default function LecturerDashboardScreen({ navigation }) {
     Alert.alert('Delete Folder', 'Are you sure? This will delete all content inside.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-        try { await lecturerService.deleteFolder(folderId); loadFolders(); Alert.alert('Success', 'Folder deleted'); }
+        try { await lecturerService.deleteFolder(folderId); loadHome(); Alert.alert('Success', 'Folder deleted'); }
         catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'LecturerDashboard' })); }
       }},
     ]);
   };
 
+  const enrolled = classes.reduce((sum, item) => sum + (Number(item.student_count) || 0), 0);
   const actions = quickActions(navigation, lecturerService);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + 20, backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        <View style={styles.headerIconWrap}>
-          <Ionicons name="desktop" size={28} color={BLUE} />
-        </View>
-        <Text style={styles.headerTitle} accessibilityRole="header">Lecturer Dashboard</Text>
-        <Text style={styles.headerSubtitle}>Manage your learning materials</Text>
-      </View>
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <Page>
+        <Heading level={1} style={{ marginTop: 8 }}>Lecturer</Heading>
+        <Body style={{ marginTop: 4, marginBottom: 20 }}>Manage classes, materials, and quizzes.</Body>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}>
-        <TouchableOpacity style={[styles.createFolderBtn, { marginBottom: 10 }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setAnnouncementClassId(null); loadClasses(); setShowAnnouncement(true); }} activeOpacity={0.85}>
-          <Ionicons name="megaphone" size={20} color={WHITE} />
-          <Text style={styles.createFolderText}>Post Announcement</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.createFolderBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setFolderClassId(null); loadClasses(); setShowCreateFolder(true); }} activeOpacity={0.85}>
-          <Ionicons name="add-circle" size={20} color={WHITE} />
-          <Text style={styles.createFolderText}>Create New Folder</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.sectionLabel}>Quick Actions</Text>
-        <View style={styles.actionsGrid}>
-          {actions.map((action, i) => (
-            <TouchableOpacity key={i} style={styles.actionCard} onPress={action.onPress} activeOpacity={0.75}>
-              <View style={[styles.actionIconWrap, { backgroundColor: '#EDF4FF' }]}>
-                <Ionicons name={action.icon} size={22} color={BLUE} />
-              </View>
-              <Text style={styles.actionLabel}>{action.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text style={styles.sectionLabel}>Your Folders</Text>
-        {folders.length === 0 ? (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIconWrap}>
-              <Ionicons name="folder-open" size={36} color={WHITE} />
-            </View>
-            <Text style={styles.emptyText}>No folders yet. Create one above.</Text>
+        {status === 'loading' ? (
+          <View accessibilityRole="progressbar">
+            <Skeleton height={88} radius={16} />
+            <Skeleton height={72} radius={16} style={{ marginTop: 12 }} />
+            <Skeleton height={120} radius={16} style={{ marginTop: 12 }} />
           </View>
-        ) : folders.map((folder) => (
-          <TouchableOpacity key={folder.id} style={styles.folderCard} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('FolderContent', { folder }); }} activeOpacity={0.75}>
-            <View style={styles.folderIconWrap}>
-              <Ionicons name="folder" size={22} color={WHITE} />
+        ) : null}
+
+        {status === 'error' ? (
+          <Card style={styles.errorCard}>
+            <Heading level={3}>Could not refresh your dashboard</Heading>
+            <Body variant="small" style={{ marginTop: 6, marginBottom: 12 }}>Check your connection and try again.</Body>
+            <Button label="Try again" onPress={loadHome} />
+          </Card>
+        ) : null}
+
+        {status === 'ready' ? (
+          <>
+            <View style={styles.statRow}>
+              <Stat label="Classes" value={classes.length} tone="info" />
+              <Stat label="Students" value={enrolled} tone="ok" />
+              <Stat label="Folders" value={folders.length} tone="neutral" />
             </View>
-            <View style={styles.folderInfo}>
-              <Text style={styles.folderName}>{folder.name}</Text>
-              {folder.description && <Text style={styles.folderDesc}>{folder.description}</Text>}
+
+            <View style={styles.actionRow}>
+              <Button label="Post announcement" icon="bell" onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setAnnouncementClassId(null); setShowAnnouncement(true); }} />
+              <Button label="New folder" variant="secondary" icon="plus" onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setFolderClassId(null); setShowCreateFolder(true); }} />
             </View>
-            <TouchableOpacity onPress={() => handleDeleteFolder(folder.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="trash-outline" size={18} color={RED} />
-            </TouchableOpacity>
-          </TouchableOpacity>
-        ))}
-        <View style={{ height: 32 }} />
-      </ScrollView>
+
+            <SectionHeader title="Quick actions" />
+            <View style={styles.grid}>
+              {actions.map((action) => (
+                <TouchableOpacity key={action.label} onPress={action.onPress} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={action.label} style={styles.gridItem}>
+                  <Card style={styles.actionCard}>
+                    <IconTile name={action.icon} tone={action.tone} />
+                    <Text style={[{ color: theme.text, marginTop: 10, textAlign: 'center' }, font(theme, 'semibold')]}>{action.label}</Text>
+                  </Card>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <SectionHeader title="Your classes" action="Manage" onAction={() => navigation.navigate('ClassManagement')} />
+            {classes.length === 0 ? (
+              <Card style={styles.emptyCard}>
+                <IconTile name="school" tone="teal" />
+                <Body style={{ marginTop: 10, textAlign: 'center' }}>No classes yet. Create one so students can join with a code.</Body>
+                <Button label="Create a class" fit style={{ marginTop: 12 }} onPress={() => navigation.navigate('ClassManagement')} />
+              </Card>
+            ) : classes.map((item) => (
+              <TouchableOpacity key={item.id} onPress={() => navigation.navigate('ClassDetail', { classId: item.id })} accessibilityRole="button" accessibilityLabel={`Open ${item.name}`}>
+                <Card style={styles.classCard}>
+                  <IconTile name="school" tone="teal" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[{ color: theme.text }, font(theme, 'h3')]}>{item.name}</Text>
+                    <Body variant="caption">{item.student_count || 0} students{item.join_code ? ` · ${item.join_code}` : ''}</Body>
+                  </View>
+                  {item.join_code ? (
+                    <TouchableOpacity
+                      onPress={() => { Clipboard.setString(item.join_code); Alert.alert('Copied', 'Class code copied.'); }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Copy code ${item.join_code}`}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={[{ color: theme.primary }, font(theme, 'semibold')]}>Copy</Text>
+                    </TouchableOpacity>
+                  ) : <Badge label="No code" kind="warning" />}
+                </Card>
+              </TouchableOpacity>
+            ))}
+
+            <View style={{ height: 8 }} />
+            <SectionHeader title="Your folders" />
+            {folders.length === 0 ? (
+              <Card style={styles.emptyCard}>
+                <IconTile name="folder" tone="blue" />
+                <Body style={{ marginTop: 10, textAlign: 'center' }}>No folders yet. Create one to hold documents and quizzes.</Body>
+              </Card>
+            ) : folders.map((folder) => (
+              <Card key={folder.id} style={styles.classCard}>
+                <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('FolderContent', { folder }); }} accessibilityRole="button" accessibilityLabel={`Open folder ${folder.name}`}>
+                  <IconTile name="folder" tone="blue" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[{ color: theme.text }, font(theme, 'h3')]}>{folder.name}</Text>
+                    {folder.description ? <Body variant="caption" numberOfLines={2}>{folder.description}</Body> : null}
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleDeleteFolder(folder.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={`Delete folder ${folder.name}`}>
+                  <Ionicons name="trash-outline" size={18} color={theme.error} />
+                </TouchableOpacity>
+              </Card>
+            ))}
+          </>
+        ) : null}
+      </Page>
 
       <Modal visible={showAnnouncement} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Post Announcement </Text>
-            <TextInput style={styles.input} placeholder="Title" placeholderTextColor={MUTED} value={announcementTitle} onChangeText={setAnnouncementTitle} />
-            <TextInput style={[styles.input, styles.textArea]} placeholder="Message to students..." placeholderTextColor={MUTED} value={announcementBody} onChangeText={setAnnouncementBody} multiline />
-            <ClassScopePicker classes={classes} value={announcementClassId} onChange={setAnnouncementClassId} />
+          <View style={[styles.modalCard, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Post announcement</Text>
+            <TextInput style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]} placeholder="Title" placeholderTextColor={MUTED} value={announcementTitle} onChangeText={setAnnouncementTitle} />
+            <TextInput style={[styles.input, styles.textArea, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]} placeholder="Message to students..." placeholderTextColor={MUTED} value={announcementBody} onChangeText={setAnnouncementBody} multiline />
+            <ClassScopePicker classes={classes} value={announcementClassId} onChange={setAnnouncementClassId} textColor={theme.text} mutedColor={theme.textSecondary} accent={theme.primary} />
             <View style={styles.modalBtns}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAnnouncement(false)}>
+              <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => setShowAnnouncement(false)}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={handlePostAnnouncement} disabled={loading}>
                 <Text style={styles.saveBtnText}>{loading ? 'Posting...' : 'Post'}</Text>
               </TouchableOpacity>
             </View>
+            <TouchableOpacity onPress={() => announcementTitle.trim() && Share.share({ message: `${announcementTitle}\n\n${announcementBody}` })} accessibilityRole="button" accessibilityLabel="Share announcement text">
+              <Text style={[{ color: theme.primary, textAlign: 'center', marginTop: 8 }, font(theme, 'semibold')]}>Share text</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
       <Modal visible={showCreateFolder} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Create New Folder </Text>
-            <TextInput style={styles.input} placeholder="Folder Name" placeholderTextColor={MUTED}
-              value={folderName} onChangeText={setFolderName} />
-            <TextInput style={[styles.input, styles.textArea]} placeholder="Description (optional)" placeholderTextColor={MUTED}
-              value={folderDescription} onChangeText={setFolderDescription} multiline />
-            <ClassScopePicker classes={classes} value={folderClassId} onChange={setFolderClassId} />
+          <View style={[styles.modalCard, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Create new folder</Text>
+            <TextInput style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]} placeholder="Folder Name" placeholderTextColor={MUTED} value={folderName} onChangeText={setFolderName} />
+            <TextInput style={[styles.input, styles.textArea, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]} placeholder="Description (optional)" placeholderTextColor={MUTED} value={folderDescription} onChangeText={setFolderDescription} multiline />
+            <ClassScopePicker classes={classes} value={folderClassId} onChange={setFolderClassId} textColor={theme.text} mutedColor={theme.textSecondary} accent={theme.primary} />
             <View style={styles.modalBtns}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowCreateFolder(false)}>
+              <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => setShowCreateFolder(false)}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={handleCreateFolder} disabled={loading}>
@@ -200,35 +273,25 @@ export default function LecturerDashboardScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
-  header: { alignItems: 'center', paddingBottom: 24, paddingHorizontal: 20, backgroundColor: WHITE, borderBottomWidth: 1, borderBottomColor: '#DCE6EF' },
-  headerIconWrap: { width: 64, height: 64, borderRadius: 20, backgroundColor: '#EDF4FF', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: TEXT, marginBottom: 4 },
-  headerSubtitle: { fontSize: 13, color: MUTED },
-  content: { flex: 1, padding: 16 },
-  createFolderBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: BLUE, borderRadius: 14, minHeight: 48, paddingHorizontal: 16, marginBottom: 20, gap: 8, maxWidth: 400, alignSelf: 'center', width: '100%' },
-  createFolderText: { color: WHITE, fontSize: 15, fontWeight: '800' },
-  sectionLabel: { fontSize: 13, fontWeight: '800', color: MUTED, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
-  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
-  actionCard: { width: '47%', backgroundColor: WHITE, borderRadius: 16, padding: 16, alignItems: 'center', gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  actionIconWrap: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  actionLabel: { fontSize: 12, fontWeight: '700', color: TEXT, textAlign: 'center' },
-  emptyState: { alignItems: 'center', paddingVertical: 40 },
-  emptyIconWrap: { width: 68, height: 68, borderRadius: 20, backgroundColor: PURPLE, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  emptyText: { fontSize: 13, color: MUTED, fontWeight: '500' },
-  folderCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 14, padding: 14, marginBottom: 10, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  folderIconWrap: { width: 44, height: 44, borderRadius: 12, backgroundColor: PURPLE, alignItems: 'center', justifyContent: 'center' },
-  folderInfo: { flex: 1 },
-  folderName: { fontSize: 14, fontWeight: '700', color: TEXT },
-  folderDesc: { fontSize: 12, color: MUTED, marginTop: 3 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
-  modalCard: { backgroundColor: WHITE, borderRadius: 20, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 10 },
-  modalTitle: { fontSize: 18, fontWeight: '900', color: TEXT, marginBottom: 20 },
-  input: { backgroundColor: BG, borderWidth: 2, borderColor: BORDER, borderRadius: 12, padding: 12, marginBottom: 12, fontSize: 14, color: TEXT, fontWeight: '600' },
+  statRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  stat: { flex: 1, padding: 14, alignItems: 'flex-start', gap: 8 },
+  statValue: { fontSize: 28, fontWeight: '800', color: TEXT },
+  actionRow: { gap: 10, marginBottom: 24 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 8 },
+  gridItem: { width: '48%' },
+  actionCard: { alignItems: 'center', padding: 16, minHeight: 120, justifyContent: 'center' },
+  classCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 10 },
+  emptyCard: { alignItems: 'center', padding: 24, marginBottom: 16 },
+  errorCard: { padding: 20 },
+  folderRow: { marginBottom: 0 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(11,27,58,0.45)', justifyContent: 'center', padding: 20 },
+  modalCard: { borderRadius: 24, padding: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.8)' },
+  modalTitle: { fontSize: 18, fontWeight: '800', marginBottom: 16 },
+  input: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, fontSize: 14, fontWeight: '600', backgroundColor: BG, borderColor: BORDER, color: TEXT },
   textArea: { height: 80, textAlignVertical: 'top' },
   modalBtns: { flexDirection: 'row', gap: 12, marginTop: 4 },
-  cancelBtn: { flex: 1, padding: 14, borderRadius: 12, borderWidth: 2, borderColor: BORDER, alignItems: 'center' },
+  cancelBtn: { flex: 1, padding: 14, borderRadius: 14, borderWidth: 1, alignItems: 'center' },
   cancelBtnText: { color: MUTED, fontWeight: '700' },
-  saveBtn: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: BLUE, alignItems: 'center' },
+  saveBtn: { flex: 1, padding: 14, borderRadius: 14, backgroundColor: BLUE, alignItems: 'center' },
   saveBtnText: { color: WHITE, fontWeight: '800' },
 });

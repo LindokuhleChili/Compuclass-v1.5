@@ -18,12 +18,15 @@ import { useShellBack } from '../context/ChromeContext';
 import { leaveScreen } from '../utils/screenNav';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
+import { formatShortDate, passingMark, prepareQuestionsForSave, questionCount as storedQuestionCount } from '../utils/quizFlow';
 
 export default function QuizCreationScreen({ navigation, route }) {
   const { theme } = useTheme();
   const shellBack = useShellBack();
-  const { folderId } = route.params || {};
+  const { folderId: routeFolderId } = route.params || {};
+  const [folderId, setFolderId] = useState(routeFolderId || null);
   const [quizzes, setQuizzes] = useState([]);
+  const [listStatus, setListStatus] = useState('loading');
   const [showCreateQuiz, setShowCreateQuiz] = useState(false);
   const [showAIGenerate, setShowAIGenerate] = useState(false);
   const [quizTitle, setQuizTitle] = useState('');
@@ -41,16 +44,44 @@ export default function QuizCreationScreen({ navigation, route }) {
   const loadClassesRef = useRef(() => {});
 
   useEffect(() => {
-    loadQuizzesRef.current();
+    let cancelled = false;
+    (async () => {
+      if (routeFolderId) {
+        setFolderId(routeFolderId);
+        return;
+      }
+      try {
+        const folders = await lecturerService.getFolders();
+        let id = folders?.[0]?.id;
+        if (!id) {
+          const created = await lecturerService.createFolder('General', 'General quizzes');
+          id = created?.id;
+        }
+        if (!cancelled) setFolderId(id || null);
+        if (!id && !cancelled) setListStatus('error');
+      } catch (error) {
+        console.error('Quiz folder error:', error);
+        if (!cancelled) setListStatus('error');
+      }
+    })();
     loadClassesRef.current();
-  }, []);
+    return () => { cancelled = true; };
+  }, [routeFolderId]);
+
+  useEffect(() => {
+    if (folderId) loadQuizzesRef.current();
+  }, [folderId]);
 
   const loadQuizzes = async () => {
+    if (!folderId) return;
+    setListStatus('loading');
     try {
       const data = await lecturerService.getQuizzes(folderId);
       setQuizzes(data);
+      setListStatus('ready');
     } catch (error) {
       console.error('Quizzes error:', error);
+      setListStatus('error');
     }
   };
 
@@ -120,25 +151,19 @@ export default function QuizCreationScreen({ navigation, route }) {
     }
 
     setAiGenerating(true);
-    setGenerationProgress(0);
+    setGenerationProgress(15);
 
     try {
-      // Simulate AI processing with progress
-      const steps = [
-        { progress: 20, message: 'Reading document...' },
-        { progress: 40, message: 'Analyzing content...' },
-        { progress: 60, message: 'Generating questions...' },
-        { progress: 80, message: 'Creating answers...' },
-        { progress: 100, message: 'Finalizing quiz...' }
-      ];
-
-      for (const step of steps) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setGenerationProgress(step.progress);
+      const progressTimer = setInterval(() => {
+        setGenerationProgress((current) => (current >= 90 ? current : current + 8));
+      }, 400);
+      let aiQuiz;
+      try {
+        aiQuiz = await lecturerService.generateAIQuiz(selectedFile, quizTitle, questionCount);
+      } finally {
+        clearInterval(progressTimer);
       }
-
-      // Generate AI quiz based on file content
-      const aiQuiz = await lecturerService.generateAIQuiz(selectedFile, quizTitle, questionCount);
+      setGenerationProgress(100);
       const questionsWithDefaults = aiQuiz.questions.map((q) => ({
         ...q,
         difficulty: q.difficulty || 'medium',
@@ -192,18 +217,20 @@ export default function QuizCreationScreen({ navigation, route }) {
       return;
     }
 
-    const invalidQuestions = questions.filter(q => 
-      !q.question.trim() || q.options.some(opt => !opt.trim())
-    );
+    if (!folderId) {
+      Alert.alert('Error', 'Open a folder before saving a quiz.');
+      return;
+    }
 
-    if (invalidQuestions.length > 0) {
-      Alert.alert('Error', 'Please fill in all questions and options');
+    const prepared = prepareQuestionsForSave(questions);
+    if (!prepared.ok) {
+      Alert.alert('Error', prepared.message);
       return;
     }
 
     setLoading(true);
     try {
-      await lecturerService.createQuiz(folderId, quizTitle, questions);
+      await lecturerService.createQuiz(folderId, quizTitle, prepared.questions);
       setShowCreateQuiz(false);
       setQuizTitle('');
       setQuestions([]);
@@ -225,11 +252,13 @@ export default function QuizCreationScreen({ navigation, route }) {
         <View style={styles.quizInfo}>
           <Text style={[styles.quizTitle, { color: theme.text }]}>{quiz.title}</Text>
           <Text style={[styles.quizDetails, { color: theme.textSecondary }]}>
-            {quiz.quiz_questions?.length || 0} questions • {quiz.passing_score}% to pass
+            {storedQuestionCount(quiz)} questions • {passingMark(quiz)}% to pass
           </Text>
-          <Text style={[styles.quizDate, { color: theme.textTertiary }]}>
-            Created {new Date(quiz.created_at).toLocaleDateString()}
-          </Text>
+          {formatShortDate(quiz.created_at) ? (
+            <Text style={[styles.quizDate, { color: theme.textTertiary }]}>
+              Created {formatShortDate(quiz.created_at)}
+            </Text>
+          ) : null}
         </View>
       </View>
       
@@ -391,7 +420,21 @@ export default function QuizCreationScreen({ navigation, route }) {
       </View>
 
       <ScrollView style={styles.quizzesContainer}>
-        {quizzes.length > 0 ? (
+        {listStatus === 'loading' ? (
+          <View style={styles.emptyState} accessibilityRole="progressbar">
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Loading quizzes</Text>
+          </View>
+        ) : listStatus === 'error' ? (
+          <View style={styles.emptyState} accessibilityRole="alert">
+            <Ionicons name="cloud-offline-outline" size={64} color={theme.textTertiary} />
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Could not load quizzes</Text>
+            <Text style={[styles.emptySubtext, { color: theme.textTertiary }]}>Check your connection and try again.</Text>
+            <TouchableOpacity onPress={loadQuizzes} style={[styles.manualButton, { backgroundColor: theme.primary, marginTop: 16, padding: 12 }]} accessibilityRole="button" accessibilityLabel="Try again">
+              <Text style={[styles.manualText, { color: '#fff' }]}>Try again</Text>
+            </TouchableOpacity>
+          </View>
+        ) : quizzes.length > 0 ? (
           quizzes.map(renderQuizCard)
         ) : (
           <View style={styles.emptyState}>
@@ -562,6 +605,11 @@ export default function QuizCreationScreen({ navigation, route }) {
             </Text>
             
             <ScrollView style={styles.classesList}>
+              {classes.length === 0 ? (
+                <Text style={[styles.shareSubtitle, { color: theme.textSecondary }]}>
+                  No classes yet. Create one in Class Management, then share this quiz.
+                </Text>
+              ) : null}
               {classes.map((classItem) => (
                 <TouchableOpacity
                   key={classItem.id}

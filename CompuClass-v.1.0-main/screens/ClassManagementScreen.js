@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput, FlatList } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput, FlatList, ActivityIndicator, Clipboard } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
@@ -22,18 +22,35 @@ export default function ClassManagementScreen({ navigation }) {
   const [classDescription, setClassDescription] = useState('');
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => { loadClasses(); loadStudents(); }, []);
+  const [status, setStatus] = useState('loading');
+  const [studentError, setStudentError] = useState(false);
+  const loadRef = useRef(() => {});
 
   const loadClasses = async () => {
-    try { const data = await lecturerService.getClasses(); setClasses(data); }
-    catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'ClassManagement' })); }
+    try {
+      const data = await lecturerService.getClasses();
+      setClasses(data || []);
+      setStatus('ready');
+    } catch (error) {
+      setStatus('error');
+      Alert.alert('Error', getErrorMessage(error, { context: 'ClassManagement' }));
+    }
   };
 
   const loadStudents = async () => {
-    try { const data = await lecturerService.getStudents(); setStudents(data || []); }
-    catch { setStudents([]); }
+    try {
+      const data = await lecturerService.getStudents();
+      setStudents(data || []);
+      setStudentError(false);
+    } catch {
+      setStudents([]);
+      setStudentError(true);
+    }
   };
+
+  const loadAll = () => { loadClasses(); loadStudents(); };
+  loadRef.current = loadAll;
+  useEffect(() => { loadRef.current(); }, []);
 
   const handleCreateClass = async () => {
     if (!className.trim()) { Alert.alert('Error', 'Please enter a class name'); return; }
@@ -69,6 +86,11 @@ export default function ClassManagementScreen({ navigation }) {
           <Text style={styles.className}>{item.name}</Text>
           <Text style={styles.classDesc}>{item.description || 'No description'}</Text>
           <Text style={styles.studentCount}>{item.student_count || 0} students enrolled</Text>
+          {item.join_code ? (
+            <TouchableOpacity onPress={() => { Clipboard.setString(item.join_code); Alert.alert('Copied', 'Class code copied.'); }} accessibilityRole="button" accessibilityLabel={`Copy class code ${item.join_code}`}>
+              <Text style={[styles.studentCount, { color: BLUE, fontWeight: '800' }]}>Code {item.join_code} · Copy</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
       <View style={styles.classActions}>
@@ -120,11 +142,24 @@ export default function ClassManagementScreen({ navigation }) {
           <Text style={styles.statLabel}>Total Classes</Text>
         </View>
         <View style={[styles.statCard, { borderLeftColor: GREEN }]}>
-          <Text style={[styles.statValue, { color: GREEN }]}>{students.length}</Text>
-          <Text style={styles.statLabel}>Total Students</Text>
+          <Text style={[styles.statValue, { color: GREEN }]}>{classes.reduce((sum, item) => sum + (Number(item.student_count) || 0), 0)}</Text>
+          <Text style={styles.statLabel}>Enrolled</Text>
         </View>
       </View>
 
+      {status === 'loading' && classes.length === 0 ? (
+        <View style={styles.emptyState} accessibilityRole="progressbar">
+          <ActivityIndicator size="large" color={BLUE} />
+          <Text style={styles.emptyText}>Loading classes</Text>
+        </View>
+      ) : status === 'error' && classes.length === 0 ? (
+        <View style={styles.emptyState} accessibilityRole="alert">
+          <Text style={styles.emptyText}>Could not load classes.</Text>
+          <TouchableOpacity onPress={loadAll} style={[styles.saveBtn, { marginTop: 12, paddingHorizontal: 20 }]} accessibilityRole="button" accessibilityLabel="Try again">
+            <Text style={styles.saveBtnText}>Try again</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
       <FlatList
         data={classes}
         renderItem={renderClass}
@@ -140,6 +175,7 @@ export default function ClassManagementScreen({ navigation }) {
           </View>
         }
       />
+      )}
 
       <Modal visible={showCreateClass} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
@@ -168,8 +204,10 @@ export default function ClassManagementScreen({ navigation }) {
                 <Ionicons name="close" size={20} color={MUTED} />
               </TouchableOpacity>
             </View>
-            {students.length === 0
-              ? <Text style={[styles.emptyText, { padding: 20 }]}>No students found.</Text>
+            {studentError
+              ? <Text style={[styles.emptyText, { padding: 20 }]}>Could not load the student directory. Pull back and try again.</Text>
+              : students.length === 0
+              ? <Text style={[styles.emptyText, { padding: 20 }]}>No registered students yet. They need a CompuClass account before you can assign them.</Text>
               : <FlatList data={students} renderItem={renderStudent} keyExtractor={(item) => item.id} style={styles.studentsList} />}
             <View style={styles.assignFooter}>
               <Text style={styles.selectedCount}>{selectedStudents.length} selected</Text>

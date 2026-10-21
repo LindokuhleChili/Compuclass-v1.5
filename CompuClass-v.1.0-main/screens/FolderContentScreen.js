@@ -9,6 +9,7 @@ import { leaveScreen } from '../utils/screenNav';
 import { getErrorMessage } from '../utils/errorMessages';
 import { openStoredDocument } from '../utils/fileDownload';
 import ClassScopePicker from '../components/ClassScopePicker';
+import { prepareQuestionsForSave, questionCount } from '../utils/quizFlow';
 
 export default function FolderContentScreen({ route, navigation }) {
   const { theme } = useTheme();
@@ -23,6 +24,7 @@ export default function FolderContentScreen({ route, navigation }) {
   const [classId, setClassId] = useState(null);
   const [quizTitle, setQuizTitle] = useState('');
   const [questions, setQuestions] = useState([{ question: '', options: ['', '', '', ''], correctAnswer: 0 }]);
+  const [status, setStatus] = useState('loading');
   const loadContentRef = useRef(() => {});
 
   useEffect(() => {
@@ -31,6 +33,7 @@ export default function FolderContentScreen({ route, navigation }) {
   }, []);
 
   const loadContent = async () => {
+    setStatus('loading');
     try {
       const [docs, quizData] = await Promise.all([
         lecturerService.getDocuments(folder.id),
@@ -38,7 +41,9 @@ export default function FolderContentScreen({ route, navigation }) {
       ]);
       setDocuments(docs);
       setQuizzes(quizData);
+      setStatus('ready');
     } catch (error) {
+      setStatus('error');
       Alert.alert('Error', getErrorMessage(error, { context: 'FolderContent' }));
     }
   };
@@ -73,8 +78,13 @@ export default function FolderContentScreen({ route, navigation }) {
       Alert.alert('Error', 'Please enter quiz title');
       return;
     }
+    const prepared = prepareQuestionsForSave(questions);
+    if (!prepared.ok) {
+      Alert.alert('Error', prepared.message);
+      return;
+    }
     try {
-      await lecturerService.createQuiz(folder.id, quizTitle, questions);
+      await lecturerService.createQuiz(folder.id, quizTitle, prepared.questions);
       setShowCreateQuiz(false);
       setQuizTitle('');
       setQuestions([{ question: '', options: ['', '', '', ''], correctAnswer: 0 }]);
@@ -121,6 +131,13 @@ export default function FolderContentScreen({ route, navigation }) {
               <Ionicons name="add-circle" size={28} color={theme.primary} />
             </TouchableOpacity>
           </View>
+          {status === 'loading' ? <Text style={[styles.itemTitle, { color: theme.textSecondary }]}>Loading folder...</Text> : null}
+          {status === 'error' ? (
+            <TouchableOpacity onPress={loadContent} accessibilityRole="button" accessibilityLabel="Try again">
+              <Text style={[styles.itemTitle, { color: theme.primary }]}>Could not load this folder. Try again.</Text>
+            </TouchableOpacity>
+          ) : null}
+          {status === 'ready' && documents.length === 0 ? <Text style={[styles.itemTitle, { color: theme.textSecondary }]}>No documents in this folder yet.</Text> : null}
           {documents.map((doc) => (
             <TouchableOpacity key={doc.id} style={[styles.itemCard, { backgroundColor: theme.card }]} onPress={() => openDocument(doc)}>
               <Ionicons name="document" size={24} color="#0A66FF" />
@@ -137,11 +154,13 @@ export default function FolderContentScreen({ route, navigation }) {
               <Ionicons name="add-circle" size={28} color={theme.primary} />
             </TouchableOpacity>
           </View>
+          {status === 'ready' && quizzes.length === 0 ? <Text style={[styles.itemTitle, { color: theme.textSecondary }]}>No quizzes in this folder yet.</Text> : null}
           {quizzes.map((quiz) => (
-            <View key={quiz.id} style={[styles.itemCard, { backgroundColor: theme.card }]}>
+            <TouchableOpacity key={quiz.id} style={[styles.itemCard, { backgroundColor: theme.card }]} onPress={() => navigation.navigate('QuizDetail', { quizId: quiz.id })} accessibilityRole="button" accessibilityLabel={`Open quiz ${quiz.title}`}>
               <Ionicons name="help-circle" size={24} color="#0A6F79" />
               <Text style={[styles.itemTitle, { color: theme.text }]}>{quiz.title}</Text>
-            </View>
+              <Text style={{ color: theme.textTertiary, fontSize: 12 }}>{questionCount(quiz)} questions</Text>
+            </TouchableOpacity>
           ))}
         </View>
       </ScrollView>

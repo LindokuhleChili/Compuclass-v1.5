@@ -6,6 +6,7 @@ import { getErrorMessage } from '../utils/errorMessages';
 import { appTheme, useTheme } from '../context/ThemeContext';
 import { useShellBack } from '../context/ChromeContext';
 import { leaveScreen } from '../utils/screenNav';
+import { formatShortDate, normalizeOptions, passingMark, summarizeQuizAttempts } from '../utils/quizFlow';
 
 const BLUE = appTheme.primary; const RED = appTheme.error; const GREEN = appTheme.success;
 const WHITE = appTheme.surface; const BG = appTheme.background; const TEXT = appTheme.text; const MUTED = appTheme.textSecondary; const BORDER = appTheme.border;
@@ -15,13 +16,32 @@ export default function QuizDetailScreen({ navigation, route }) {
   const shellBack = useShellBack();
   const { quizId } = route.params;
   const [quiz, setQuiz] = useState(null);
+  const [status, setStatus] = useState('loading');
+  const [results, setResults] = useState([]);
+  const [resultsNote, setResultsNote] = useState('');
   const loadQuizRef = useRef(() => {});
 
   useEffect(() => { loadQuizRef.current(); }, []);
 
   const loadQuiz = async () => {
-    try { const data = await lecturerService.getQuizDetail(quizId); setQuiz(data); }
-    catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'QuizDetail' })); }
+    setStatus('loading');
+    try {
+      const data = await lecturerService.getQuizDetail(quizId);
+      setQuiz(data);
+      setStatus('ready');
+      try {
+        const rows = await lecturerService.getQuizResults(quizId);
+        setResults(rows);
+        setResultsNote('');
+      } catch (error) {
+        console.error('Quiz results error:', error);
+        setResults([]);
+        setResultsNote('Results could not be loaded. Student scores stay on the progress screen when this quiz is shared.');
+      }
+    } catch (error) {
+      setStatus('error');
+      Alert.alert('Error', getErrorMessage(error, { context: 'QuizDetail' }));
+    }
   };
   loadQuizRef.current = loadQuiz;
 
@@ -35,12 +55,23 @@ export default function QuizDetailScreen({ navigation, route }) {
     ]);
   };
 
+  if (status === 'error') return (
+    <View style={[styles.centered, { backgroundColor: theme.background }]} accessibilityRole="alert">
+      <Text style={[styles.quizTitle, { color: theme.text }]}>Could not load this quiz</Text>
+      <TouchableOpacity onPress={loadQuiz} style={[styles.deleteBtn, { backgroundColor: theme.primary, marginTop: 16, width: undefined, paddingHorizontal: 18 }]} accessibilityRole="button" accessibilityLabel="Try again">
+        <Text style={{ color: WHITE, fontWeight: '800' }}>Try again</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   if (!quiz) return (
-    <View style={[styles.centered, { backgroundColor: theme.background }]}>
+    <View style={[styles.centered, { backgroundColor: theme.background }]} accessibilityRole="progressbar">
       <ActivityIndicator size="large" color={theme.primary} />
       <Text style={styles.loadingText}>Loading quiz...</Text>
     </View>
   );
+
+  const summary = summarizeQuizAttempts(results);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -69,15 +100,37 @@ export default function QuizDetailScreen({ navigation, route }) {
             </View>
             <View style={[styles.metaBadge, { backgroundColor: GREEN + '15' }]}>
               <Ionicons name="checkmark-circle" size={14} color={GREEN} />
-              <Text style={[styles.metaText, { color: GREEN }]}>{quiz.passing_score}% to pass</Text>
+              <Text style={[styles.metaText, { color: GREEN }]}>{passingMark(quiz)}% to pass</Text>
             </View>
           </View>
         </View>
 
+        <Text style={styles.sectionLabel}>Results</Text>
+        <View style={styles.questionCard}>
+          {resultsNote ? <Text style={styles.optionText}>{resultsNote}</Text> : summary.count === 0 ? (
+            <Text style={styles.optionText}>No attempts yet. Share this quiz with a class so students can take it.</Text>
+          ) : (
+            <>
+              <Text style={styles.questionText}>{summary.count} attempt{summary.count === 1 ? '' : 's'} · average {summary.average}% · best {summary.best}%</Text>
+              {results.slice(0, 8).map((attempt) => (
+                <View key={attempt.id || `${attempt.user_id}-${attempt.completed_at}`} style={styles.optionItem}>
+                  <Text style={[styles.optionText, { color: TEXT }]}>{attempt.full_name || 'Student'}</Text>
+                  <Text style={[styles.optionText, { color: Number(attempt.score) >= passingMark(quiz) ? GREEN : RED, flex: 0 }]}>{attempt.score}%</Text>
+                  {formatShortDate(attempt.completed_at) ? <Text style={styles.optionText}>{formatShortDate(attempt.completed_at)}</Text> : null}
+                </View>
+              ))}
+            </>
+          )}
+        </View>
+
         <Text style={styles.sectionLabel}>Questions</Text>
 
+        {quiz.quiz_questions?.length ? null : (
+          <Text style={[styles.optionText, { marginBottom: 12 }]}>This quiz has no questions yet.</Text>
+        )}
+
         {quiz.quiz_questions?.map((question, index) => (
-          <View key={index} style={styles.questionCard}>
+          <View key={question.id || index} style={styles.questionCard}>
             <View style={styles.questionNumRow}>
               <View style={styles.questionNumBadge}>
                 <Text style={styles.questionNumText}>Q{index + 1}</Text>
@@ -85,7 +138,7 @@ export default function QuizDetailScreen({ navigation, route }) {
             </View>
             <Text style={styles.questionText}>{question.question}</Text>
             <View style={styles.optionsWrap}>
-              {question.options?.map((option, optIndex) => {
+              {normalizeOptions(question.options).map((option, optIndex) => {
                 const isCorrect = question.correct_answer === option;
                 return (
                   <View key={optIndex} style={[styles.optionItem, isCorrect && styles.optionCorrect]}>
