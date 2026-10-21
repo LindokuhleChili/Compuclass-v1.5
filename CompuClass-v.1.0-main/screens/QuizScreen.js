@@ -7,7 +7,7 @@ import { supabase } from '../config/supabase';
 import { authService } from '../services/authService';
 import { useTheme } from '../context/ThemeContext';
 import { Icon } from '../components/ui/Icon';
-import { Heading, Body, Card, Badge, Button, IconTile, IconButton, Skeleton, Page, font } from '../components/ui/kit';
+import { Heading, Body, Glass, Badge, Button, IconTile, IconButton, Skeleton, Page, font } from '../components/ui/kit';
 import { leaveScreen } from '../utils/screenNav';
 import { advanceQuiz, bestScoresByQuiz, normalizeOptions, passingMark, uniqueIds } from '../utils/quizFlow';
 const WHITE = '#FFFFFF';
@@ -23,16 +23,16 @@ function PressableQuiz({ theme, quiz, onPress, bestScore }) {
   const done = bestScore != null;
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={`${done ? 'Retake' : 'Start'} ${quiz.title}`} style={{ marginBottom: 12 }}>
-      <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, minHeight: 72 }}>
+      <Glass strong style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, minHeight: 72 }}>
         <IconTile name="quiz" tone="teal" />
         <View style={{ flex: 1 }}>
           <Text style={[{ color: theme.text }, font(theme, 'h3')]}>{quiz.title}</Text>
           {quiz.description ? <Body variant="small">{quiz.description}</Body> : null}
           <Body variant="caption">Pass mark {passingMark(quiz)}%</Body>
         </View>
-        <Badge label={done ? `Best ${bestScore}%` : 'To do'} kind={done ? 'ok' : 'yellow'} />
-        <Button label={done ? 'Retake' : 'Start'} fit onPress={onPress} style={{ height: 44, minHeight: 44 }} />
-      </Card>
+        <Badge label={done ? `Best ${bestScore}%` : 'To do'} kind="neutral" />
+        <Button label={done ? 'Retake' : 'Start'} variant="secondary" fit onPress={onPress} style={{ height: 44, minHeight: 44 }} />
+      </Glass>
     </TouchableOpacity>
   );
 }
@@ -239,7 +239,7 @@ export default function QuizScreen({ route, navigation }) {
   );
 
   if (!quizId) return (
-    <Page>
+    <Page maxWidth={960}>
       <View style={{ marginTop: 8, marginBottom: 8 }}>
         <Heading level={1}>Quizzes</Heading>
         <Body style={{ marginTop: 4 }}>{listError ? 'Could not refresh the list' : `${availableQuizzes.length} assigned`}</Body>
@@ -271,7 +271,6 @@ export default function QuizScreen({ route, navigation }) {
   );
 
   if (quizCompleted && result) {
-    const scoreColor = result.passed ? GREEN : (result.score >= 60 ? YELLOW : RED);
 
     // A quiz pays out its best-ever attempt, once. xp_earned is what actually
     // landed on the total; xp_attempt_value is what this run was worth alone.
@@ -291,13 +290,14 @@ export default function QuizScreen({ route, navigation }) {
           <IconTile name={result.passed ? 'trophy' : 'refresh'} tone={result.passed ? 'yellow' : 'blue'} size={56} />
           <Text style={[styles.resultTitle, { color: theme.text }]} accessibilityRole="header">Quiz completed</Text>
           <Text style={[styles.resultQuizTitle, { color: theme.textSecondary }]}>{quiz.title}</Text>
-          <Text style={[styles.resultScore, { color: scoreColor }]}>{result.score}%</Text>
-          <Text style={[styles.resultFraction, { color: theme.textSecondary }]}>{result.correct_count} / {result.total_questions} correct</Text>
+          <Text style={[styles.resultScore, { color: theme.text }]}>{result.score}%</Text>
+          <Text style={[styles.resultFraction, { color: result.passed ? theme.successInk : theme.errorInk, fontSize: 16, fontWeight: '700' }]}>{result.passed ? 'Passed' : 'Failed'}</Text>
+          <Text style={[styles.resultFraction, { color: 'rgba(11,27,58,0.65)', fontSize: 13 }]}>{result.correct_count} / {result.total_questions} correct</Text>
 
           <View style={styles.statsRow}>
-            <View style={[styles.statPill, { backgroundColor: theme.tint }]}><Text style={[styles.statPillText, { color: theme.primaryInk }]}>+{result.xp_earned} XP</Text></View>
-            <View style={[styles.statPill, { backgroundColor: theme.secondary }]}><Text style={[styles.statPillText, { color: theme.accentInk }]}>Best combo x{result.max_combo}</Text></View>
-            <View style={[styles.statPill, { backgroundColor: theme.yellowTint }]}><Text style={[styles.statPillText, { color: theme.yellowInk }]}>{result.current_streak} day streak</Text></View>
+            <View style={[styles.statPill, styles.neutralPill]}><Text style={[styles.statPillText, styles.neutralPillText]}>+{result.xp_earned} XP</Text></View>
+            <View style={[styles.statPill, styles.neutralPill]}><Text style={[styles.statPillText, styles.neutralPillText]}>Best combo x{result.max_combo}</Text></View>
+            <View style={[styles.statPill, styles.neutralPill]}><Text style={[styles.statPillText, styles.neutralPillText]}>{result.current_streak} day streak</Text></View>
           </View>
 
           {/* A quiz is worth its best attempt, once — explain a retake that
@@ -469,7 +469,9 @@ const styles = StyleSheet.create({
   resultScore: { fontSize: 56, fontWeight: '900', color: '#FFFFFF', marginBottom: 4 },
   resultFraction: { fontSize: 16, color: 'rgba(255,255,255,0.85)', marginBottom: 20 },
   statsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 24 },
-  statPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, gap: 6 },
+  statPill: { flexDirection: 'row', alignItems: 'center', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, gap: 6, minHeight: 32 },
+  neutralPill: { backgroundColor: 'rgba(255,255,255,0.70)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.8)' },
+  neutralPillText: { color: 'rgba(11,27,58,0.65)', fontSize: 13 },
   statPillText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
   retryNote: { color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: '600', textAlign: 'center', marginBottom: 20, paddingHorizontal: 24 },
   difficultyPill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 5, borderRadius: 20, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10 },

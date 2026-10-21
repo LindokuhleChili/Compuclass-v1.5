@@ -14,15 +14,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as DocumentPicker from 'expo-document-picker';
 import { useTheme } from '../context/ThemeContext';
-import { useShellBack } from '../context/ChromeContext';
-import { leaveScreen } from '../utils/screenNav';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
-import { formatShortDate, passingMark, prepareQuestionsForSave, questionCount as storedQuestionCount } from '../utils/quizFlow';
+import { formatShortDate, passingMark, plural, prepareQuestionsForSave, questionCount as storedQuestionCount } from '../utils/quizFlow';
+import { Page, Body, Glass, Button, IconTile, font } from '../components/ui/kit';
+import { LECTURER_COLUMN, ScreenHeading } from '../components/lecturerChrome';
 
 export default function QuizCreationScreen({ navigation, route }) {
   const { theme } = useTheme();
-  const shellBack = useShellBack();
   const { folderId: routeFolderId } = route.params || {};
   const [folderId, setFolderId] = useState(routeFolderId || null);
   const [quizzes, setQuizzes] = useState([]);
@@ -120,7 +119,7 @@ export default function QuizCreationScreen({ navigation, route }) {
     try {
       await lecturerService.shareQuizToClasses(selectedQuiz.id, selectedClasses);
       setShowShareModal(false);
-      Alert.alert('Success', `Quiz shared to ${selectedClasses.length} class(es)!`);
+      Alert.alert('Shared', `Quiz shared with ${plural(selectedClasses.length, 'class')}.`);
     } catch (error) {
       Alert.alert('Error', getErrorMessage(error, { context: 'QuizCreation' }));
     } finally {
@@ -244,49 +243,31 @@ export default function QuizCreationScreen({ navigation, route }) {
   };
 
   const renderQuizCard = (quiz) => (
-    <View key={quiz.id} style={[styles.quizCard, { backgroundColor: theme.card }]}>
+    <Glass key={quiz.id} strong style={{ padding: 16, marginBottom: 12 }}>
       <View style={styles.quizHeader}>
-        <View style={[styles.quizIcon, { backgroundColor: theme.primary + '20' }]}>
-          <Ionicons name="help-circle" size={24} color={theme.primary} />
-        </View>
+        <IconTile name="quiz" tone="blue" />
         <View style={styles.quizInfo}>
-          <Text style={[styles.quizTitle, { color: theme.text }]}>{quiz.title}</Text>
-          <Text style={[styles.quizDetails, { color: theme.textSecondary }]}>
-            {storedQuestionCount(quiz)} questions • {passingMark(quiz)}% to pass
-          </Text>
+          <Text style={[{ color: theme.text }, font(theme, 'h3')]}>{quiz.title}</Text>
+          <Body variant="caption">
+            {plural(storedQuestionCount(quiz), 'question')} · {passingMark(quiz)}% to pass
+          </Body>
           {formatShortDate(quiz.created_at) ? (
-            <Text style={[styles.quizDate, { color: theme.textTertiary }]}>
-              Created {formatShortDate(quiz.created_at)}
-            </Text>
+            <Body variant="caption">Created {formatShortDate(quiz.created_at)}</Body>
           ) : null}
         </View>
       </View>
-      
       <View style={styles.quizActions}>
-        <TouchableOpacity
-          style={[styles.actionBtn, { backgroundColor: theme.info + '20' }]}
-          onPress={() => navigation.navigate('QuizDetail', { quizId: quiz.id })}
-        >
-          <Ionicons name="eye" size={16} color={theme.info} />
-          <Text style={[styles.actionText, { color: theme.info }]}>View</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.actionBtn, { backgroundColor: theme.success + '20' }]}
-          onPress={() => handleShareQuiz(quiz)}
-        >
-          <Ionicons name="share" size={16} color={theme.success} />
-          <Text style={[styles.actionText, { color: theme.success }]}>Share</Text>
-        </TouchableOpacity>
+        <Button label="View" variant="secondary" fit onPress={() => navigation.navigate('QuizDetail', { quizId: quiz.id })} accessibilityLabel={`View ${quiz.title}`} />
+        <Button label="Share" variant="secondary" fit onPress={() => handleShareQuiz(quiz)} accessibilityLabel={`Share ${quiz.title}`} />
       </View>
-    </View>
+    </Glass>
   );
 
   const renderQuestionEditor = (question, index) => (
     <View key={question.id} style={[styles.questionCard, { backgroundColor: theme.borderLight }]}>
       <View style={styles.questionHeader}>
         <Text style={[styles.questionNumber, { color: theme.text }]}>Question {index + 1}</Text>
-        <TouchableOpacity onPress={() => removeQuestion(index)}>
+        <TouchableOpacity onPress={() => removeQuestion(index)} accessibilityRole="button" accessibilityLabel={`Remove question ${index + 1}`} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name="trash" size={20} color={theme.error} />
         </TouchableOpacity>
       </View>
@@ -382,24 +363,8 @@ export default function QuizCreationScreen({ navigation, route }) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <LinearGradient colors={theme.gradient} style={styles.header}>
-        <View style={styles.headerContent}>
-          {shellBack ? <View style={styles.iconHit} /> : (
-            <TouchableOpacity onPress={() => leaveScreen(navigation)} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="Go back">
-              <Ionicons name="arrow-back" size={24} color={theme.text} />
-            </TouchableOpacity>
-          )}
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Quiz Creation</Text>
-          <View style={styles.headerActions}>
-            <TouchableOpacity onPress={pickDocumentForAI} style={styles.aiButton}>
-              <Ionicons name="sparkles" size={20} color={theme.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setShowCreateQuiz(true)} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="New quiz">
-              <Ionicons name="add" size={24} color={theme.primary} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </LinearGradient>
+      <Page maxWidth={LECTURER_COLUMN} scroll={false} fill>
+      <ScreenHeading navigation={navigation} title="Quizzes" subtitle="Write a quiz or generate one from a document" />
 
       <View style={styles.createSection}>
         <TouchableOpacity style={styles.aiCreateButton} onPress={pickDocumentForAI}>
@@ -448,6 +413,7 @@ export default function QuizCreationScreen({ navigation, route }) {
           </View>
         )}
       </ScrollView>
+      </Page>
 
       {/* AI Generation Modal */}
       <Modal visible={showAIGenerate} animationType="slide" transparent>
@@ -595,7 +561,7 @@ export default function QuizCreationScreen({ navigation, route }) {
               <Text style={[styles.modalTitle, { color: theme.text }]}>
                 Share Quiz: {selectedQuiz?.title}
               </Text>
-              <TouchableOpacity onPress={() => setShowShareModal(false)}>
+              <TouchableOpacity onPress={() => setShowShareModal(false)} accessibilityRole="button" accessibilityLabel="Close share quiz" style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
                 <Ionicons name="close" size={24} color={theme.textSecondary} />
               </TouchableOpacity>
             </View>
@@ -633,8 +599,8 @@ export default function QuizCreationScreen({ navigation, route }) {
                     <Text style={[styles.className, { color: theme.text }]}>
                       {classItem.name}
                     </Text>
-                    <Text style={[styles.classStudents, { color: theme.textSecondary }]}>
-                      {classItem.student_count} students
+                    <Text style={[styles.classStudents, { color: 'rgba(11,27,58,0.65)', fontSize: 13 }]}>
+                      {plural(classItem.student_count || 0, 'student')}
                     </Text>
                   </View>
                   {selectedClasses.includes(classItem.id) && (
@@ -645,8 +611,8 @@ export default function QuizCreationScreen({ navigation, route }) {
             </ScrollView>
             
             <View style={styles.shareFooter}>
-              <Text style={[styles.selectedCount, { color: theme.textSecondary }]}>
-                {selectedClasses.length} class(es) selected
+              <Text style={[styles.selectedCount, { color: 'rgba(11,27,58,0.65)', fontSize: 13 }]}>
+                {plural(selectedClasses.length, 'class')} selected
               </Text>
               <TouchableOpacity
                 style={styles.shareButton}
@@ -680,7 +646,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: 'bold' },
   headerActions: { flexDirection: 'row', gap: 12 },
   aiButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  createSection: { padding: 16, gap: 12 },
+  createSection: { gap: 12, marginBottom: 16 },
   aiCreateButton: {},
   aiCreateGradient: {
     alignItems: 'center',
@@ -707,7 +673,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   manualText: { fontSize: 16, fontWeight: '600' },
-  quizzesContainer: { flex: 1, paddingHorizontal: 16 },
+  quizzesContainer: { flex: 1 },
   quizCard: {
     padding: 16,
     borderRadius: 12,

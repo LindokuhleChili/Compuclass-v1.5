@@ -4,6 +4,7 @@ import { cleanText, cleanEmail, sanitizeFileName, ValidationError, LIMITS } from
 import { assertUploadAllowed, storagePathFromStoredValue } from './fileAccess';
 import { buildDocumentObjectPath } from './documentUploadPath';
 import { AppError } from '../utils/errorMessages';
+import { progressFromAttempts } from '../utils/quizFlow';
 
 const MAX_QUESTIONS_PER_QUIZ = 100;
 
@@ -498,7 +499,7 @@ export const lecturerService = {
         // Get quiz attempts
         const { data: quizAttempts, error: attemptsError } = await supabase
           .from('quiz_attempts')
-          .select('score, completed_at')
+          .select('quiz_id, score, completed_at')
           .eq('user_id', student.id);
         
         if (attemptsError) {
@@ -512,21 +513,7 @@ export const lecturerService = {
           .select('created_at')
           .eq('user_id', student.id);
         
-        const scores = quizAttempts?.map(a => a.score) || [];
-        const averageScore = scores.length > 0 
-          ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) 
-          : 0;
-        
-        const lastActivity = quizAttempts?.length > 0 
-          ? new Date(Math.max(...quizAttempts.map(a => new Date(a.completed_at)))).toLocaleDateString()
-          : 'Never';
-        
-        progressData[student.id] = {
-          quizzesCompleted: quizAttempts?.length || 0,
-          averageScore,
-          materialsViewed: materialViews?.length || 0,
-          lastActivity
-        };
+        progressData[student.id] = progressFromAttempts(quizAttempts, materialViews?.length || 0);
         
       }
       

@@ -36,6 +36,18 @@ export const classService = {
     return data;
   },
 
+  async restoreClassCode(classId, code) {
+    const joinCode = normalizeClassCode(code);
+    const { data, error } = await supabase
+      .from('classes')
+      .update({ join_code: joinCode })
+      .eq('id', classId)
+      .select('join_code')
+      .single();
+    if (error) throw new AppError('Could not restore the previous class code.');
+    return data?.join_code || joinCode;
+  },
+
   async classScopeForCurrentUser() {
     try {
       const { data: { user } } = await supabase.auth.getUser();

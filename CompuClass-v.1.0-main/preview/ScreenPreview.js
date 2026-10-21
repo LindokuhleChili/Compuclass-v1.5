@@ -5,6 +5,8 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { supabase } from '../config/supabase';
 import { authService } from '../services/authService';
 import { lecturerService } from '../services/lecturerService';
+import { classService } from '../services/classService';
+import { progressFromAttempts } from '../utils/quizFlow';
 import LecturerDashboardScreen from '../screens/LecturerDashboardScreen';
 import ClassManagementScreen from '../screens/ClassManagementScreen';
 import ClassDetailScreen from '../screens/ClassDetailScreen';
@@ -27,9 +29,9 @@ export function isScreenPreview() {
 
 const NOW = '2026-10-12T09:00:00.000Z';
 
-const CLASSES = [
-  { id: 'class-ict', name: 'ICT Grade 11', description: 'Hardware, software, and networks', student_count: 28, join_code: 'AB23CD', created_at: '2026-02-02T08:00:00.000Z' },
-  { id: 'class-net', name: 'Networking 101', description: 'OSI model and IP addresses', student_count: 16, join_code: 'K7PQ2M', created_at: '2026-03-11T08:00:00.000Z' },
+const CLASS_ROWS = [
+  { id: 'class-ict', name: 'ICT Grade 11', description: 'Hardware, software, and networks', join_code: 'AB23CD', created_at: '2026-02-02T08:00:00.000Z' },
+  { id: 'class-net', name: 'Networking 101', description: 'OSI model and IP addresses', join_code: 'K7PQ2M', created_at: '2026-03-11T08:00:00.000Z' },
 ];
 
 const FOLDERS = [
@@ -41,17 +43,56 @@ const STUDENTS = [
   { id: 'student-1', full_name: 'Thandi Nkosi', email: 'thandi@example.com' },
   { id: 'student-2', full_name: 'Liam Jacobs', email: 'liam@example.com' },
   { id: 'student-3', full_name: 'Aisha Patel', email: 'aisha@example.com' },
+  { id: 'student-4', full_name: 'Sipho Dlamini', email: 'sipho@example.com' },
 ];
 
+const ENROLLMENTS = [
+  { class_id: 'class-ict', student_id: 'student-1', joined_at: '2026-02-03T08:00:00.000Z' },
+  { class_id: 'class-ict', student_id: 'student-2', joined_at: '2026-02-04T08:00:00.000Z' },
+  { class_id: 'class-ict', student_id: 'student-3', joined_at: '2026-02-10T08:00:00.000Z' },
+  { class_id: 'class-net', student_id: 'student-4', joined_at: '2026-03-12T08:00:00.000Z' },
+];
+
+const CLASSES = CLASS_ROWS.map((item) => ({
+  ...item,
+  student_count: ENROLLMENTS.filter((row) => row.class_id === item.id).length,
+}));
+
 const QUIZZES = [
-  { id: 'quiz-cpu', title: 'CPU and memory', description: 'How the processor uses RAM', passing_score: 70, created_at: NOW, question_count: 2, quiz_questions: [{}, {}] },
-  { id: 'quiz-net', title: 'Networking basics', description: 'Addresses, switches, and the OSI model', passing_score: 60, created_at: NOW, question_count: 1, quiz_questions: [{}] },
+  { id: 'quiz-cpu', title: 'CPU and memory', description: 'How the processor uses RAM', passing_score: 70, created_at: '2026-10-01T09:00:00.000Z', question_count: 2, quiz_questions: [{}, {}] },
+  { id: 'quiz-net', title: 'Networking basics', description: 'Addresses, switches, and the OSI model', passing_score: 60, created_at: '2026-10-05T09:00:00.000Z', question_count: 1, quiz_questions: [{}] },
 ];
 
 const QUESTIONS = [
-  { id: 'q1', quiz_id: 'quiz-cpu', question: 'Which part stores the data the CPU is using right now?', options: ['RAM', 'Power supply', 'GPU', 'Hard drive'], correct_answer: 'RAM', order_index: 0, time_limit_seconds: 30, difficulty: 'easy' },
-  { id: 'q2', quiz_id: 'quiz-cpu', question: 'What does CPU stand for?', options: ['Central Processing Unit', 'Computer Personal Unit', 'Core Program Utility', 'Control Power Unit'], correct_answer: 'Central Processing Unit', order_index: 1, time_limit_seconds: null, difficulty: 'medium' },
+  { id: 'q1', quiz_id: 'quiz-cpu', question: 'Which part stores the data the CPU is using right now?', options: ['Power supply', 'RAM', 'GPU', 'Hard drive'], correct_answer: 'RAM', order_index: 0, time_limit_seconds: 30, difficulty: 'easy' },
+  { id: 'q2', quiz_id: 'quiz-cpu', question: 'What does CPU stand for?', options: ['Computer Personal Unit', 'Core Program Utility', 'Central Processing Unit', 'Control Power Unit'], correct_answer: 'Central Processing Unit', order_index: 1, time_limit_seconds: null, difficulty: 'medium' },
 ];
+
+const ATTEMPTS = [
+  { id: 'attempt-1', quiz_id: 'quiz-net', user_id: 'student-1', score: 80, completed_at: NOW, quizzes: { title: 'Networking basics' } },
+  { id: 'attempt-2', quiz_id: 'quiz-cpu', user_id: 'student-2', score: 90, completed_at: '2026-10-11T09:00:00.000Z', quizzes: { title: 'CPU and memory' } },
+  { id: 'attempt-3', quiz_id: 'quiz-cpu', user_id: 'student-3', score: 45, completed_at: '2026-10-02T09:00:00.000Z', quizzes: { title: 'CPU and memory' } },
+];
+
+const MATERIALS = { 'student-1': 2, 'student-2': 3, 'student-3': 1, 'student-4': 0 };
+
+function studentsIn(classId) {
+  return ENROLLMENTS.filter((row) => row.class_id === classId).map((row) => {
+    const student = STUDENTS.find((person) => person.id === row.student_id);
+    return { id: row.student_id, full_name: student?.full_name, email: student?.email, joined_at: row.joined_at };
+  });
+}
+
+function progressMap() {
+  const progress = {};
+  STUDENTS.forEach((student) => {
+    progress[student.id] = progressFromAttempts(
+      ATTEMPTS.filter((attempt) => attempt.user_id === student.id),
+      MATERIALS[student.id] || 0,
+    );
+  });
+  return progress;
+}
 
 function query(rows) {
   const state = { rows: rows.slice() };
@@ -78,17 +119,13 @@ function query(rows) {
 }
 
 const TABLES = {
-  class_students: [{ class_id: 'class-ict', student_id: 'student-1' }],
+  class_students: ENROLLMENTS,
   quiz_assignments: [
     { quiz_id: 'quiz-cpu', class_id: 'class-ict' },
     { quiz_id: 'quiz-net', class_id: 'class-ict' },
   ],
   quizzes: QUIZZES,
-  quiz_attempts: [
-    { id: 'attempt-1', quiz_id: 'quiz-net', user_id: 'student-1', score: 80, completed_at: NOW },
-    { id: 'attempt-2', quiz_id: 'quiz-cpu', user_id: 'student-2', score: 90, completed_at: NOW, quizzes: { title: 'CPU and memory' } },
-    { id: 'attempt-3', quiz_id: 'quiz-cpu', user_id: 'student-3', score: 45, completed_at: '2026-10-02T09:00:00.000Z', quizzes: { title: 'CPU and memory' } },
-  ],
+  quiz_attempts: ATTEMPTS,
   quiz_questions: QUESTIONS,
   profiles: STUDENTS.map((student) => ({ id: student.id, full_name: student.full_name })),
   documents: [
@@ -146,21 +183,15 @@ export function installPreviewData() {
   lecturerService.getStudents = async () => STUDENTS;
   lecturerService.getDocuments = async () => TABLES.documents;
   lecturerService.getQuizzes = async () => QUIZZES;
-  lecturerService.getClassDetail = async () => ({
-    class: CLASSES[0],
-    students: [
-      { id: 'student-1', full_name: 'Thandi Nkosi', joined_at: '2026-02-03T08:00:00.000Z' },
-      { id: 'student-2', full_name: 'Liam Jacobs', joined_at: '2026-02-04T08:00:00.000Z' },
-    ],
+  lecturerService.getClassStudents = async (classId) => studentsIn(classId || 'class-ict');
+  lecturerService.getClassDetail = async (classId) => ({
+    class: CLASSES.find((item) => item.id === classId) || CLASSES[0],
+    students: studentsIn(classId || 'class-ict'),
   });
-  lecturerService.getStudentProgress = async () => ({
-    'student-1': { quizzesCompleted: 1, averageScore: 80, materialsViewed: 4, lastActivity: '12 Oct 2026' },
-    'student-2': { quizzesCompleted: 2, averageScore: 90, materialsViewed: 6, lastActivity: '11 Oct 2026' },
-    'student-3': { quizzesCompleted: 0, averageScore: 0, materialsViewed: 1, lastActivity: 'Never' },
-  });
+  lecturerService.getStudentProgress = async () => progressMap();
   lecturerService.getStudentDetail = async (studentId) => ({
     student: STUDENTS.find((student) => student.id === studentId),
-    quizAttempts: TABLES.quiz_attempts.filter((attempt) => attempt.user_id === studentId),
+    quizAttempts: ATTEMPTS.filter((attempt) => attempt.user_id === studentId),
   });
   lecturerService.getQuizDetail = async () => ({
     id: 'quiz-cpu',
@@ -168,10 +199,14 @@ export function installPreviewData() {
     passing_score: 70,
     quiz_questions: QUESTIONS,
   });
-  lecturerService.getQuizResults = async () => ([
-    { id: 'attempt-2', user_id: 'student-2', full_name: 'Liam Jacobs', score: 90, completed_at: NOW },
-    { id: 'attempt-3', user_id: 'student-3', full_name: 'Aisha Patel', score: 45, completed_at: '2026-10-02T09:00:00.000Z' },
-  ]);
+  lecturerService.getQuizResults = async (quizId) => ATTEMPTS
+    .filter((attempt) => attempt.quiz_id === (quizId || 'quiz-cpu'))
+    .map((attempt) => ({
+      ...attempt,
+      full_name: STUDENTS.find((student) => student.id === attempt.user_id)?.full_name || 'Student',
+    }));
+  classService.regenerateClassCode = async () => 'NEW4CD';
+  classService.restoreClassCode = async (_classId, code) => code;
 }
 
 const FOLDER = FOLDERS[0];

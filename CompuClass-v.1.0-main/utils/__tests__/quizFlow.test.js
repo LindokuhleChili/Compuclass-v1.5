@@ -1,11 +1,17 @@
 import {
   advanceQuiz,
   bestScoresByQuiz,
+  classAverageCaption,
   classAverageScore,
+  formatShortDate,
   normalizeOptions,
   passingMark,
+  plural,
   prepareQuestionsForSave,
+  progressFromAttempts,
   questionCount,
+  spreadCorrectAnswer,
+  summarizeClassProgress,
   summarizeQuizAttempts,
   uniqueIds,
 } from '../quizFlow';
@@ -115,5 +121,52 @@ describe('lecturer results', () => {
       { score: null },
     ])).toEqual({ count: 2, average: 65, best: 90 });
     expect(summarizeQuizAttempts([])).toEqual({ count: 0, average: null, best: null });
+  });
+
+  it('labels an average that leaves out students with no attempts', () => {
+    const summary = summarizeClassProgress({
+      one: { quizzesCompleted: 1, averageScore: 80 },
+      two: { quizzesCompleted: 1, averageScore: 90 },
+      three: { quizzesCompleted: 0, averageScore: null },
+    });
+    expect(summary).toEqual({ average: 85, attempted: 2, total: 3 });
+    expect(classAverageScore({ one: { quizzesCompleted: 1, averageScore: 80 }, two: { quizzesCompleted: 1, averageScore: 90 } })).toBe(85);
+    expect(classAverageCaption(summary)).toBe('85% average across 2 students who attempted');
+    expect(classAverageCaption(summarizeClassProgress({}))).toBe('No attempts yet');
+  });
+
+  it('formats dates as 12 Oct 2026 and matches plurals', () => {
+    expect(formatShortDate('2026-10-12T09:00:00.000Z')).toBe('12 Oct 2026');
+    expect(formatShortDate('2026-10-02T09:00:00.000Z')).toBe('2 Oct 2026');
+    expect(formatShortDate('')).toBe('');
+    expect(plural(1, 'quiz')).toBe('1 quiz');
+    expect(plural(0, 'quiz')).toBe('0 quizzes');
+    expect(plural(2, 'class')).toBe('2 classes');
+    expect(plural(2, 'material')).toBe('2 materials');
+    expect(plural(1, 'question')).toBe('1 question');
+  });
+
+  it('builds student progress from the same attempts shown on quiz details', () => {
+    expect(progressFromAttempts([
+      { score: 90, completed_at: '2026-10-11T09:00:00.000Z' },
+      { score: null, completed_at: '2026-10-01T09:00:00.000Z' },
+    ], 3)).toEqual({
+      quizzesCompleted: 1,
+      averageScore: 90,
+      materialsViewed: 3,
+      lastActivity: '11 Oct 2026',
+    });
+    expect(progressFromAttempts([], 0).averageScore).toBeNull();
+  });
+
+  it('moves a correct answer off option A when a generated quiz pinned it there', () => {
+    expect(spreadCorrectAnswer(['RAM', 'GPU', 'Disk'], 0)).toEqual({
+      options: ['GPU', 'Disk', 'RAM'],
+      correctIndex: 2,
+    });
+    expect(spreadCorrectAnswer(['RAM', 'GPU', 'Disk'], 1)).toEqual({
+      options: ['RAM', 'GPU', 'Disk'],
+      correctIndex: 1,
+    });
   });
 });

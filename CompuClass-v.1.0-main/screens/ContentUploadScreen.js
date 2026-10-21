@@ -13,16 +13,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as DocumentPicker from 'expo-document-picker';
 import { useTheme } from '../context/ThemeContext';
-import { useShellBack } from '../context/ChromeContext';
-import { leaveScreen } from '../utils/screenNav';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
 import { openStoredDocument } from '../utils/fileDownload';
+import { formatShortDate } from '../utils/quizFlow';
 import ClassScopePicker from '../components/ClassScopePicker';
+import { Page, Glass, Badge, font } from '../components/ui/kit';
+import { LECTURER_COLUMN, ScreenHeading, ToastBanner, confirmNamed, useUndoToast } from '../components/lecturerChrome';
 
 export default function ContentUploadScreen({ navigation, route }) {
   const { theme } = useTheme();
-  const shellBack = useShellBack();
+  const { toast, offer } = useUndoToast();
   const [folderId, setFolderId] = useState(route.params?.folderId);
   const [documents, setDocuments] = useState([]);
   const [showUpload, setShowUpload] = useState(false);
@@ -163,7 +164,7 @@ export default function ContentUploadScreen({ navigation, route }) {
   };
 
   const renderDocument = (doc) => (
-    <View key={doc.id} style={[styles.documentCard, { backgroundColor: theme.card }]}>
+    <View key={doc.id} style={[styles.documentCard, { backgroundColor: 'rgba(255,255,255,0.70)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.8)' }]}>
       <View style={styles.documentHeader}>
         <View style={[styles.fileIcon, { backgroundColor: theme.primary + '20' }]}>
           <Ionicons name={getFileIcon(doc.file_type)} size={24} color={theme.primary} />
@@ -171,23 +172,27 @@ export default function ContentUploadScreen({ navigation, route }) {
         <View style={styles.documentInfo}>
           <Text style={[styles.documentTitle, { color: theme.text }]}>{doc.title}</Text>
           <Text style={[styles.fileName, { color: theme.textSecondary }]}>{doc.file_name}</Text>
-          <Text style={[styles.fileSize, { color: theme.textTertiary }]}>
-            {formatFileSize(doc.file_size)} • {new Date(doc.created_at).toLocaleDateString()}
+          <Text style={[styles.fileSize, { color: 'rgba(11,27,58,0.65)', fontSize: 13 }]}>
+            {formatFileSize(doc.file_size)} · {formatShortDate(doc.created_at)}
           </Text>
         </View>
       </View>
       
       <View style={styles.documentActions}>
         <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: theme.info + '20' }]}
+          style={[styles.actionButton, { backgroundColor: theme.borderLight }]}
           onPress={() => handleDownload(doc)}
+          accessibilityRole="button"
+          accessibilityLabel={`Download ${doc.title}`}
         >
-          <Ionicons name="download" size={16} color={theme.info} />
+          <Ionicons name="download" size={16} color={theme.text} />
         </TouchableOpacity>
         
         <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: theme.error + '20' }]}
-          onPress={() => handleDeleteDocument(doc.id)}
+          style={[styles.actionButton, { backgroundColor: theme.borderLight }]}
+          onPress={() => handleDeleteDocument(doc)}
+          accessibilityRole="button"
+          accessibilityLabel={`Delete ${doc.title}`}
         >
           <Ionicons name="trash" size={16} color={theme.error} />
         </TouchableOpacity>
@@ -204,40 +209,33 @@ export default function ContentUploadScreen({ navigation, route }) {
     }
   };
 
-  const handleDeleteDocument = (docId) => {
-    Alert.alert('Delete Document', 'Are you sure you want to delete this document?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await lecturerService.deleteDocument(docId);
-            loadDocuments();
-            Alert.alert('Success', 'Document deleted');
-          } catch (error) {
-            Alert.alert('Error', getErrorMessage(error, { context: 'ContentUpload' }));
-          }
+  const handleDeleteDocument = async (doc) => {
+    const name = doc.title || 'this document';
+    const ok = await confirmNamed({
+      title: `Delete ${name}?`,
+      message: `Delete “${name}”? Students will no longer be able to open it.`,
+      confirmLabel: 'Delete document',
+    });
+    if (!ok) return;
+    setDocuments((current) => current.filter((item) => item.id !== doc.id));
+    offer({
+      message: `${name} deleted`,
+      undo: () => setDocuments((current) => [doc, ...current.filter((item) => item.id !== doc.id)]),
+      commit: async () => {
+        try {
+          await lecturerService.deleteDocument(doc.id);
+        } catch (error) {
+          setDocuments((current) => [doc, ...current.filter((item) => item.id !== doc.id)]);
+          Alert.alert('Error', getErrorMessage(error, { context: 'ContentUpload' }));
         }
-      }
-    ]);
+      },
+    });
   };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <LinearGradient colors={theme.gradient} style={styles.header}>
-        <View style={styles.headerContent}>
-          {shellBack ? <View style={styles.iconHit} /> : (
-            <TouchableOpacity onPress={() => leaveScreen(navigation)} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="Go back">
-              <Ionicons name="arrow-back" size={24} color={theme.text} />
-            </TouchableOpacity>
-          )}
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Content Upload</Text>
-          <TouchableOpacity onPress={pickDocument}>
-            <Ionicons name="add" size={24} color={theme.primary} />
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
+      <Page maxWidth={LECTURER_COLUMN} scroll={false} fill>
+      <ScreenHeading navigation={navigation} title="Content" subtitle="Upload notes and slides for a class" />
 
       <View style={styles.uploadSection}>
         <TouchableOpacity style={styles.uploadButton} onPress={pickDocument}>
@@ -250,16 +248,16 @@ export default function ContentUploadScreen({ navigation, route }) {
       </View>
 
       <View style={styles.statsRow}>
-        <View style={[styles.statItem, { backgroundColor: theme.card }]}>
-          <Text style={[styles.statNumber, { color: theme.primary }]}>{documents.length}</Text>
-          <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Documents</Text>
-        </View>
-        <View style={[styles.statItem, { backgroundColor: theme.card }]}>
-          <Text style={[styles.statNumber, { color: theme.success }]}>
+        <Glass strong radius={16} style={styles.statItem}>
+          <Text style={[{ fontSize: 28, color: theme.text }, font(theme, 'h1')]}>{documents.length}</Text>
+          <Badge label="Documents" kind="neutral" />
+        </Glass>
+        <Glass strong radius={16} style={styles.statItem}>
+          <Text style={[{ fontSize: 22, color: theme.text }, font(theme, 'h2')]}>
             {formatFileSize(documents.reduce((acc, doc) => acc + (doc.file_size || 0), 0))}
           </Text>
-          <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Total Size</Text>
-        </View>
+          <Badge label="Total size" kind="neutral" />
+        </Glass>
       </View>
 
       <ScrollView style={styles.documentsContainer}>
@@ -288,6 +286,8 @@ export default function ContentUploadScreen({ navigation, route }) {
           </View>
         )}
       </ScrollView>
+      </Page>
+      <ToastBanner toast={toast} />
 
       {/* Upload Modal */}
       <Modal visible={showUpload} animationType="slide" transparent>
@@ -377,7 +377,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   headerTitle: { fontSize: 20, fontWeight: 'bold' },
-  uploadSection: { padding: 16 },
+  uploadSection: { paddingBottom: 8 },
   uploadButton: { marginBottom: 16 },
   uploadButtonGradient: {
     alignItems: 'center',

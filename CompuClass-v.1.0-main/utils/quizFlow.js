@@ -7,10 +7,23 @@ export function passingMark(quiz) {
   return Number.isFinite(score) ? score : 70;
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// One date style for every lecturer and quiz screen: "12 Oct 2026".
+// UTC keeps a stored timestamp on the same calendar day in tests and previews.
 export function formatShortDate(value) {
   if (!value) return '';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString();
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+}
+
+const PLURALS = { quiz: 'quizzes', class: 'classes' };
+
+export function plural(count, singular, pluralForm) {
+  const amount = Number(count) || 0;
+  const word = amount === 1 ? singular : (pluralForm || PLURALS[singular] || `${singular}s`);
+  return `${amount} ${word}`;
 }
 
 // quiz_questions.options is jsonb. Live rows have been stored as a string
@@ -120,11 +133,49 @@ export function summarizeQuizAttempts(attempts) {
 
 // Students who have not taken a quiz are left out. Counting them as 0%
 // makes a class of one finisher and many new students look like it is failing.
+export function summarizeClassProgress(progressData) {
+  const rows = Object.values(progressData || {});
+  const attempted = rows.filter((row) => (row?.quizzesCompleted || 0) > 0 && numericScore(row?.averageScore) != null);
+  if (attempted.length === 0) return { average: null, attempted: 0, total: rows.length };
+  const total = attempted.reduce((sum, row) => sum + numericScore(row.averageScore), 0);
+  return { average: Math.round(total / attempted.length), attempted: attempted.length, total: rows.length };
+}
+
 export function classAverageScore(progressData) {
-  const scored = Object.values(progressData || {}).filter((row) => (row?.quizzesCompleted || 0) > 0);
-  if (scored.length === 0) return null;
-  const total = scored.reduce((sum, row) => sum + (Number(row.averageScore) || 0), 0);
-  return Math.round(total / scored.length);
+  return summarizeClassProgress(progressData).average;
+}
+
+export function classAverageCaption(summary) {
+  if (!summary || summary.average == null) return 'No attempts yet';
+  return `${summary.average}% average across ${plural(summary.attempted, 'student')} who attempted`;
+}
+
+export function progressFromAttempts(attempts, materialCount = 0) {
+  const scored = (Array.isArray(attempts) ? attempts : []).filter((attempt) => numericScore(attempt?.score) != null);
+  const materials = Number(materialCount) || 0;
+  if (scored.length === 0) {
+    return { quizzesCompleted: 0, averageScore: null, materialsViewed: materials, lastActivity: null };
+  }
+  const averageScore = Math.round(scored.reduce((sum, attempt) => sum + numericScore(attempt.score), 0) / scored.length);
+  const times = scored
+    .map((attempt) => new Date(attempt.completed_at).getTime())
+    .filter((time) => !Number.isNaN(time));
+  const lastActivity = times.length ? formatShortDate(new Date(Math.max(...times)).toISOString()) : null;
+  return { quizzesCompleted: scored.length, averageScore, materialsViewed: materials, lastActivity };
+}
+
+// Sample and AI quizzes often pin the correct choice on A. Move it when it
+// sits in the first slot so the letter varies. A lecturer's own mark is left
+// alone when it is already somewhere else.
+export function spreadCorrectAnswer(options, correctIndex) {
+  const list = Array.isArray(options) ? options.map((option) => option) : [];
+  const index = Number(correctIndex);
+  if (list.length < 2 || !Number.isInteger(index) || index < 0 || index >= list.length) {
+    return { options: list, correctIndex: index };
+  }
+  if (index !== 0) return { options: list, correctIndex: index };
+  const [first, ...rest] = list;
+  return { options: [...rest, first], correctIndex: list.length - 1 };
 }
 
 export function uniqueIds(values) {

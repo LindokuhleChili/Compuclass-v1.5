@@ -1,26 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  Share,
-  Clipboard,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, Alert, Share, Clipboard, StyleSheet } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import { useShellBack } from '../context/ChromeContext';
-import { leaveScreen } from '../utils/screenNav';
 import { lecturerService } from '../services/lecturerService';
 import { classService } from '../services/classService';
 import { getErrorMessage } from '../utils/errorMessages';
+import { formatShortDate, plural } from '../utils/quizFlow';
+import {
+  Page, Heading, Body, Glass, Button, IconTile, Avatar, initials, Skeleton, font,
+} from '../components/ui/kit';
+import {
+  ActionMenu, LECTURER_COLUMN, ScreenHeading, ToastBanner, confirmNamed, useUndoToast,
+} from '../components/lecturerChrome';
 
 export default function ClassDetailScreen({ navigation, route }) {
   const { theme } = useTheme();
-  const shellBack = useShellBack();
+  const { toast, offer, show } = useUndoToast();
   const { classId } = route.params;
   const [classData, setClassData] = useState(null);
   const [students, setStudents] = useState([]);
@@ -46,225 +40,142 @@ export default function ClassDetailScreen({ navigation, route }) {
   };
   loadClassDetailRef.current = loadClassDetail;
 
-  const handleRemoveStudent = (studentId) => {
-    Alert.alert('Remove Student', 'Remove this student from the class?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await lecturerService.removeStudentFromClass(classId, studentId);
-            loadClassDetail();
-            Alert.alert('Success', 'Student removed');
-          } catch (error) {
-            console.error('Remove student error:', error);
-            Alert.alert('Error', getErrorMessage(error, { context: 'ClassDetail' }));
-          }
+  const handleRemoveStudent = async (student) => {
+    const name = student.full_name || 'this student';
+    const ok = await confirmNamed({
+      title: `Remove ${name}?`,
+      message: `Remove ${name} from ${classData?.name || 'this class'}? They can join again with the class code.`,
+      confirmLabel: 'Remove student',
+    });
+    if (!ok) return;
+    setStudents((current) => current.filter((item) => item.id !== student.id));
+    offer({
+      message: `${name} removed`,
+      undo: () => setStudents((current) => [student, ...current.filter((item) => item.id !== student.id)]),
+      commit: async () => {
+        try {
+          await lecturerService.removeStudentFromClass(classId, student.id);
+        } catch (error) {
+          setStudents((current) => [student, ...current.filter((item) => item.id !== student.id)]);
+          Alert.alert('Error', getErrorMessage(error, { context: 'ClassDetail' }));
         }
-      }
-    ]);
+      },
+    });
   };
 
-  if (status === 'error') {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.background, alignItems: 'center', justifyContent: 'center', padding: 24 }]} accessibilityRole="alert">
-        <Text style={[styles.className, { color: theme.text }]}>Could not load this class</Text>
-        <TouchableOpacity onPress={loadClassDetail} accessibilityRole="button" accessibilityLabel="Try again" style={{ marginTop: 16 }}>
-          <Text style={{ color: theme.primary, fontWeight: '800' }}>Try again</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  if (!classData) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.surface }]}>
-        <Text style={[styles.loading, { color: theme.textSecondary }]} accessibilityRole="header">Loading class</Text>
-      </View>
-    );
-  }
+  const handleNewCode = async () => {
+    if (!classData?.join_code) return;
+    const previous = classData.join_code;
+    const ok = await confirmNamed({
+      title: `New code for ${classData.name}?`,
+      message: `${previous} will stop working. Students need the new code to join ${classData.name}.`,
+      confirmLabel: 'New code',
+    });
+    if (!ok) return;
+    try {
+      const next = await classService.regenerateClassCode(classId);
+      setClassData((current) => ({ ...current, join_code: next }));
+      offer({
+        message: `${previous} no longer works`,
+        undo: async () => {
+          try {
+            const restored = await classService.restoreClassCode(classId, previous);
+            setClassData((current) => ({ ...current, join_code: restored }));
+            show(`${restored} restored`);
+          } catch (error) {
+            Alert.alert('Error', getErrorMessage(error, { context: 'ClassDetail' }));
+          }
+        },
+      });
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error, { context: 'ClassDetail' }));
+    }
+  };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <LinearGradient colors={theme.gradient} style={styles.header}>
-        <View style={styles.headerContent}>
-          {shellBack ? <View style={styles.iconHit} /> : (
-            <TouchableOpacity onPress={() => leaveScreen(navigation)} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="Go back">
-              <Ionicons name="arrow-back" size={24} color={theme.text} />
-            </TouchableOpacity>
-          )}
-          <Text style={[styles.headerTitle, { color: theme.text }]} accessibilityRole="header">Class Details</Text>
-          <View style={{ width: 24 }} />
-        </View>
-      </LinearGradient>
-
-      <ScrollView style={styles.content}>
-        <View style={[styles.classHeader, { backgroundColor: theme.card }]}>
-          <View style={[styles.classIcon, { backgroundColor: theme.primary }]}>
-            <Ionicons name="school" size={32} color="#fff" />
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <Page maxWidth={LECTURER_COLUMN}>
+        <ScreenHeading navigation={navigation} title="Class details" subtitle="Enrolment and join code" />
+        {status === 'loading' ? (
+          <View accessibilityRole="progressbar">
+            <Skeleton height={180} radius={24} />
+            <Skeleton height={72} radius={16} style={{ marginTop: 12 }} />
           </View>
-          <Text style={[styles.className, { color: theme.text }]}>{classData.name}</Text>
-          <Text style={[styles.classDescription, { color: theme.textSecondary }]}>Class code</Text>
-          <Text style={[styles.className, { color: theme.text, letterSpacing: 3 }]} accessibilityLabel={`Class code ${classData.join_code || 'not available'}`}>
-            {classData.join_code || 'Not available yet'}
-          </Text>
-          {classData.join_code ? (
-            <View style={styles.classMeta}>
-              <TouchableOpacity
-                onPress={() => { Clipboard.setString(classData.join_code); Alert.alert('Copied', 'Class code copied.'); }}
-                accessibilityRole="button"
-                accessibilityLabel="Copy class code"
+        ) : null}
+        {status === 'error' ? (
+          <Glass strong style={styles.card}>
+            <Heading level={3}>Could not load this class</Heading>
+            <Button label="Try again" fit style={{ marginTop: 12 }} onPress={loadClassDetail} />
+          </Glass>
+        ) : null}
+        {status === 'ready' && classData ? (
+          <>
+            <Glass strong style={styles.card}>
+              <IconTile name="school" tone="teal" size={56} />
+              <Heading level={2} style={{ marginTop: 12, textAlign: 'center' }}>{classData.name}</Heading>
+              {classData.description ? (
+                <Body variant="caption" style={{ marginTop: 6, textAlign: 'center' }}>{classData.description}</Body>
+              ) : null}
+              <Body variant="caption" style={{ marginTop: 16 }}>Class code</Body>
+              <Text
+                style={[{ color: theme.text, fontSize: 28, letterSpacing: 3, marginTop: 4 }, font(theme, 'h1')]}
+                accessibilityLabel={`Class code ${classData.join_code || 'not available'}`}
               >
-                <Text style={[styles.metaText, { color: theme.primary }]}>Copy</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => Share.share({ message: `Join my CompuClass class with code ${classData.join_code}` })}
-                accessibilityRole="button"
-                accessibilityLabel="Share class code"
-              >
-                <Text style={[styles.metaText, { color: theme.primary }]}>Share</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={async () => {
-                  try {
-                    const next = await classService.regenerateClassCode(classId);
-                    setClassData((prev) => ({ ...prev, join_code: next }));
-                  } catch (error) {
-                    Alert.alert('Error', getErrorMessage(error, { context: 'ClassDetail' }));
-                  }
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Regenerate class code"
-              >
-                <Text style={[styles.metaText, { color: theme.primary }]}>New code</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-          {classData.description && (
-            <Text style={[styles.classDescription, { color: theme.textSecondary }]}>
-              {classData.description}
-            </Text>
-          )}
-          <View style={styles.classMeta}>
-            <View style={styles.metaItem}>
-              <Ionicons name="people" size={16} color={theme.primary} />
-              <Text style={[styles.metaText, { color: theme.textSecondary }]}>
-                {students.length} Students
+                {classData.join_code || 'Not available yet'}
               </Text>
-            </View>
-            <View style={styles.metaItem}>
-              <Ionicons name="calendar" size={16} color={theme.primary} />
-              <Text style={[styles.metaText, { color: theme.textSecondary }]}>
-                Created {new Date(classData.created_at).toLocaleDateString()}
-              </Text>
-            </View>
-          </View>
-        </View>
+              {classData.join_code ? (
+                <View style={styles.codeActions}>
+                  <Button label="Copy code" fit onPress={() => { Clipboard.setString(classData.join_code); show(`${classData.join_code} copied`); }} />
+                  <Button
+                    label="Share"
+                    variant="secondary"
+                    fit
+                    onPress={() => Share.share({ message: `Join my CompuClass class ${classData.name} with code ${classData.join_code}` })}
+                  />
+                  <ActionMenu
+                    label={`Actions for ${classData.name}`}
+                    items={[{ label: `New code for ${classData.name}`, destructive: true, onPress: handleNewCode }]}
+                  />
+                </View>
+              ) : null}
+              <Body variant="caption" style={{ marginTop: 16 }}>
+                {plural(students.length, 'student')} enrolled · Created {formatShortDate(classData.created_at)}
+              </Body>
+            </Glass>
 
-        <View style={styles.studentsSection}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Enrolled Students</Text>
-          
-          {students.length === 0 ? (
-            <View style={[styles.emptyState, { backgroundColor: theme.card }]}>
-              <Ionicons name="person-add-outline" size={48} color={theme.textTertiary} />
-              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                No students enrolled yet
-              </Text>
-              <Text style={[styles.emptySubtext, { color: theme.textTertiary }]}>
-                Use the Assign button to add students
-              </Text>
-            </View>
-          ) : (
-            students.map((student) => (
-              <View key={student.id} style={[styles.studentCard, { backgroundColor: theme.card }]}>
-                <View style={[styles.studentAvatar, { backgroundColor: theme.primary }]}>
-                  <Text style={styles.avatarText}>
-                    {student.full_name?.charAt(0)?.toUpperCase() || 'S'}
-                  </Text>
+            <Heading level={2} style={{ marginBottom: 12 }}>Enrolled students</Heading>
+            {students.length === 0 ? (
+              <Glass strong style={styles.card}>
+                <IconTile name="user" tone="neutral" />
+                <Body style={{ marginTop: 10, textAlign: 'center' }}>No students enrolled yet</Body>
+                <Body variant="caption" style={{ marginTop: 4, textAlign: 'center' }}>Share the class code, or assign students from Class management.</Body>
+              </Glass>
+            ) : students.map((student) => (
+              <Glass key={student.id} strong style={styles.studentCard}>
+                <Avatar label={initials(student.full_name)} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[{ color: theme.text }, font(theme, 'h3')]}>{student.full_name || 'Unknown student'}</Text>
+                  <Body variant="caption">Joined {formatShortDate(student.joined_at)}</Body>
                 </View>
-                <View style={styles.studentInfo}>
-                  <Text style={[styles.studentName, { color: theme.text }]}>
-                    {student.full_name || 'Unknown Student'}
-                  </Text>
-                  <Text style={[styles.studentMeta, { color: theme.textSecondary }]}>
-                    Joined {new Date(student.joined_at).toLocaleDateString()}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.removeButton}
-                  onPress={() => handleRemoveStudent(student.id)}
-                >
-                  <Ionicons name="close-circle" size={24} color={theme.error} />
-                </TouchableOpacity>
-              </View>
-            ))
-          )}
-        </View>
-      </ScrollView>
+                <Button
+                  label="Remove"
+                  variant="secondary"
+                  fit
+                  accessibilityLabel={`Remove ${student.full_name || 'student'}`}
+                  onPress={() => handleRemoveStudent(student)}
+                />
+              </Glass>
+            ))}
+          </>
+        ) : null}
+      </Page>
+      <ToastBanner toast={toast} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { paddingTop: 50, paddingBottom: 20 },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-  },
-  headerTitle: { fontSize: 20, fontWeight: 'bold' },
-  loading: { textAlign: 'center', marginTop: 50, fontSize: 16 },
-  content: { flex: 1 },
-  classHeader: {
-    padding: 24,
-    margin: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  classIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  className: { fontSize: 24, fontWeight: 'bold', marginBottom: 8 },
-  classDescription: { fontSize: 14, textAlign: 'center', marginBottom: 16 },
-  classMeta: { flexDirection: 'row', gap: 16 },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { fontSize: 12 },
-  studentsSection: { paddingHorizontal: 16, paddingBottom: 20 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 12 },
-  studentCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  studentAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  avatarText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  studentInfo: { flex: 1 },
-  studentName: { fontSize: 16, fontWeight: '600' },
-  studentMeta: { fontSize: 12, marginTop: 2 },
-  iconHit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  removeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  emptyState: {
-    padding: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  emptyText: { fontSize: 16, fontWeight: '600', marginTop: 12 },
-  emptySubtext: { fontSize: 14, marginTop: 4, textAlign: 'center' },
+  card: { alignItems: 'center', padding: 24, marginBottom: 20 },
+  codeActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16, justifyContent: 'center', alignItems: 'center' },
+  studentCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 10 },
 });
