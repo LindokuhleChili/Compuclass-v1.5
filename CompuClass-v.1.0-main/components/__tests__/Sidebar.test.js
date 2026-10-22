@@ -28,6 +28,22 @@ describe('Sidebar', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('opens the lecturer quizzes page for a lecturer and the assigned list for a student', () => {
+    const lecturerNavigate = jest.fn();
+    const lecturer = render(
+      <Sidebar visible onClose={jest.fn()} onNavigate={lecturerNavigate} user={{ profile: { role: 'lecturer' } }} />
+    );
+    fireEvent.press(lecturer.getByText('Quizzes'));
+    expect(lecturerNavigate).toHaveBeenCalledWith({ screen: 'Lecturer', params: { screen: 'QuizCreation' } });
+
+    const studentNavigate = jest.fn();
+    const student = render(
+      <Sidebar visible onClose={jest.fn()} onNavigate={studentNavigate} user={{ profile: { role: 'student' } }} />
+    );
+    fireEvent.press(student.getByText('Quizzes'));
+    expect(studentNavigate).toHaveBeenCalledWith('Quiz');
+  });
+
   it('marks the sidebar item for the screen that is open, including lecturer pages', () => {
     const { getByRole, rerender } = render(
       <Sidebar docked visible currentScreen="PC Lab" onClose={jest.fn()} onNavigate={jest.fn()} onHomePress={jest.fn()} />

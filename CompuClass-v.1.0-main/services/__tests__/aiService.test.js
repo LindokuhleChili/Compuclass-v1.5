@@ -80,4 +80,23 @@ describe('aiService.generateQuizFromText', () => {
 
     await expect(aiService.generateQuizFromText('notes', 'Notes', 1)).rejects.toThrow('Gemini returned no text');
   });
+
+  it('surfaces the gemini-proxy 502 message instead of the generic client error', async () => {
+    const serverMessage = 'The AI service is unavailable right now. Please try again later.';
+    supabase.functions.invoke.mockResolvedValue({
+      data: null,
+      error: {
+        message: 'Edge Function returned a non-2xx status code',
+        context: {
+          status: 502,
+          json: async () => ({ error: serverMessage, requestId: 'req-1' }),
+          clone() { return this; },
+        },
+      },
+    });
+
+    await expect(aiService.generateQuizFromText('notes', 'Notes', 1)).rejects.toMatchObject({
+      userMessage: serverMessage,
+    });
+  });
 });

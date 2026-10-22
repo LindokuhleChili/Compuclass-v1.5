@@ -19,8 +19,6 @@ const HOME_ROUTES = new Set([
   'StudentProgress',
   'ClassManagement',
   'ContentUpload',
-  'QuizCreation',
-  'QuizDetail',
   'ClassDetail',
   'JoinClass',
   'Search',
@@ -45,9 +43,26 @@ export function isRootRoute(routeName) {
 
 export function navKeyForRoute(routeName) {
   if (!routeName) return null;
+  if (routeName === 'QuizCreation' || routeName === 'QuizDetail') return 'Quiz';
   if (HOME_ROUTES.has(routeName)) return 'Home';
   if (NAV_ROUTES.has(routeName)) return routeName;
   return null;
+}
+
+// Lecturers manage quizzes. The student Quiz screen is the assigned-quiz list.
+export function sidebarDestination(screen, role) {
+  if (screen === 'Quiz' && role === 'lecturer') {
+    return { screen: 'Lecturer', params: { screen: 'QuizCreation' } };
+  }
+  return screen;
+}
+
+export function tabKeyForRoute(routeName, role) {
+  if (routeName === 'Settings') return 'Profile';
+  const nav = navKeyForRoute(routeName);
+  if (nav === 'Home') return role === 'lecturer' ? 'Lecturer' : 'Dashboard';
+  if (nav === 'Quiz') return 'Quiz';
+  return routeName;
 }
 
 // Previous screen when the navigator has history. Otherwise Home.

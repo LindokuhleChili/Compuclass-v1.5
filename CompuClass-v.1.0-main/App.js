@@ -66,7 +66,7 @@ import { sessionCheckDecision } from './utils/sessionCheck';
 import { isUnknownWebPath as pathIsUnknown, linkingConfig, onboardingRedirectPath } from './utils/webRoutes';
 import { ThemeProvider, useTheme, appTheme } from './context/ThemeContext';
 import { ChromeProvider } from './context/ChromeContext';
-import { isRootRoute, leaveScreen } from './utils/screenNav';
+import { isRootRoute, leaveScreen, tabKeyForRoute } from './utils/screenNav';
 import { classService } from './services/classService';
 import { filterByClassScope } from './utils/classScope';
 import { isScreenPreview, ScreenPreview } from './preview/ScreenPreview';
@@ -93,9 +93,8 @@ const TAB_META = {
   Profile: { icon: 'user', label: 'Profile' },
 };
 
-function highlightFor(routeName) {
-  if (routeName === 'Settings') return 'Profile';
-  return routeName;
+function highlightFor(routeName, role) {
+  return tabKeyForRoute(routeName, role);
 }
 
 function LecturerStack() {
@@ -113,12 +112,12 @@ function LecturerStack() {
   );
 }
 
-function PhoneTabBar({ state, navigation }) {
+function PhoneTabBar({ state, navigation, userRole, leafRoute }) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const current = state.routes[state.index]?.name || '';
   if (HIDE_TAB_ROUTES.includes(current)) return null;
-  const highlighted = highlightFor(current);
+  const highlighted = highlightFor(leafRoute || current, userRole);
   const visible = TAB_ORDER.map((name) => state.routes.find((r) => r.name === name)).filter(Boolean);
 
   return (
@@ -134,6 +133,10 @@ function PhoneTabBar({ state, navigation }) {
               accessibilityLabel={meta.label}
               accessibilityState={{ selected: on }}
               onPress={() => {
+                if (userRole === 'lecturer' && route.name === 'Quiz') {
+                  navigation.navigate('Lecturer', { screen: 'QuizCreation' });
+                  return;
+                }
                 const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
                 if (!on && !event.defaultPrevented) navigation.navigate(route.name);
               }}
@@ -354,8 +357,14 @@ function AppContent() {
     } catch { /* keep the current session if sign-out fails */ }
   };
 
-  const handleNavigate = (screen) => {
-    try { navigationRef.current?.navigate(screen); } catch { /* navigator not ready */ }
+  const handleNavigate = (target) => {
+    try {
+      if (target && typeof target === 'object') {
+        navigationRef.current?.navigate(target.screen, target.params);
+        return;
+      }
+      navigationRef.current?.navigate(target);
+    } catch { /* navigator not ready */ }
   };
 
   if ((!fontsLoaded && !fontError) || loading) {
@@ -487,7 +496,7 @@ function AppContent() {
                   <View style={styles.stage}>
                   <Tab.Navigator
                     backBehavior="history"
-                    tabBar={(props) => (laptop ? null : <PhoneTabBar {...props} />)}
+                    tabBar={(props) => (laptop ? null : <PhoneTabBar {...props} userRole={userRole} leafRoute={routeName} />)}
                     screenOptions={{ headerShown: false }}
                   >
                     {userRole === 'lecturer' ? (
