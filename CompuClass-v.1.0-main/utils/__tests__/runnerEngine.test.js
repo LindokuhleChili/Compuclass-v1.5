@@ -7,8 +7,12 @@ import {
   MAX_SPEED,
   PLAYER_X,
   SPEED_RAMP_DISTANCE,
-  QUIZ_INTERVAL_MS,
+  CPU_QUIZ_CHANCE,
+  MAX_LIVES,
+  PLUG_MS,
+  QUIZ_COOLDOWN_MS,
   RUNNER_QUESTIONS,
+  SPEED_BOOST,
   START_LIVES,
   answerQuiz,
   comboMultiplier,
@@ -18,6 +22,8 @@ import {
   factForRun,
   jumpHeight,
   keyAction,
+  entitySpec,
+  normalizeWorld,
   overlapsPlayer,
   planSpawn,
   playfieldBox,
@@ -31,11 +37,16 @@ import {
   tick,
   waveIsFair,
 } from '../runnerEngine';
+import { RUNNER_FACTS, nextRunnerFact } from '../../data/runnerFacts';
 
 const zero = () => 0;
 
 function virusAt(x) {
   return { id: 1, kind: 'virus', group: 'obstacle', x, resolved: false, points: 0, factId: null };
+}
+
+function partAt(kind, x, points = 10, group = 'pickup') {
+  return { id: kind, kind, group, x, points, factId: null, resolved: false, air: false };
 }
 
 describe('runner pace', () => {
@@ -70,21 +81,24 @@ describe('jump and duck', () => {
     expect(jumpHeight(-5)).toBe(0);
   });
 
-  it('lets a jump clear a ground hazard and a duck pass a firewall', () => {
+  it('lets a jump clear ground hazards and only a high jump clear a server', () => {
     const virus = virusAt(PLAYER_X);
-    const firewall = { ...virus, kind: 'firewall' };
-    const circuit = { ...virus, kind: 'circuit' };
+    const server = { ...virus, kind: 'server' };
+    const airBug = { ...virus, kind: 'bug', air: true };
+    const groundBug = { ...virus, kind: 'bug', air: false };
     expect(overlapsPlayer(runner, virus)).toBe(true);
     expect(overlapsPlayer({ ...runner, pose: 'duck' }, virus)).toBe(true);
     expect(overlapsPlayer({ ...runner, pose: 'jump', jumpH: JUMP_APEX }, virus)).toBe(false);
 
-    expect(overlapsPlayer(runner, firewall)).toBe(false);
-    expect(overlapsPlayer({ ...runner, pose: 'jump', jumpH: JUMP_APEX }, firewall)).toBe(true);
-    expect(overlapsPlayer({ ...runner, pose: 'duck' }, firewall)).toBe(false);
+    expect(overlapsPlayer(runner, server)).toBe(true);
+    expect(overlapsPlayer({ ...runner, pose: 'duck' }, server)).toBe(true);
+    expect(overlapsPlayer({ ...runner, pose: 'jump', jumpH: 40 }, server)).toBe(true);
+    expect(overlapsPlayer({ ...runner, pose: 'jump', jumpH: JUMP_APEX }, server)).toBe(false);
 
-    expect(overlapsPlayer(runner, circuit)).toBe(true);
-    expect(overlapsPlayer({ ...runner, pose: 'duck' }, circuit)).toBe(true);
-    expect(overlapsPlayer({ ...runner, pose: 'jump', jumpH: JUMP_APEX }, circuit)).toBe(false);
+    expect(overlapsPlayer(runner, airBug)).toBe(false);
+    expect(overlapsPlayer({ ...runner, pose: 'duck' }, airBug)).toBe(false);
+    expect(overlapsPlayer({ ...runner, pose: 'jump', jumpH: JUMP_APEX }, airBug)).toBe(true);
+    expect(overlapsPlayer({ ...runner, pose: 'jump', jumpH: JUMP_APEX }, groundBug)).toBe(false);
   });
 
   it('anchors the runner at 22 percent of the playfield', () => {
@@ -175,12 +189,14 @@ describe('the run loop', () => {
 
   it('collects coins one after another as a combo', () => {
     let state = quietRun();
+    state.nextQuizAt = 1e12;
     const streaks = [];
     for (let i = 0; i < 3; i += 1) {
       state = {
         ...state,
+        nextQuizAt: 1e12,
         entities: [{
-          id: i, kind: 'coin', group: 'pickup', x: playerXFor(state.viewWidth), points: 10, factId: null, resolved: false,
+          id: i, kind: 'cpu', group: 'pickup', x: playerXFor(state.viewWidth), points: 10, factId: null, resolved: false,
         }],
       };
       const result = tick(state, 16, {}, zero);
@@ -262,29 +278,34 @@ describe('quiz breaks', () => {
     },
   ];
 
-  function dueRun() {
+  function dueRun(points = 10) {
     const run = createRun(900);
     run.nextSpawnAt = 1e12;
     run.quizBank = bank;
-    run.elapsed = QUIZ_INTERVAL_MS;
-    run.nextQuizAt = QUIZ_INTERVAL_MS;
+    run.nextQuizAt = 0;
+    run.entities = [partAt('ram', playerXFor(run.viewWidth), points)];
     return run;
   }
 
-  it('pauses on a CompuClass question and then holds the world still', () => {
+  it('pauses on a part touch and then holds the world still', () => {
     expect(RUNNER_QUESTIONS.some((question) => question.id === 'hw_e1')).toBe(true);
     const opened = tick(dueRun(), 16, { jump: true }, zero);
     const quiz = opened.events.find((event) => event.type === 'quiz');
     expect(opened.state.paused).toBe(true);
     expect(opened.state.quiz.id).toBe('hw_e1');
-    expect(opened.state.quiz.question).toBe(bank[0].question);
+    expect(opened.state.quiz.part).toBe('ram');
     expect(quiz).toEqual({
       type: 'quiz',
       id: 'hw_e1',
       question: bank[0].question,
       options: bank[0].options.slice(),
+      part: 'ram',
+      topic: 'hardware',
+      eliminated: null,
     });
+    expect(quiz.answer).toBeUndefined();
     expect(opened.events.some((event) => event.type === 'spawn')).toBe(false);
+    expect(opened.events.some((event) => event.type === 'collect')).toBe(false);
     quiz.options.push('leaked');
     expect(bank[0].options).toEqual(['Central Processing Unit', 'Computer Personal Unit']);
     const frozen = tick(opened.state, 40, { jump: true }, zero);
@@ -292,18 +313,37 @@ describe('quiz breaks', () => {
     expect(frozen.events).toEqual([]);
   });
 
-  it('draws the first real question when no test bank is installed', () => {
-    const run = createRun(900);
-    run.nextSpawnAt = 1e12;
-    run.nextQuizAt = 0;
-    const opened = tick(run, 16, {}, zero);
-    expect(opened.state.quiz.id).toBe(RUNNER_QUESTIONS[0].id);
-    expect(opened.state.quiz.question).toBe(RUNNER_QUESTIONS[0].question);
-    expect(opened.events.find((event) => event.type === 'quiz').options).toEqual(RUNNER_QUESTIONS[0].options);
+  it('asks a question about the part that was touched', () => {
+    const expectPart = (kind, topic, pattern) => {
+      const run = createRun(900);
+      run.nextSpawnAt = 1e12;
+      run.entities = [partAt(kind, playerXFor(run.viewWidth), 10, kind === 'router' || kind === 'lock' ? 'power' : 'pickup')];
+      const opened = tick(run, 16, {}, zero);
+      const quiz = opened.events.find((event) => event.type === 'quiz');
+      const text = `${opened.state.quiz.question} ${opened.state.quiz.explanation}`.toLowerCase();
+      expect(quiz.part).toBe(kind);
+      expect(quiz.answer).toBeUndefined();
+      expect(opened.state.quiz.topic).toBe(topic);
+      expect(text).toMatch(pattern);
+    };
+    expectPart('ram', 'hardware', /ram|memory/);
+    expectPart('drive', 'hardware', /ssd|hard drive|hdd|storage/);
+    expectPart('database', 'databases', /database|sql/);
+    expectPart('router', 'networking', /router/);
+    expectPart('lock', 'cybersecurity', /encrypt|https|padlock|password|firewall/);
   });
 
-  it('awards the question points and grows the streak multiplier', () => {
-    const opened = tick(dueRun(), 16, {}, zero);
+  it('does not open a question on a timer when nothing is touched', () => {
+    const run = createRun(900);
+    run.nextSpawnAt = 1e12;
+    run.elapsed = QUIZ_COOLDOWN_MS;
+    const opened = tick(run, 16, {}, zero);
+    expect(opened.state.quiz).toBeNull();
+    expect(opened.state.paused).toBe(false);
+  });
+
+  it('awards the part points times the streak multiplier', () => {
+    const opened = tick(dueRun(10), 16, {}, zero);
     const first = answerQuiz(opened.state, '0');
     expect(first.state.quiz).toBeNull();
     expect(first.state.paused).toBe(false);
@@ -313,7 +353,11 @@ describe('quiz breaks', () => {
     expect(first.state.score).toBe(10 + distancePoints(first.state.distance));
     expect(first.events[0]).toMatchObject({ type: 'quiz-result', correct: true, points: 10, streak: 1, multiplier: 1 });
 
-    const again = { ...first.state, elapsed: first.state.nextQuizAt };
+    const again = {
+      ...first.state,
+      elapsed: first.state.nextQuizAt,
+      entities: [partAt('usb', playerXFor(first.state.viewWidth), 20)],
+    };
     const secondOpen = tick(again, 16, {}, zero);
     expect(secondOpen.state.quiz.id).toBe('q2');
     const second = answerQuiz(secondOpen.state, 1);
@@ -322,6 +366,48 @@ describe('quiz breaks', () => {
     expect(second.state.pickupScore).toBe(40);
     expect(second.events[0].points).toBe(30);
     expect(answerQuiz(second.state, 0).state).toBe(second.state);
+  });
+
+  it('waits out a cooldown before the next part can ask a question', () => {
+    const opened = tick(dueRun(10), 16, {}, zero);
+    const answered = answerQuiz(opened.state, 0);
+    const early = {
+      ...answered.state,
+      entities: [partAt('ram', playerXFor(answered.state.viewWidth), 10)],
+    };
+    const blocked = tick(early, 16, {}, zero);
+    expect(blocked.events.some((event) => event.type === 'quiz')).toBe(false);
+    expect(blocked.events.some((event) => event.type === 'collect')).toBe(true);
+    expect(blocked.state.pickupScore).toBe(20);
+    const later = {
+      ...blocked.state,
+      elapsed: blocked.state.nextQuizAt,
+      entities: [partAt('drive', playerXFor(blocked.state.viewWidth), 15)],
+    };
+    const again = tick(later, 16, {}, zero);
+    expect(again.events.some((event) => event.type === 'quiz' && event.part === 'drive')).toBe(true);
+  });
+
+  it('asks about a plain cpu chip only sometimes, and does not stack two questions', () => {
+    const run = createRun(900);
+    run.nextSpawnAt = 1e12;
+    run.entities = [partAt('cpu', playerXFor(run.viewWidth), 10)];
+    const skipped = tick(run, 16, {}, () => 0.9);
+    expect(0.9).toBeGreaterThanOrEqual(CPU_QUIZ_CHANCE);
+    expect(skipped.state.quiz).toBeNull();
+    expect(skipped.events.some((event) => event.type === 'collect')).toBe(true);
+
+    const asked = tick({ ...run, entities: [partAt('cpu', playerXFor(run.viewWidth), 10)] }, 16, {}, zero);
+    expect(asked.events.find((event) => event.type === 'quiz').part).toBe('cpu');
+
+    const stacked = dueRun();
+    stacked.entities = [
+      partAt('ram', playerXFor(stacked.viewWidth), 10),
+      partAt('usb', playerXFor(stacked.viewWidth), 10),
+    ];
+    const opened = tick(stacked, 16, {}, zero);
+    expect(opened.events.filter((event) => event.type === 'quiz')).toHaveLength(1);
+    expect(opened.state.entities.some((entity) => entity.kind === 'usb')).toBe(true);
   });
 
   it('drops a life and clears the streak on a wrong answer', () => {
@@ -376,10 +462,155 @@ describe('quiz breaks', () => {
     state.nextSpawnAt = 1e12;
     state.quizBank = [bank[0]];
     state.askedIds = ['hw_e1'];
-    state.elapsed = QUIZ_INTERVAL_MS;
-    state.nextQuizAt = QUIZ_INTERVAL_MS;
+    state.entities = [partAt('ram', playerXFor(state.viewWidth), 10)];
     const repeat = tick(state, 16, {}, zero);
     expect(repeat.state.quiz.id).toBe('hw_e1');
     expect(repeat.state.paused).toBe(true);
+  });
+
+  it('uses a stored hint to remove one wrong option', () => {
+    const ready = dueRun();
+    ready.hints = 1;
+    const opened = tick(ready, 16, {}, zero);
+    expect(opened.state.hints).toBe(0);
+    expect(opened.state.quiz.eliminated).toBe(1);
+    expect(opened.state.quiz.eliminated).not.toBe(opened.state.quiz.answer);
+    expect(opened.events.find((event) => event.type === 'quiz').eliminated).toBe(1);
+  });
+});
+
+describe('power-ups and parts', () => {
+  function quietRun() {
+    const run = createRun(900);
+    run.nextSpawnAt = 1e12;
+    run.nextQuizAt = 1e12;
+    return run;
+  }
+
+  it('blocks a hit with a shield and caps extra lives', () => {
+    const shielded = quietRun();
+    shielded.shield = 1;
+    shielded.entities = [virusAt(playerXFor(shielded.viewWidth))];
+    const blocked = tick(shielded, 0, {}, zero);
+    expect(blocked.state.lives).toBe(START_LIVES);
+    expect(blocked.state.shield).toBe(0);
+    expect(blocked.events.some((event) => event.type === 'block')).toBe(true);
+
+    const full = quietRun();
+    full.lives = MAX_LIVES;
+    full.entities = [partAt('heart', playerXFor(full.viewWidth), 0, 'power')];
+    expect(tick(full, 16, {}, zero).state.lives).toBe(MAX_LIVES);
+    const room = quietRun();
+    room.lives = MAX_LIVES - 1;
+    room.entities = [partAt('cloud', playerXFor(room.viewWidth), 0, 'power')];
+    expect(tick(room, 16, {}, zero).state.lives).toBe(MAX_LIVES);
+  });
+
+  it('doubles points while a gpu is active and scores a database at 100', () => {
+    expect(entitySpec('database').points).toBe(100);
+    const doubled = quietRun();
+    doubled.gpuUntil = 1e12;
+    doubled.entities = [partAt('cpu', playerXFor(doubled.viewWidth), 10)];
+    const award = tick(doubled, 16, {}, zero).events.find((event) => event.type === 'collect');
+    expect(award.points).toBe(20);
+
+    const database = quietRun();
+    database.entities = [partAt('database', playerXFor(database.viewWidth), 100)];
+    expect(tick(database, 16, {}, zero).state.pickupScore).toBe(100);
+  });
+
+  it('pulls parts with a magnet, auto-collects, boosts speed, and delays the next question', () => {
+    const x = playerXFor(900) + 300;
+    const base = quietRun();
+    base.entities = [partAt('cpu', x, 10)];
+    const plain = tick(base, 16, {}, zero);
+    const magnet = quietRun();
+    magnet.magnetUntil = 1e12;
+    magnet.entities = [partAt('cpu', x, 10)];
+    const pulled = tick(magnet, 16, {}, zero);
+    expect(pulled.state.entities[0].x).toBeLessThan(plain.state.entities[0].x);
+
+    const auto = quietRun();
+    auto.autoUntil = 1e12;
+    auto.entities = [partAt('cpu', playerXFor(auto.viewWidth) + 150, 10)];
+    expect(tick(auto, 16, {}, zero).events.some((event) => event.type === 'collect')).toBe(true);
+
+    const fast = quietRun();
+    fast.speedUntil = 1e12;
+    const boosted = tick(fast, 16, {}, zero);
+    expect(boosted.state.speed).toBeCloseTo(speedForDistance(0) * SPEED_BOOST, 5);
+
+    const plug = quietRun();
+    plug.nextQuizAt = 0;
+    plug.entities = [partAt('plug', playerXFor(plug.viewWidth), 0, 'power')];
+    const charged = tick(plug, 16, {}, zero);
+    expect(charged.state.nextQuizAt).toBe(charged.state.elapsed + PLUG_MS);
+    expect(charged.state.quiz).toBeNull();
+  });
+
+  it('treats a lock as a shield and revives from a floppy checkpoint', () => {
+    const lock = createRun(900);
+    lock.nextSpawnAt = 1e12;
+    lock.entities = [partAt('lock', playerXFor(lock.viewWidth), 0, 'power')];
+    const saved = tick(lock, 16, {}, zero);
+    expect(saved.state.shield).toBe(1);
+    expect(saved.state.quiz.part).toBe('lock');
+
+    let state = quietRun();
+    state.entities = [partAt('floppy', playerXFor(state.viewWidth), 0, 'power')];
+    state = tick(state, 16, {}, zero).state;
+    expect(state.checkpoint.lives).toBe(START_LIVES);
+    state = { ...state, lives: 1, entities: [virusAt(playerXFor(state.viewWidth))] };
+    const revived = tick(state, 0, {}, zero);
+    expect(revived.state.phase).toBe('playing');
+    expect(revived.state.lives).toBe(START_LIVES);
+    expect(revived.events.some((event) => event.type === 'revive')).toBe(true);
+    expect(revived.events.some((event) => event.type === 'dead')).toBe(false);
+    expect(revived.state.entities).toEqual([]);
+  });
+
+  it('keeps obstacle waves fair and power-ups rarer than parts', () => {
+    let points = 0;
+    let powers = 0;
+    for (let i = 0; i < 400; i += 1) {
+      const run = createRun(800);
+      run.distance = i * 40;
+      const wave = planSpawn(run, Math.random);
+      expect(waveIsFair(wave.entities)).toBe(true);
+      wave.entities.forEach((entity) => {
+        if (entity.group === 'pickup') points += 1;
+        if (entity.group === 'power') powers += 1;
+      });
+    }
+    expect(points).toBeGreaterThan(powers);
+    expect(powers).toBeGreaterThan(0);
+  });
+
+  it('stores the night city as dark and anything else as light', () => {
+    expect(normalizeWorld('dark')).toBe('dark');
+    expect(normalizeWorld('light')).toBe('light');
+    expect(normalizeWorld('')).toBe('light');
+    expect(normalizeWorld(null)).toBe('light');
+  });
+});
+
+describe('pause facts', () => {
+  it('rotates a curriculum fact without repeating the one just shown', () => {
+    expect(RUNNER_FACTS.length).toBeGreaterThanOrEqual(60);
+    const topics = new Set(RUNNER_FACTS.map((fact) => fact.topic));
+    ['hardware', 'networking', 'software', 'data', 'cybersecurity', 'databases'].forEach((topic) => {
+      expect(topics.has(topic)).toBe(true);
+    });
+    const first = nextRunnerFact(null, zero);
+    let previous = first.id;
+    const seen = new Set([first.id]);
+    for (let i = 0; i < RUNNER_FACTS.length; i += 1) {
+      const next = nextRunnerFact(previous, zero);
+      expect(next.id).not.toBe(previous);
+      seen.add(next.id);
+      previous = next.id;
+    }
+    expect(seen.size).toBeGreaterThan(1);
+    expect(nextRunnerFact(RUNNER_FACTS[0].id, () => 0.999).id).not.toBe(RUNNER_FACTS[0].id);
   });
 });

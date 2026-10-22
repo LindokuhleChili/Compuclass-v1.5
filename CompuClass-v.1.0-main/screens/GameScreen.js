@@ -3,7 +3,6 @@ import {
   View, Text, StyleSheet, useWindowDimensions, Pressable, Image,
   Animated, PanResponder, StatusBar, Platform, ScrollView,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,15 +14,17 @@ import { gameRunnerService } from '../services/gameRunnerService';
 import { font } from '../components/ui/kit';
 import { useTheme } from '../context/ThemeContext';
 import { runnerArt } from '../assets/runner/art';
+import { nextRunnerFact } from '../data/runnerFacts';
 import { createRunnerAudio } from '../utils/runnerAudio';
 import {
-  INITIAL_SPEED,
-  JUMP_APEX,
+  MAX_LIVES,
+  WORLD_STORAGE_KEY,
   answerQuiz,
   createRun,
   factById,
   factForRun,
   keyAction,
+  normalizeWorld,
   playfieldBox,
   playerCenterFor,
   runnerDisplayName,
@@ -40,12 +41,13 @@ const PANEL = '#10203A';
 
 const KIND_SIZE = {
   virus: { w: 58, h: 58, lift: 0 },
-  firewall: { w: 62, h: 70, lift: 78 },
-  circuit: { w: 64, h: 72, lift: 0 },
-  coin: { w: 40, h: 40, lift: 36 },
-  gem: { w: 36, h: 36, lift: 48 },
-  chip: { w: 52, h: 52, lift: 28 },
+  short: { w: 64, h: 48, lift: 0 },
+  cable: { w: 86, h: 40, lift: 0 },
+  server: { w: 58, h: 110, lift: 0 },
+  bug: { w: 52, h: 52, lift: 0 },
 };
+const DEFAULT_SIZE = { w: 48, h: 48, lift: 28 };
+const pixelStyle = Platform.OS === 'web' ? { imageRendering: 'pixelated' } : null;
 
 function buzz(kind) {
   try {
@@ -93,68 +95,67 @@ function Outlined({ children, size, color = '#fff', align = 'center' }) {
   );
 }
 
-function Scroller({ distance, factor, width, children }) {
-  const span = Math.max(width, 320);
-  const shift = -((distance * factor) % span);
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <View style={[styles.span, { left: shift, width: span }]}>{children}</View>
-      <View style={[styles.span, { left: shift + span, width: span }]}>{children}</View>
-    </View>
-  );
+function tiledImages(source, nativeW, nativeH, scale, top, width, distance, factor) {
+  const tileW = nativeW * scale;
+  const tileH = nativeH * scale;
+  const shift = -(((distance * factor) % tileW) + tileW) % tileW;
+  const cols = Math.ceil(width / tileW) + 2;
+  const tiles = [];
+  for (let col = 0; col < cols; col += 1) {
+    tiles.push(
+      <Image
+        key={col}
+        source={source}
+        resizeMode="stretch"
+        style={[{ position: 'absolute', left: shift + col * tileW, top, width: tileW, height: tileH }, pixelStyle]}
+      />
+    );
+  }
+  return tiles;
 }
 
-function Sky({ distance, width, height }) {
+function Sky({ distance, width, height, groundY, world }) {
+  const night = world === 'dark';
+  const sky = night ? runnerArt.world.nightSky : runnerArt.world.sky;
+  const buildings = night ? runnerArt.world.nightBuildings : runnerArt.world.buildings;
+  const skyScale = Math.max(2, Math.ceil(height / 224));
+  const buildingScale = groundY >= 129 * 3 ? 3 : 2;
+  const buildingH = 129 * buildingScale;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <LinearGradient colors={['#D7ECFA', '#F7FBFD']} style={StyleSheet.absoluteFill} />
-      <Scroller distance={distance} factor={0.35} width={width}>
-        <Image source={runnerArt.bg.cloud1} style={{ position: 'absolute', left: width * 0.08, top: height * 0.12, width: 180, height: 90 }} resizeMode="contain" />
-        <Image source={runnerArt.bg.cloud3} style={{ position: 'absolute', left: width * 0.48, top: height * 0.28, width: 160, height: 84 }} resizeMode="contain" />
-        <Image source={runnerArt.bg.cloud5} style={{ position: 'absolute', left: width * 0.78, top: height * 0.08, width: 170, height: 88 }} resizeMode="contain" />
-      </Scroller>
+      {tiledImages(sky, 112, 224, skyScale, 0, width, distance, 0.12)}
+      {tiledImages(buildings, 192, 129, buildingScale, groundY - buildingH, width, distance, 0.42)}
     </View>
   );
 }
 
 function Ground({ distance, width, groundY, height }) {
-  const tileW = 256;
-  const tileH = 64;
-  const shift = -((distance % tileW) + tileW) % tileW;
-  const cols = Math.ceil(width / tileW) + 2;
-  const rows = Math.max(1, Math.ceil((height - groundY) / tileH));
-  const tiles = [];
-  for (let row = 0; row < rows; row += 1) {
-    for (let col = 0; col < cols; col += 1) {
-      tiles.push(
-        <Image
-          key={`${row}-${col}`}
-          source={runnerArt.ground}
-          resizeMode="stretch"
-          style={{ position: 'absolute', left: shift + col * tileW, top: groundY + row * tileH, width: tileW + 1, height: tileH }}
-        />
-      );
-    }
-  }
-  return <View style={StyleSheet.absoluteFill} pointerEvents="none">{tiles}</View>;
+  const plate = 70;
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <View style={{ position: 'absolute', left: 0, right: 0, top: groundY + plate, bottom: 0, backgroundColor: '#2A2E33' }} />
+      {tiledImages(runnerArt.plate, plate, plate, 1, groundY, width, distance, 1)}
+    </View>
+  );
 }
 
 function entityNode(entity, groundY) {
-  const spec = KIND_SIZE[entity.kind];
-  if (!spec) return null;
-  const source = entity.group === 'pickup' ? runnerArt.items[entity.kind] : runnerArt.obstacles[entity.kind];
+  const spec = { ...(KIND_SIZE[entity.kind] || DEFAULT_SIZE) };
+  if (entity.kind === 'bug' && entity.air) spec.lift = 86;
+  const source = runnerArt.icons[entity.kind];
+  if (!source) return null;
   return (
     <Image
       key={entity.id}
       source={source}
       resizeMode="contain"
-      style={{
+      style={[{
         position: 'absolute',
         left: entity.x,
         top: groundY - spec.h - spec.lift,
         width: spec.w,
         height: spec.h,
-      }}
+      }, pixelStyle]}
     />
   );
 }
@@ -180,7 +181,7 @@ function RunnerSprite({ pose, center, groundY, lift }) {
           key={name}
           source={runnerArt.player[name]}
           resizeMode="contain"
-          style={[styles.playerSprite, { opacity: pose === name ? 1 : 0 }]}
+          style={[styles.playerSprite, pixelStyle, { opacity: pose === name ? 1 : 0 }]}
         />
       ))}
     </View>
@@ -199,6 +200,9 @@ export default function GameScreen({ navigation, route }) {
 
   const [phase, setPhase] = useState('start');
   const [paused, setPaused] = useState(false);
+  const [worldTheme, setWorldTheme] = useState(normalizeWorld(route?.params?.world));
+  const [pauseFact, setPauseFact] = useState(null);
+  const factIdRef = useRef(null);
   const [count, setCount] = useState(0);
   const [muted, setMuted] = useState(false);
   const [run, setRun] = useState(() => createRun(800));
@@ -245,6 +249,14 @@ export default function GameScreen({ navigation, route }) {
   multiRef.current = isMulti;
   roomRef.current = roomId;
   overStepRef.current = overStep;
+
+  useEffect(() => {
+    let live = true;
+    AsyncStorage.getItem(WORLD_STORAGE_KEY).then((value) => {
+      if (live && value) setWorldTheme(normalizeWorld(value));
+    }).catch(() => {});
+    return () => { live = false; };
+  }, []);
 
   useEffect(() => {
     const loop = Animated.loop(Animated.sequence([
@@ -410,14 +422,29 @@ export default function GameScreen({ navigation, route }) {
         audioRef.current.play('hit');
         buzz('error');
       } else if (event.type === 'collect') {
-        audioRef.current.play(event.kind === 'chip' ? 'chip' : 'coin');
+        audioRef.current.play(event.line ? 'chip' : 'coin');
         const label = event.multiplier > 1 ? `+${event.points}  x${event.multiplier}` : `+${event.points}`;
         setFloater({ id: `${event.kind}-${world.current.elapsed}`, text: label, scale: 1 + Math.min(1.2, (event.streak || 1) * 0.12) });
-        if (event.kind === 'chip' && event.line) {
+        if (event.line) {
           setToast({ id: world.current.elapsed, title: event.title, line: event.line });
         }
+      } else if (event.type === 'power') {
+        audioRef.current.play('chip');
+        setFloater({ id: `power-${world.current.elapsed}`, text: event.label, scale: 1.1 });
+      } else if (event.type === 'block') {
+        audioRef.current.play('hit');
+        setFloater({ id: `block-${world.current.elapsed}`, text: 'Blocked', scale: 1.05 });
+      } else if (event.type === 'revive') {
+        audioRef.current.play('chip');
+        setToast({ id: world.current.elapsed, title: 'Checkpoint', line: 'The floppy disk brought you back.', plain: true });
       } else if (event.type === 'quiz') {
-        setQuizPrompt({ id: event.id, question: event.question, options: (event.options || []).slice() });
+        setQuizPrompt({
+          id: event.id,
+          question: event.question,
+          options: (event.options || []).slice(),
+          part: event.part || null,
+          eliminated: event.eliminated,
+        });
         setPaused(true);
       } else if (event.type === 'quiz-result') {
         if (event.correct) {
@@ -508,6 +535,7 @@ export default function GameScreen({ navigation, route }) {
     setFloater(null);
     setToast(null);
     setQuizPrompt(null);
+    setPauseFact(null);
     setBits([]);
     setShownScore(0);
     setOverStep(0);
@@ -523,7 +551,12 @@ export default function GameScreen({ navigation, route }) {
     setPaused((value) => {
       const next = !value;
       world.current.paused = next;
-      if (next) setCount(0);
+      if (next) {
+        setCount(0);
+        const fact = nextRunnerFact(factIdRef.current, Math.random);
+        factIdRef.current = fact.id;
+        setPauseFact(fact);
+      }
       return next;
     });
   }, []);
@@ -575,7 +608,7 @@ export default function GameScreen({ navigation, route }) {
         const options = world.current.quiz.options || [];
         if (/^[1-9]$/.test(event.key)) {
           const index = Number(event.key) - 1;
-          if (index < options.length) {
+          if (index < options.length && index !== world.current.quiz.eliminated) {
             event.preventDefault();
             answerRef.current(index);
           }
@@ -648,8 +681,8 @@ export default function GameScreen({ navigation, route }) {
 
   const worldView = (
     <View style={[styles.frame, frameStyle]} {...(phase === 'playing' ? panResponder.panHandlers : {})}>
-      <Sky distance={distance} width={field.width} height={field.height} />
-      <Ground distance={distance} width={field.width} groundY={groundY} height={field.height} />
+      <Sky distance={distance} width={field.width} height={field.height} groundY={groundY} world={worldTheme} />
+      <Ground distance={distance} width={field.width} groundY={groundY} />
       {phase !== 'start' ? run.entities.map((entity) => entityNode(entity, groundY)) : null}
       {phase !== 'start' && isMulti ? otherPlayers.map((player, index) => (
         <View key={player.user_id} style={[styles.ghost, { left: center - 120 - index * 18, top: groundY - 96 }]}>
@@ -691,7 +724,7 @@ export default function GameScreen({ navigation, route }) {
             <Text style={[styles.tipText, font(theme, 'semibold')]}>Down or swipe down to duck</Text>
           </View>
           <Text style={[styles.tipText, font(theme, 'semibold')]}>
-            Questions pause the run. A right answer scores. A wrong one costs a life.
+            Grab a computer part to answer a question. A right answer scores. A wrong one costs a life.
           </Text>
           {highScore > 0 ? <Text style={[styles.bestLine, font(theme, 'semibold')]}>Best {highScore}</Text> : null}
           <Animated.Text style={[styles.pressHint, { opacity: pulse }, font(theme, 'display')]}>
@@ -705,9 +738,9 @@ export default function GameScreen({ navigation, route }) {
           <View pointerEvents="none">
             <Outlined size={40} align="left">{run.score}</Outlined>
             <Text style={[styles.hudSub, font(theme, 'semibold')]}>Best {Math.max(highScore, run.score)}</Text>
-            <Text style={[styles.hudSub, font(theme, 'semibold')]}>Coins {run.coinCount || 0}</Text>
+            <Text style={[styles.hudSub, font(theme, 'semibold')]}>Parts {run.coinCount || 0}</Text>
             <View style={styles.cells}>
-              {[0, 1, 2].map((index) => (
+              {Array.from({ length: MAX_LIVES }, (_, index) => (
                 <View key={index} style={[styles.cell, index < run.lives ? styles.cellOn : styles.cellOff]} />
               ))}
             </View>
@@ -730,7 +763,7 @@ export default function GameScreen({ navigation, route }) {
 
       {toast && phase === 'playing' ? (
         <View style={[styles.toast, { top: frameTop + 108 }]} pointerEvents="none">
-          {toast.plain ? null : <Image source={runnerArt.items.chip} style={styles.tipIcon} />}
+          {toast.plain ? null : <Image source={runnerArt.icons.cpu} style={styles.tipIcon} />}
           <View style={{ flex: 1 }}>
             <Text style={[styles.toastTitle, font(theme, 'semibold')]}>{toast.title}</Text>
             <Text style={styles.toastLine}>{toast.line}</Text>
@@ -762,19 +795,27 @@ export default function GameScreen({ navigation, route }) {
       {quizPrompt && phase === 'playing' ? (
         <View style={styles.quizScrim}>
           <ScrollView style={styles.quizScroll} contentContainerStyle={styles.quizCard}>
+            {quizPrompt.part && runnerArt.icons[quizPrompt.part] ? (
+              <Image source={runnerArt.icons[quizPrompt.part]} style={styles.quizPart} accessibilityElementsHidden />
+            ) : null}
             <Text style={[styles.quizKicker, font(theme, 'semibold')]}>COMPUCLASS</Text>
             <Text style={[styles.quizQuestion, font(theme, 'semibold')]}>{quizPrompt.question}</Text>
-            {quizPrompt.options.map((option, index) => (
-              <Pressable
-                key={`${quizPrompt.id}-${index}`}
-                onPress={() => submitAnswer(index)}
-                accessibilityRole="button"
-                accessibilityLabel={`Answer ${index + 1}: ${option}`}
-                style={({ pressed }) => [styles.quizBtn, { opacity: pressed ? 0.88 : 1 }]}
-              >
-                <Text style={[styles.quizBtnText, font(theme, 'semibold')]}>{`${index + 1}. ${option}`}</Text>
-              </Pressable>
-            ))}
+            {quizPrompt.options.map((option, index) => {
+              const gone = index === quizPrompt.eliminated;
+              return (
+                <Pressable
+                  key={`${quizPrompt.id}-${index}`}
+                  onPress={gone ? undefined : () => submitAnswer(index)}
+                  disabled={gone}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: gone }}
+                  accessibilityLabel={`Answer ${index + 1}: ${option}`}
+                  style={({ pressed }) => [styles.quizBtn, { opacity: gone ? 0.35 : (pressed ? 0.88 : 1) }]}
+                >
+                  <Text style={[styles.quizBtnText, font(theme, 'semibold')]}>{`${index + 1}. ${option}`}</Text>
+                </Pressable>
+              );
+            })}
           </ScrollView>
         </View>
       ) : null}
@@ -784,6 +825,13 @@ export default function GameScreen({ navigation, route }) {
           {count > 0 ? <Outlined size={96}>{count}</Outlined> : (
             <View style={styles.panel}>
               <Outlined size={32}>Paused</Outlined>
+              {pauseFact ? (
+                <View style={styles.factCard}>
+                  <Text style={[styles.factKicker, font(theme, 'semibold')]}>{pauseFact.label || 'COMPUCLASS'}</Text>
+                  <Text style={[styles.factTitle, font(theme, 'h2')]}>{pauseFact.title}</Text>
+                  <Text style={styles.factBody}>{pauseFact.body}</Text>
+                </View>
+              ) : null}
               <GameButton label="Resume" onPress={requestResume} icon={runnerArt.ui.play} />
               <GameButton label="Sound" onPress={toggleMute} icon={muted ? runnerArt.ui.audioOff : runnerArt.ui.audioOn} />
               <GameButton label="Quit to lobby" onPress={exitToLobby} icon={runnerArt.ui.home} />
@@ -908,6 +956,7 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 10,
   },
+  quizPart: { width: 64, height: 64, alignSelf: 'center' },
   quizKicker: { color: '#FFC83D', fontSize: 12, letterSpacing: 1, textAlign: 'center' },
   quizQuestion: { color: '#fff', fontSize: 20, lineHeight: 28, textAlign: 'center', marginBottom: 4 },
   quizBtn: {

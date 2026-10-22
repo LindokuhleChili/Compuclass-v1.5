@@ -3,6 +3,7 @@
 // One plane: jump the ground hazards, duck the overhead ones.
 
 import { ALL_QUESTIONS } from '../data/circuitMazeQuestions';
+import { PART_QUESTIONS } from '../data/runnerPartQuestions';
 
 export const PLAYER_X_RATIO = 0.22;
 export const CLEAR_GAP = 200;
@@ -47,22 +48,91 @@ export const INVINCIBLE_MS = 1100;
 export const COMBO_WINDOW_MS = 1600;
 export const MAX_MULTIPLIER = 4;
 export const START_LIVES = 3;
-export const QUIZ_INTERVAL_MS = 12000;
+export const QUIZ_COOLDOWN_MS = 6500;
+export const CPU_QUIZ_CHANCE = 0.34;
 export const QUIZ_BASE_POINTS = 20;
+export const MAX_LIVES = 5;
+export const GPU_MS = 10000;
+export const MAGNET_MS = 8000;
+export const AUTO_MS = 7000;
+export const SPEED_MS = 6000;
+export const PLUG_MS = 8000;
+export const SPEED_BOOST = 1.35;
+export const BONUS_POINTS = 200;
+export const WORLD_STORAGE_KEY = 'compurunner_world';
 
-export const RUNNER_QUESTIONS = Object.values(ALL_QUESTIONS).flat();
+export function normalizeWorld(value) {
+  return value === 'dark' ? 'dark' : 'light';
+}
+
+export const RUNNER_QUESTIONS = Object.values(ALL_QUESTIONS).flat().concat(PART_QUESTIONS);
 
 const RUN_HIT = { y0: 10, y1: 72, w: 36 };
 const DUCK_HIT = { y0: 0, y1: 30, w: 52 };
 
-// Virus and circuit sit on the floor (jump them). Firewall hangs overhead (duck it).
+// Ground hazards are jumped. An air bug is ducked. The server is tall, so only the top of a jump clears it.
+const BUG_AIR = { y0: 86, y1: 148, w: 46, group: 'obstacle', air: true };
 const HITBOX = {
   virus: { y0: 0, y1: 44, w: 48, group: 'obstacle', air: false },
-  firewall: { y0: 80, y1: 156, w: 64, group: 'obstacle', air: true },
-  circuit: { y0: 0, y1: 70, w: 56, group: 'obstacle', air: false },
-  coin: { y0: 18, y1: 70, w: 36, group: 'pickup', points: 10 },
-  gem: { y0: 22, y1: 74, w: 34, group: 'pickup', points: 25 },
-  chip: { y0: 16, y1: 78, w: 40, group: 'pickup', points: 40 },
+  short: { y0: 0, y1: 36, w: 56, group: 'obstacle', air: false },
+  cable: { y0: 0, y1: 34, w: 78, group: 'obstacle', air: false },
+  server: { y0: 0, y1: 100, w: 52, group: 'obstacle', air: false },
+  bug: { y0: 0, y1: 42, w: 46, group: 'obstacle', air: false },
+  cpu: { y0: 16, y1: 70, w: 40, group: 'pickup', points: 10 },
+  ram: { y0: 16, y1: 70, w: 40, group: 'pickup', points: 15 },
+  drive: { y0: 16, y1: 70, w: 40, group: 'pickup', points: 20 },
+  usb: { y0: 16, y1: 70, w: 40, group: 'pickup', points: 15 },
+  keyboard: { y0: 12, y1: 64, w: 52, group: 'pickup', points: 20 },
+  mouse: { y0: 16, y1: 66, w: 36, group: 'pickup', points: 15 },
+  database: { y0: 14, y1: 74, w: 42, group: 'pickup', points: 100 },
+  code: { y0: 16, y1: 70, w: 40, group: 'pickup', points: 25 },
+  braces: { y0: 16, y1: 70, w: 40, group: 'pickup', points: 25 },
+  shield: { y0: 16, y1: 74, w: 40, group: 'power' },
+  heart: { y0: 18, y1: 70, w: 36, group: 'power' },
+  gpu: { y0: 16, y1: 74, w: 40, group: 'power' },
+  floppy: { y0: 16, y1: 70, w: 40, group: 'power' },
+  router: { y0: 14, y1: 72, w: 44, group: 'power' },
+  wifi: { y0: 18, y1: 72, w: 40, group: 'power' },
+  plug: { y0: 12, y1: 74, w: 36, group: 'power' },
+  battery: { y0: 12, y1: 76, w: 36, group: 'power' },
+  cloud: { y0: 20, y1: 70, w: 46, group: 'power' },
+  lock: { y0: 14, y1: 74, w: 36, group: 'power' },
+  key: { y0: 16, y1: 70, w: 40, group: 'power' },
+  magnet: { y0: 16, y1: 72, w: 40, group: 'power' },
+  monitor: { y0: 12, y1: 74, w: 46, group: 'power' },
+  terminal: { y0: 12, y1: 74, w: 46, group: 'power' },
+  bulb: { y0: 10, y1: 74, w: 36, group: 'power' },
+};
+
+const POINT_WEIGHTS = {
+  cpu: 0.26, ram: 0.22, usb: 0.08, mouse: 0.08, keyboard: 0.08,
+  drive: 0.08, code: 0.07, braces: 0.07, database: 0.06,
+};
+const POWER_KINDS = [
+  'shield', 'heart', 'gpu', 'floppy', 'router', 'wifi', 'plug', 'battery',
+  'cloud', 'lock', 'key', 'magnet', 'monitor', 'terminal', 'bulb',
+];
+
+// A part touch opens a question from this topic. Plain CPU chips only sometimes do.
+export const PART_TOPICS = {
+  cpu: { topic: 'hardware', keywords: ['cpu', 'processor'], chance: CPU_QUIZ_CHANCE },
+  ram: { topic: 'hardware', keywords: ['ram', 'memory'] },
+  drive: { topic: 'hardware', keywords: ['ssd', 'hard drive', 'hdd', 'storage'] },
+  usb: { topic: 'hardware', keywords: ['usb'] },
+  keyboard: { topic: 'hardware', keywords: ['keyboard'] },
+  mouse: { topic: 'hardware', keywords: ['mouse', 'pointer'] },
+  database: { topic: 'databases', keywords: ['database', 'sql'] },
+  code: { topic: 'software', keywords: ['xml', 'markup', 'source code', 'compiler'] },
+  braces: { topic: 'software', keywords: ['brace', 'curly'] },
+  gpu: { topic: 'hardware', keywords: ['gpu', 'graphics'] },
+  floppy: { topic: 'hardware', keywords: ['floppy', 'disk'] },
+  router: { topic: 'networking', keywords: ['router'] },
+  wifi: { topic: 'networking', keywords: ['wi-fi', 'wifi', 'wireless'] },
+  lock: { topic: 'cybersecurity', keywords: ['encrypt', 'https', 'padlock', 'password'] },
+  shield: { topic: 'cybersecurity', keywords: ['firewall'] },
+  monitor: { topic: 'hardware', keywords: ['monitor', 'display'] },
+  terminal: { topic: 'software', keywords: ['terminal', 'command'] },
+  bulb: { topic: 'software', keywords: ['program', 'source code'] },
 };
 
 export const MILESTONES = [200, 500, 1000, 2000, 4000];
@@ -164,9 +234,19 @@ export function scorePickup({ points, streak, lastPickupAt, now }) {
 }
 
 export function obstacleWeights(difficulty) {
-  const circuit = clamp(difficulty, 0, 1) * 0.46;
-  const rest = 1 - circuit;
-  return { virus: rest * 0.56, firewall: rest * 0.44, circuit };
+  const t = clamp(difficulty, 0, 1);
+  const server = 0.06 + t * 0.1;
+  const cable = 0.12;
+  const bug = 0.16 + t * 0.06;
+  const short = 0.24;
+  const virus = Math.max(0.12, 1 - server - cable - bug - short);
+  return { virus, short, bug, cable, server };
+}
+
+export function boxFor(entity) {
+  if (!entity) return null;
+  if (entity.kind === 'bug' && entity.air) return BUG_AIR;
+  return HITBOX[entity.kind] || null;
 }
 
 export function pickWeighted(weights, rng) {
@@ -191,7 +271,7 @@ export function entitySpec(kind) {
 
 export function overlapsPlayer(state, entity) {
   const player = playerHitbox(state.pose, state.jumpH || 0);
-  const box = HITBOX[entity.kind];
+  const box = boxFor(entity);
   if (!box) return false;
   const px = playerXFor(state.viewWidth);
   const xOverlap = px < entity.x + box.w && px + player.w > entity.x;
@@ -237,7 +317,94 @@ function makeEntity(id, kind, x, factId) {
     factId: factId || null,
     points: spec.points || 0,
     resolved: false,
+    air: !!spec.air,
   };
+}
+
+function snapshotRun(state) {
+  return {
+    distance: state.distance,
+    pickupScore: state.pickupScore,
+    score: state.pickupScore + distancePoints(state.distance),
+    lives: state.lives,
+    quizStreak: state.quizStreak || 0,
+    quizMultiplier: state.quizMultiplier || 1,
+    coinCount: state.coinCount || 0,
+  };
+}
+
+function pointScale(state) {
+  return state.gpuUntil > state.elapsed ? 2 : 1;
+}
+
+export function grantPower(state, kind) {
+  let label = kind;
+  if (kind === 'shield' || kind === 'lock') {
+    state.shield += 1;
+    label = 'Shield';
+  } else if (kind === 'heart' || kind === 'cloud') {
+    state.lives = Math.min(MAX_LIVES, state.lives + 1);
+    label = 'Extra life';
+  } else if (kind === 'gpu') {
+    state.gpuUntil = state.elapsed + GPU_MS;
+    label = 'x2 points';
+  } else if (kind === 'floppy') {
+    state.checkpoint = snapshotRun(state);
+    label = 'Checkpoint';
+  } else if (kind === 'router' || kind === 'wifi') {
+    state.autoUntil = state.elapsed + AUTO_MS;
+    label = 'Auto-collect';
+  } else if (kind === 'plug') {
+    state.nextQuizAt = Math.max(state.nextQuizAt || 0, state.elapsed) + PLUG_MS;
+    label = 'Extra time';
+  } else if (kind === 'battery') {
+    state.speedUntil = state.elapsed + SPEED_MS;
+    label = 'Speed boost';
+  } else if (kind === 'key') {
+    const gained = Math.round(BONUS_POINTS * (state.quizMultiplier || 1) * pointScale(state));
+    state.pickupScore += gained;
+    state.invincibleUntil = Math.max(state.invincibleUntil || 0, state.elapsed + 2000);
+    label = `Bonus +${gained}`;
+  } else if (kind === 'magnet') {
+    state.magnetUntil = state.elapsed + MAGNET_MS;
+    label = 'Magnet';
+  } else if (kind === 'monitor' || kind === 'terminal' || kind === 'bulb') {
+    state.hints += 1;
+    label = 'Hint';
+  }
+  return label;
+}
+
+function reviveFromCheckpoint(state, events) {
+  if (!state.checkpoint) return false;
+  const saved = state.checkpoint;
+  state.lives = Math.max(1, saved.lives || 1);
+  state.distance = saved.distance || 0;
+  state.pickupScore = saved.pickupScore || 0;
+  state.score = saved.score || 0;
+  state.quizStreak = saved.quizStreak || 0;
+  state.quizMultiplier = saved.quizMultiplier || 1;
+  state.coinCount = saved.coinCount || 0;
+  state.phase = 'playing';
+  state.paused = false;
+  state.checkpoint = null;
+  state.entities = [];
+  state.pose = 'run';
+  state.jumpT = 0;
+  state.jumpH = 0;
+  state.duckT = 0;
+  state.hurtT = 0;
+  state.invincibleUntil = state.elapsed + INVINCIBLE_MS;
+  state.nextQuizAt = state.elapsed + QUIZ_COOLDOWN_MS;
+  events.push({ type: 'revive', score: state.score });
+  return true;
+}
+
+function eliminateWrong(quiz, rng) {
+  const wrong = (quiz.options || []).map((_, index) => index).filter((index) => index !== quiz.answer);
+  if (!wrong.length) return null;
+  const index = Math.min(wrong.length - 1, Math.floor(rng() * wrong.length));
+  return wrong[index];
 }
 
 function clearSpawnX(existing, x) {
@@ -263,30 +430,99 @@ export function planSpawn(state, rng) {
     return id;
   };
   const entities = [];
-  if (rng() < 0.36) {
-    const kindRoll = rng();
-    if (kindRoll < 0.18) {
-      const fact = HARDWARE_FACTS[Math.floor(rng() * HARDWARE_FACTS.length)];
-      entities.push(makeEntity(takeId(), 'chip', baseX, fact.id));
-    } else if (kindRoll < 0.42) {
-      entities.push(makeEntity(takeId(), 'gem', baseX));
+  if (rng() < 0.4) {
+    if (rng() < 0.14) {
+      const kind = POWER_KINDS[Math.floor(rng() * POWER_KINDS.length)];
+      entities.push(makeEntity(takeId(), kind, baseX));
     } else {
-      const count = rng() < 0.6 ? 3 : 1;
-      for (let i = 0; i < count; i += 1) {
-        entities.push(makeEntity(takeId(), 'coin', baseX + i * 86));
+      const kind = pickWeighted(POINT_WEIGHTS, rng);
+      if (kind === 'ram' && rng() < 0.7) {
+        for (let i = 0; i < 3; i += 1) entities.push(makeEntity(takeId(), 'ram', baseX + i * 78));
+      } else if (kind === 'cpu' && rng() < 0.22) {
+        const fact = HARDWARE_FACTS[Math.floor(rng() * HARDWARE_FACTS.length)];
+        entities.push(makeEntity(takeId(), 'cpu', baseX, fact.id));
+      } else {
+        entities.push(makeEntity(takeId(), kind, baseX));
       }
     }
   } else {
     const firstKind = pickWeighted(obstacleWeights(difficulty), rng);
-    entities.push(makeEntity(takeId(), firstKind, baseX));
-    if (rng() < 0.28 + difficulty * 0.2) {
-      let secondKind = firstKind === 'firewall' ? 'virus' : 'firewall';
-      if (rng() < 0.35) secondKind = 'circuit';
-      if (secondKind === 'circuit' && firstKind === 'circuit') secondKind = 'virus';
-      entities.push(makeEntity(takeId(), secondKind, baseX + CLEAR_GAP + 40));
+    const first = makeEntity(takeId(), firstKind, baseX);
+    if (firstKind === 'bug') first.air = rng() < 0.5;
+    entities.push(first);
+    if (rng() < 0.24 + difficulty * 0.16) {
+      let secondKind = first.air ? 'virus' : 'bug';
+      if (rng() < 0.28) secondKind = firstKind === 'server' ? 'short' : 'cable';
+      const second = makeEntity(takeId(), secondKind, baseX + CLEAR_GAP + 48);
+      if (secondKind === 'bug') second.air = !first.air;
+      entities.push(second);
     }
   }
   return { entities, nextId };
+}
+
+function questionText(question) {
+  return `${question.question || ''} ${question.explanation || ''}`.toLowerCase();
+}
+
+export function questionsForPart(kind, bank) {
+  const injected = Array.isArray(bank) && bank.length ? bank : null;
+  const spec = PART_TOPICS[kind];
+  if (injected && injected.every((question) => !question || !question.topic)) return injected;
+  const source = injected || RUNNER_QUESTIONS;
+  if (!spec) return source;
+  const byTopic = source.filter((question) => question.topic === spec.topic);
+  const pool = byTopic.length ? byTopic : source;
+  const matched = pool.filter((question) => (
+    (spec.keywords || []).some((word) => questionText(question).includes(word))
+  ));
+  return matched.length ? matched : pool;
+}
+
+function openPartQuiz(state, entity, rng, events) {
+  if (state.quiz) return false;
+  if (state.elapsed < (state.nextQuizAt || 0)) return false;
+  const spec = PART_TOPICS[entity.kind];
+  if (!spec) return false;
+  if (spec.chance != null && rng() >= spec.chance) return false;
+  const question = pickQuiz(state.askedIds, rng, questionsForPart(entity.kind, state.quizBank));
+  if (!question) return false;
+  const options = Array.isArray(question.options) ? question.options.slice() : [];
+  const quiz = {
+    id: question.id,
+    question: question.question,
+    options,
+    answer: question.answer,
+    explanation: question.explanation || '',
+    points: entity.points || question.xp || QUIZ_BASE_POINTS,
+    part: entity.kind,
+    topic: question.topic || spec.topic,
+    eliminated: null,
+  };
+  let eliminated = null;
+  if (state.hints > 0) {
+    eliminated = eliminateWrong(quiz, rng);
+    if (eliminated != null) {
+      state.hints -= 1;
+      quiz.eliminated = eliminated;
+    }
+  }
+  state.quiz = quiz;
+  state.askedIds = state.askedIds.concat(question.id);
+  state.lastQuizId = question.id;
+  state.paused = true;
+  state.nextQuizAt = Math.max(state.nextQuizAt || 0, state.elapsed + QUIZ_COOLDOWN_MS);
+  state.coinCount += 1;
+  events.push({
+    type: 'quiz',
+    id: question.id,
+    question: question.question,
+    options: options.slice(),
+    eliminated,
+    part: entity.kind,
+    topic: quiz.topic,
+  });
+  return true;
 }
 
 export function pickQuiz(askedIds, rng = Math.random, bank = RUNNER_QUESTIONS) {
@@ -301,13 +537,12 @@ export function pickQuiz(askedIds, rng = Math.random, bank = RUNNER_QUESTIONS) {
 
 export function waveIsFair(entities) {
   const obstacles = (entities || []).filter((entity) => entity.group === 'obstacle');
-  const circuits = obstacles.filter((entity) => entity.kind === 'circuit');
-  if (circuits.length > 1) return false;
+  if (obstacles.filter((entity) => entity.kind === 'server').length > 1) return false;
   for (let i = 0; i < obstacles.length; i += 1) {
     for (let j = i + 1; j < obstacles.length; j += 1) {
-      const a = HITBOX[obstacles[i].kind];
-      const b = HITBOX[obstacles[j].kind];
-      if (!a || !b || a.air === b.air) continue;
+      const a = boxFor(obstacles[i]);
+      const b = boxFor(obstacles[j]);
+      if (!a || !b || !!obstacles[i].air === !!obstacles[j].air) continue;
       if (Math.abs(obstacles[i].x - obstacles[j].x) < CLEAR_GAP) return false;
     }
   }
@@ -337,9 +572,16 @@ export function createRun(viewWidth = 800) {
     quiz: null,
     quizStreak: 0,
     quizMultiplier: 1,
-    nextQuizAt: QUIZ_INTERVAL_MS,
+    nextQuizAt: 0,
     lastQuizId: null,
     askedIds: [],
+    shield: 0,
+    hints: 0,
+    gpuUntil: 0,
+    magnetUntil: 0,
+    autoUntil: 0,
+    speedUntil: 0,
+    checkpoint: null,
     lastPickupAt: -100000,
     invincibleUntil: 0,
     entities: [],
@@ -401,26 +643,50 @@ export function tick(prev, dtMs, input = {}, rng = Math.random) {
     chips: prev.chips.slice(),
     milestonesHit: prev.milestonesHit.slice(),
     askedIds: (prev.askedIds || []).slice(),
+    checkpoint: prev.checkpoint ? { ...prev.checkpoint } : null,
   };
   const events = [];
   applyInput(state, input, events);
   state.elapsed += dt;
   advancePose(state, dt);
 
-  const speed = speedForDistance(state.distance);
+  const speed = speedForDistance(state.distance) * (state.elapsed < state.speedUntil ? SPEED_BOOST : 1);
   state.speed = speed;
   state.distance += speed * (dt / 1000);
 
   const kept = [];
+  let revived = false;
+  let quizzed = false;
+  const playerX = playerXFor(state.viewWidth);
   for (const entity of state.entities) {
     entity.x -= speed * (dt / 1000);
-    const spec = HITBOX[entity.kind];
+    if (quizzed) {
+      kept.push(entity);
+      continue;
+    }
+    if (state.elapsed < state.magnetUntil && entity.group !== 'obstacle') {
+      const pull = 420 * (dt / 1000);
+      if (entity.x > playerX) entity.x = Math.max(playerX, entity.x - pull);
+      else entity.x = Math.min(playerX, entity.x + pull);
+    }
+    const spec = boxFor(entity);
     if (entity.x + (spec ? spec.w : 0) < -40) continue;
-    if (!entity.resolved && overlapsPlayer(state, entity)) {
+    const auto = state.elapsed < state.autoUntil && entity.group !== 'obstacle' && Math.abs(entity.x - playerX) < 180;
+    if (!entity.resolved && (overlapsPlayer(state, entity) || auto)) {
       entity.resolved = true;
       if (entity.group === 'obstacle') {
         if (state.elapsed < state.invincibleUntil) {
           kept.push(entity);
+          continue;
+        }
+        if (state.shield > 0) {
+          state.shield -= 1;
+          state.pose = 'hurt';
+          state.hurtT = 0;
+          state.jumpT = 0;
+          state.jumpH = 0;
+          state.invincibleUntil = state.elapsed + INVINCIBLE_MS;
+          events.push({ type: 'block', kind: entity.kind, shield: state.shield });
           continue;
         }
         state.lives -= 1;
@@ -432,10 +698,26 @@ export function tick(prev, dtMs, input = {}, rng = Math.random) {
         state.jumpH = 0;
         state.invincibleUntil = state.elapsed + INVINCIBLE_MS;
         events.push({ type: 'hit', kind: entity.kind, lives: state.lives });
-        if (state.lives <= 0) {
+        if (state.lives <= 0 && !reviveFromCheckpoint(state, events)) {
           state.phase = 'dead';
           events.push({ type: 'dead', score: state.score });
+        } else if (state.lives > 0 && state.checkpoint === null && events.some((event) => event.type === 'revive')) {
+          revived = true;
+          break;
         }
+        continue;
+      }
+      if (entity.group === 'power') {
+        const label = grantPower(state, entity.kind);
+        events.push({ type: 'power', kind: entity.kind, label });
+        if (openPartQuiz(state, entity, rng, events)) quizzed = true;
+        continue;
+      }
+      if (openPartQuiz(state, entity, rng, events)) {
+        if (entity.factId && !state.chips.includes(entity.factId)) {
+          state.chips = state.chips.concat(entity.factId);
+        }
+        quizzed = true;
         continue;
       }
       const award = scorePickup({
@@ -444,13 +726,14 @@ export function tick(prev, dtMs, input = {}, rng = Math.random) {
         lastPickupAt: state.lastPickupAt,
         now: state.elapsed,
       });
+      award.gained = Math.round(award.gained * pointScale(state));
       state.pickupScore += award.gained;
       state.streak = award.streak;
       state.multiplier = award.multiplier;
       state.lastPickupAt = award.lastPickupAt;
-      if (entity.kind === 'coin') state.coinCount += 1;
+      if (entity.group === 'pickup') state.coinCount += 1;
       if (award.streak > state.bestStreak) state.bestStreak = award.streak;
-      if (entity.kind === 'chip' && entity.factId && !state.chips.includes(entity.factId)) {
+      if (entity.factId && !state.chips.includes(entity.factId)) {
         state.chips = state.chips.concat(entity.factId);
       }
       const fact = entity.factId ? FACT_BY_ID[entity.factId] : null;
@@ -459,7 +742,7 @@ export function tick(prev, dtMs, input = {}, rng = Math.random) {
         kind: entity.kind,
         points: award.gained,
         streak: award.streak,
-        multiplier: award.multiplier,
+        multiplier: award.multiplier * pointScale(state),
         factId: entity.factId,
         title: fact ? fact.title : null,
         line: fact ? fact.line : null,
@@ -468,7 +751,7 @@ export function tick(prev, dtMs, input = {}, rng = Math.random) {
     }
     kept.push(entity);
   }
-  state.entities = kept;
+  state.entities = revived ? [] : kept;
 
   const previousScore = state.score;
   state.score = state.pickupScore + distancePoints(state.distance);
@@ -479,33 +762,6 @@ export function tick(prev, dtMs, input = {}, rng = Math.random) {
         events.push({ type: 'milestone', score: mark });
       }
     });
-    const quizDue = !state.quiz && state.elapsed >= (state.nextQuizAt ?? QUIZ_INTERVAL_MS);
-    if (quizDue) {
-      const bank = state.quizBank && state.quizBank.length ? state.quizBank : RUNNER_QUESTIONS;
-      const question = pickQuiz(state.askedIds, rng, bank);
-      if (question) {
-        const options = Array.isArray(question.options) ? question.options.slice() : [];
-        state.quiz = {
-          id: question.id,
-          question: question.question,
-          options,
-          answer: question.answer,
-          explanation: question.explanation || '',
-          points: question.xp || QUIZ_BASE_POINTS,
-        };
-        state.askedIds = state.askedIds.concat(question.id);
-        state.lastQuizId = question.id;
-        state.paused = true;
-        events.push({
-          type: 'quiz',
-          id: question.id,
-          question: question.question,
-          options: options.slice(),
-        });
-      } else {
-        state.nextQuizAt = state.elapsed + QUIZ_INTERVAL_MS;
-      }
-    }
     if (!state.quiz && state.elapsed >= state.nextSpawnAt) {
       const spawned = planSpawn(state, rng);
       state.entities = state.entities.concat(spawned.entities);
@@ -530,7 +786,7 @@ export function answerQuiz(prev, choice) {
     ...prev,
     quiz: null,
     paused: false,
-    nextQuizAt: prev.elapsed + QUIZ_INTERVAL_MS,
+    nextQuizAt: Math.max(prev.nextQuizAt || 0, prev.elapsed + QUIZ_COOLDOWN_MS),
     entities: (prev.entities || []).map((entity) => ({ ...entity })),
     chips: (prev.chips || []).slice(),
     milestonesHit: (prev.milestonesHit || []).slice(),
@@ -540,7 +796,7 @@ export function answerQuiz(prev, choice) {
   if (correct) {
     const streak = (prev.quizStreak || 0) + 1;
     const multiplier = comboMultiplier(streak);
-    const gained = Math.round((quiz.points || QUIZ_BASE_POINTS) * multiplier);
+    const gained = Math.round((quiz.points || QUIZ_BASE_POINTS) * multiplier * pointScale(prev));
     state.quizStreak = streak;
     state.quizMultiplier = multiplier;
     state.pickupScore = (prev.pickupScore || 0) + gained;
@@ -573,7 +829,7 @@ export function answerQuiz(prev, choice) {
       correctAnswer: options[quiz.answer],
       explanation: quiz.explanation || '',
     });
-    if (state.lives <= 0) {
+    if (state.lives <= 0 && !reviveFromCheckpoint(state, events)) {
       state.phase = 'dead';
       events.push({ type: 'dead', score: state.score });
     }

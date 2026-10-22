@@ -9,20 +9,41 @@ Platformer Characters, Generic Items, Background Elements, Simple Space,
 UI Pack, Game Icons, Digital Audio, Impact Sounds, and Interface Sounds.
 By Kenney Vleugels, https://kenney.nl
 License: Creative Commons Zero 1.0, https://creativecommons.org/publicdomain/zero/1.0/
-Credit is not required. The runner, coins, gems, parallax pieces, buttons,
-icons, and sound effects come from these packs.
+Credit is not required. The runner, buttons, and sound effects come from these packs.
+
+Platformer Pack Industrial (CC0 1.0), also by Kenney:
+https://kenney.nl/assets/platformer-pack-industrial
+File used: platformIndustrial_065.png, the riveted metal plate in
+assets/runner/ground/plate.png. The charcoal fill under the plate is a flat colour.
+
+Pixel Platformer (CC0 1.0), also by Kenney, 1.2, 07-10-2023:
+https://kenney.nl/assets/pixel-platformer
+File used: tile_0014.png, the heart in assets/runner/icons/heart.png, with a white rim added.
+
+Urban Landscape (CC0 1.0)
+-------------------------
+By Luis Zuno (@ansimuz), https://opengameart.org/content/urban-landscape
+Files used: Sky-layer.png and buildings-layer.png, scaled as crisp pixels in
+assets/runner/world/sky.png and buildings.png.
+License: Creative Commons Zero 1.0. Credit is not required. A link back to
+OpenGameArt.org is appreciated.
+The night city is the same two layers tinted darker (assets/runner/world/night-sky.png
+and night-buildings.png). A separate night-cloud composite was not usable as a
+clean layer, so no extra sky pack is shipped.
 
 Sci-fi platformer tiles (CC0 1.0)
 ----------------------------------
 "Sci-fi platformer tiles (32x32)" by bart, 2 January 2014.
 https://opengameart.org/content/sci-fi-platformer-tiles-32x32
-File used: techblocks2.png, cropped to the ground strip in assets/runner/ground/.
+File kept: techblocks2.png, the older ground strip in assets/runner/ground/strip.png.
+The current run draws the industrial plate instead of this strip.
 License: Creative Commons Zero 1.0. Attribution is optional. A link back to
 OpenGameArt.org is appreciated.
 
 Tabler Icons (MIT)
 -------------------
-virus and firewall-flame, from https://github.com/tabler/tabler-icons
+virus and firewall-flame (the shield), from https://github.com/tabler/tabler-icons
+Drawn as outline icons in assets/runner/icons/virus.png and shield.png.
 Copyright (c) 2020-2026 Paweł Kuna
 
 MIT License
@@ -49,11 +70,15 @@ SOFTWARE.
 
 Lucide (ISC)
 ------------
-circuit-board and cpu, from https://github.com/lucide-icons/lucide
-These two icons are Lucide drawings under the ISC license. The Lucide project
-license also keeps the MIT text for icons that were derived from Feather.
-circuit-board and cpu are not in that Feather list. Both texts are included
-so the upstream notice stays intact.
+Outline icons in assets/runner/icons/, from https://github.com/lucide-icons/lucide
+(lucide-static). The runner uses cpu, ram (memory-stick), hard-drive, usb,
+keyboard, mouse, database, code-xml, braces, gpu (microchip), floppy (save),
+router, wifi, plug, battery, cloud, lock, key, magnet, monitor, terminal,
+lightbulb, circuit-board (the short), server, cable, and bug.
+These are Lucide drawings under the ISC license. The Lucide project license
+also keeps the MIT text for icons that were derived from Feather. Both texts
+are included so the upstream notice stays intact. The heart and the shield
+are not Lucide: the heart is Kenney and the shield is Tabler, listed above.
 
 ISC License
 

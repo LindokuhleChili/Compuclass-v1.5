@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, Image,
   TextInput, ActivityIndicator, FlatList, ScrollView,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { gameRunnerService } from '../services/gameRunnerService';
@@ -13,6 +14,7 @@ import { useShellBack } from '../context/ChromeContext';
 import { leaveScreen } from '../utils/screenNav';
 import { font } from '../components/ui/kit';
 import { runnerArt } from '../assets/runner/art';
+import { WORLD_STORAGE_KEY, normalizeWorld } from '../utils/runnerEngine';
 
 export default function GameRunnerLobbyScreen({ navigation }) {
   const { theme } = useTheme();
@@ -26,6 +28,19 @@ export default function GameRunnerLobbyScreen({ navigation }) {
   const [myId, setMyId] = useState(null);
   const channelRef = useRef(null);
   const launchedRef = useRef(false);
+  const [city, setCity] = useState('light');
+
+  useEffect(() => {
+    AsyncStorage.getItem(WORLD_STORAGE_KEY).then((value) => {
+      setCity(normalizeWorld(value));
+    }).catch(() => {});
+  }, []);
+
+  const chooseCity = (next) => {
+    const world = normalizeWorld(next);
+    setCity(world);
+    AsyncStorage.setItem(WORLD_STORAGE_KEY, world).catch(() => {});
+  };
 
   const teardownChannel = () => {
     if (!channelRef.current) return;
@@ -180,12 +195,33 @@ export default function GameRunnerLobbyScreen({ navigation }) {
         </View>
 
         <View style={s.banner}>
-          <Image source={runnerArt.bg.cloud1} style={s.bannerCloudLeft} resizeMode="contain" accessibilityElementsHidden />
-          <Image source={runnerArt.bg.cloud5} style={s.bannerCloudRight} resizeMode="contain" accessibilityElementsHidden />
-          <Image source={runnerArt.ground} style={s.bannerGround} resizeMode="stretch" accessibilityElementsHidden />
+          <Image source={city === 'dark' ? runnerArt.world.nightSky : runnerArt.world.sky} style={s.bannerSky} resizeMode="cover" accessibilityElementsHidden />
+          <Image source={city === 'dark' ? runnerArt.world.nightBuildings : runnerArt.world.buildings} style={s.bannerBuildings} resizeMode="cover" accessibilityElementsHidden />
+          <Image source={runnerArt.plate} style={s.bannerPlate} resizeMode="repeat" accessibilityElementsHidden />
           <Image source={runnerArt.player.idle} style={s.bannerRunner} resizeMode="contain" accessibilityElementsHidden />
           <Text style={[s.bannerTitle, font(theme, 'display')]}>COMPURUNNER</Text>
-          <Text style={[s.bannerSub, font(theme, 'body')]}>Jump viruses, duck firewalls, grab chips, and race classmates.</Text>
+          <Text style={[s.bannerSub, font(theme, 'body')]}>Grab a computer part, answer the question, and race classmates.</Text>
+        </View>
+
+        <View style={s.worldRow}>
+          <TouchableOpacity
+            onPress={() => chooseCity('light')}
+            style={[s.worldBtn, city === 'light' && s.worldOn]}
+            accessibilityRole="button"
+            accessibilityLabel="Light city"
+            accessibilityState={{ selected: city === 'light' }}
+          >
+            <Text style={[s.worldText, font(theme, 'semibold')]}>Light city</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => chooseCity('dark')}
+            style={[s.worldBtn, city === 'dark' && s.worldOn]}
+            accessibilityRole="button"
+            accessibilityLabel="Night city"
+            accessibilityState={{ selected: city === 'dark' }}
+          >
+            <Text style={[s.worldText, font(theme, 'semibold')]}>Night city</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={s.modesWrap}>
@@ -257,10 +293,14 @@ const s = StyleSheet.create({
     height: 220, borderRadius: 20, overflow: 'hidden', backgroundColor: '#10203A',
     borderWidth: 4, borderColor: '#041018', maxWidth: 720, width: '92%',
   },
-  bannerCloudLeft: { position: 'absolute', left: 24, top: 18, width: 140, height: 72 },
-  bannerCloudRight: { position: 'absolute', right: 28, top: 28, width: 130, height: 68 },
-  bannerGround: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 56, width: '100%' },
-  bannerRunner: { position: 'absolute', left: 36, bottom: 40, width: 80, height: 110 },
+  bannerSky: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, width: '100%', height: '100%' },
+  bannerBuildings: { position: 'absolute', left: 0, right: 0, bottom: 36, height: 120, width: '100%' },
+  bannerPlate: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 40, width: '100%' },
+  bannerRunner: { position: 'absolute', left: 36, bottom: 28, width: 80, height: 110 },
+  worldRow: { flexDirection: 'row', gap: 12, width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 20, marginBottom: 16 },
+  worldBtn: { flex: 1, minHeight: 56, borderRadius: 14, borderWidth: 4, borderColor: '#041018', backgroundColor: '#10203A', alignItems: 'center', justifyContent: 'center' },
+  worldOn: { backgroundColor: '#0A66FF' },
+  worldText: { color: '#fff', fontSize: 16 },
   bannerTitle: { position: 'absolute', left: 140, right: 16, top: 48, color: '#fff', fontSize: 32, letterSpacing: 1 },
   bannerSub: { position: 'absolute', left: 140, right: 20, top: 100, color: '#F7FBFD', fontSize: 15, lineHeight: 22 },
   modeIcon: { width: 36, height: 36, tintColor: '#fff' },
