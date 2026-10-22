@@ -1,8 +1,39 @@
 // Pure rules for CompuRunner. The screen draws this and plays sounds.
-// Units: x is pixels from the left, y is pixels above the lane floor.
+// Units: x is pixels from the left, y is pixels above the ground line.
+// One plane: jump the ground hazards, duck the overhead ones.
 
-export const LANE_COUNT = 3;
-export const PLAYER_X = 120;
+export const PLAYER_X_RATIO = 0.22;
+export const CLEAR_GAP = 200;
+
+export function playerCenterFor(viewWidth) {
+  return Math.round((viewWidth || 800) * PLAYER_X_RATIO);
+}
+
+export function playerXFor(viewWidth) {
+  return playerCenterFor(viewWidth) - 18;
+}
+
+export const PLAYER_X = playerXFor(800);
+
+export function playfieldBox(screenW, screenH) {
+  const sw = Math.max(1, screenW || 1280);
+  const sh = Math.max(1, screenH || 720);
+  let width = sw;
+  let height = Math.round(width * 9 / 16);
+  if (height > sh) {
+    height = sh;
+    width = Math.round(height * 16 / 9);
+  }
+  return { width, height, groundY: Math.round(height * 0.8) };
+}
+
+export function runnerDisplayName(name, score, index = 0) {
+  const clean = String(name || '').trim();
+  if (clean && clean.toLowerCase() !== 'player') return clean;
+  const n = Math.abs(Math.round(Number(score) || 0));
+  const tag = String(((n * 17) + (index + 1) * 91) % 9000 + 1000);
+  return `Player #${tag}`;
+}
 export const INITIAL_SPEED = 260;
 export const MAX_SPEED = 640;
 export const SPEED_RAMP_DISTANCE = 14000;
@@ -18,12 +49,11 @@ export const START_LIVES = 3;
 const RUN_HIT = { y0: 10, y1: 72, w: 36 };
 const DUCK_HIT = { y0: 0, y1: 30, w: 52 };
 
-// Virus sits on the floor (jump it). Firewall hangs overhead (duck it).
-// A circuit board fills the lane, so the runner has to change lanes.
+// Virus and circuit sit on the floor (jump them). Firewall hangs overhead (duck it).
 const HITBOX = {
-  virus: { y0: 0, y1: 42, w: 44, group: 'obstacle' },
-  firewall: { y0: 58, y1: 150, w: 48, group: 'obstacle' },
-  circuit: { y0: 0, y1: 210, w: 50, group: 'obstacle' },
+  virus: { y0: 0, y1: 44, w: 48, group: 'obstacle', air: false },
+  firewall: { y0: 80, y1: 156, w: 64, group: 'obstacle', air: true },
+  circuit: { y0: 0, y1: 70, w: 56, group: 'obstacle', air: false },
   coin: { y0: 18, y1: 70, w: 36, group: 'pickup', points: 10 },
   gem: { y0: 22, y1: 74, w: 34, group: 'pickup', points: 25 },
   chip: { y0: 16, y1: 78, w: 40, group: 'pickup', points: 40 },
@@ -86,10 +116,6 @@ const FACT_BY_ID = Object.fromEntries(HARDWARE_FACTS.map((fact) => [fact.id, fac
 
 export function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
-}
-
-export function clampLane(lane) {
-  return clamp(lane, 0, LANE_COUNT - 1);
 }
 
 export function difficultyForDistance(distance) {
@@ -158,11 +184,11 @@ export function entitySpec(kind) {
 }
 
 export function overlapsPlayer(state, entity) {
-  if (entity.lane !== state.lane) return false;
   const player = playerHitbox(state.pose, state.jumpH || 0);
   const box = HITBOX[entity.kind];
   if (!box) return false;
-  const xOverlap = PLAYER_X < entity.x + box.w && PLAYER_X + player.w > entity.x;
+  const px = playerXFor(state.viewWidth);
+  const xOverlap = px < entity.x + box.w && px + player.w > entity.x;
   const yOverlap = player.y0 < box.y1 && player.y1 > box.y0;
   return xOverlap && yOverlap;
 }
@@ -178,8 +204,6 @@ export function keyAction(key) {
   const name = String(key || '').toLowerCase();
   if (name === ' ' || name === 'spacebar' || name === 'arrowup' || name === 'w') return 'jump';
   if (name === 'arrowdown' || name === 's') return 'duck';
-  if (name === 'arrowleft' || name === 'a') return 'lane-left';
-  if (name === 'arrowright' || name === 'd') return 'lane-right';
   if (name === 'p' || name === 'escape') return 'pause';
   if (name === 'm') return 'mute';
   if (name === 'enter' || name === 'r') return 'confirm';
@@ -197,13 +221,12 @@ export function factForRun(chipIds, rng) {
   return pool[index];
 }
 
-function makeEntity(id, kind, lane, x, factId) {
+function makeEntity(id, kind, x, factId) {
   const spec = HITBOX[kind];
   return {
     id,
     kind,
     group: spec.group,
-    lane,
     x,
     factId: factId || null,
     points: spec.points || 0,
@@ -211,10 +234,22 @@ function makeEntity(id, kind, lane, x, factId) {
   };
 }
 
+function clearSpawnX(existing, x) {
+  let next = x;
+  for (let guard = 0; guard < 6; guard += 1) {
+    const blocked = existing.some((entity) => (
+      entity.group === 'obstacle' && Math.abs(entity.x - next) < CLEAR_GAP
+    ));
+    if (!blocked) return next;
+    next += CLEAR_GAP;
+  }
+  return next;
+}
+
 export function planSpawn(state, rng) {
   const difficulty = difficultyForDistance(state.distance);
   const viewWidth = state.viewWidth || 800;
-  const baseX = viewWidth + 40;
+  const baseX = clearSpawnX(state.entities || [], viewWidth + 40);
   let nextId = state.nextId || 1;
   const takeId = () => {
     const id = nextId;
@@ -223,38 +258,44 @@ export function planSpawn(state, rng) {
   };
   const entities = [];
   if (rng() < 0.36) {
-    const lane = Math.floor(rng() * LANE_COUNT);
     const kindRoll = rng();
     if (kindRoll < 0.18) {
       const fact = HARDWARE_FACTS[Math.floor(rng() * HARDWARE_FACTS.length)];
-      entities.push(makeEntity(takeId(), 'chip', lane, baseX, fact.id));
+      entities.push(makeEntity(takeId(), 'chip', baseX, fact.id));
     } else if (kindRoll < 0.42) {
-      entities.push(makeEntity(takeId(), 'gem', lane, baseX));
+      entities.push(makeEntity(takeId(), 'gem', baseX));
     } else {
       const count = rng() < 0.6 ? 3 : 1;
       for (let i = 0; i < count; i += 1) {
-        entities.push(makeEntity(takeId(), 'coin', lane, baseX + i * 86));
+        entities.push(makeEntity(takeId(), 'coin', baseX + i * 86));
       }
     }
   } else {
-    const firstLane = Math.floor(rng() * LANE_COUNT);
     const firstKind = pickWeighted(obstacleWeights(difficulty), rng);
-    entities.push(makeEntity(takeId(), firstKind, firstLane, baseX));
-    if (rng() < 0.34 + difficulty * 0.28) {
-      const secondLane = (firstLane + 1 + Math.floor(rng() * (LANE_COUNT - 1))) % LANE_COUNT;
-      let secondKind = pickWeighted(obstacleWeights(difficulty), rng);
+    entities.push(makeEntity(takeId(), firstKind, baseX));
+    if (rng() < 0.28 + difficulty * 0.2) {
+      let secondKind = firstKind === 'firewall' ? 'virus' : 'firewall';
+      if (rng() < 0.35) secondKind = 'circuit';
       if (secondKind === 'circuit' && firstKind === 'circuit') secondKind = 'virus';
-      entities.push(makeEntity(takeId(), secondKind, secondLane, baseX));
+      entities.push(makeEntity(takeId(), secondKind, baseX + CLEAR_GAP + 40));
     }
   }
   return { entities, nextId };
 }
 
 export function waveIsFair(entities) {
-  const obstacles = entities.filter((entity) => entity.group === 'obstacle');
-  const lanes = new Set(obstacles.map((entity) => entity.lane));
+  const obstacles = (entities || []).filter((entity) => entity.group === 'obstacle');
   const circuits = obstacles.filter((entity) => entity.kind === 'circuit');
-  return lanes.size < LANE_COUNT && circuits.length <= 1;
+  if (circuits.length > 1) return false;
+  for (let i = 0; i < obstacles.length; i += 1) {
+    for (let j = i + 1; j < obstacles.length; j += 1) {
+      const a = HITBOX[obstacles[i].kind];
+      const b = HITBOX[obstacles[j].kind];
+      if (!a || !b || a.air === b.air) continue;
+      if (Math.abs(obstacles[i].x - obstacles[j].x) < CLEAR_GAP) return false;
+    }
+  }
+  return true;
 }
 
 export function createRun(viewWidth = 800) {
@@ -266,6 +307,7 @@ export function createRun(viewWidth = 800) {
     distance: 0,
     pickupScore: 0,
     score: 0,
+    coinCount: 0,
     lives: START_LIVES,
     lane: 1,
     pose: 'run',
@@ -314,7 +356,6 @@ function advancePose(state, dtMs) {
 
 function applyInput(state, input, events) {
   if (!input) return;
-  if (input.lane) state.lane = clampLane(state.lane + input.lane);
   if (input.jump && state.pose !== 'jump' && state.pose !== 'duck') {
     state.pose = 'jump';
     state.jumpT = 0;
@@ -384,6 +425,7 @@ export function tick(prev, dtMs, input = {}, rng = Math.random) {
       state.streak = award.streak;
       state.multiplier = award.multiplier;
       state.lastPickupAt = award.lastPickupAt;
+      if (entity.kind === 'coin') state.coinCount += 1;
       if (award.streak > state.bestStreak) state.bestStreak = award.streak;
       if (entity.kind === 'chip' && entity.factId && !state.chips.includes(entity.factId)) {
         state.chips = state.chips.concat(entity.factId);

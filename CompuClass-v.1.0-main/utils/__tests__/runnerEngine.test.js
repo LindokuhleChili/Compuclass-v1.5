@@ -8,7 +8,6 @@ import {
   PLAYER_X,
   SPEED_RAMP_DISTANCE,
   START_LIVES,
-  clampLane,
   comboMultiplier,
   createRun,
   difficultyForDistance,
@@ -18,6 +17,10 @@ import {
   keyAction,
   overlapsPlayer,
   planSpawn,
+  playfieldBox,
+  playerCenterFor,
+  playerXFor,
+  runnerDisplayName,
   runnerFrame,
   scorePickup,
   spawnIntervalMs,
@@ -28,8 +31,8 @@ import {
 
 const zero = () => 0;
 
-function virusAt(lane, x) {
-  return { id: 1, kind: 'virus', group: 'obstacle', lane, x, resolved: false, points: 0, factId: null };
+function virusAt(x) {
+  return { id: 1, kind: 'virus', group: 'obstacle', x, resolved: false, points: 0, factId: null };
 }
 
 describe('runner pace', () => {
@@ -54,8 +57,8 @@ describe('runner pace', () => {
   });
 });
 
-describe('jump, duck, and lanes', () => {
-  const runner = { lane: 1, pose: 'run', jumpH: 0 };
+describe('jump and duck', () => {
+  const runner = { pose: 'run', jumpH: 0, viewWidth: 800 };
 
   it('raises the runner on a curve and lands again', () => {
     expect(jumpHeight(0)).toBe(0);
@@ -64,28 +67,32 @@ describe('jump, duck, and lanes', () => {
     expect(jumpHeight(-5)).toBe(0);
   });
 
-  it('lets a jump clear a virus and a duck clear a firewall', () => {
-    const virus = virusAt(1, PLAYER_X);
+  it('lets a jump clear a ground hazard and a duck pass a firewall', () => {
+    const virus = virusAt(PLAYER_X);
     const firewall = { ...virus, kind: 'firewall' };
     const circuit = { ...virus, kind: 'circuit' };
     expect(overlapsPlayer(runner, virus)).toBe(true);
     expect(overlapsPlayer({ ...runner, pose: 'duck' }, virus)).toBe(true);
     expect(overlapsPlayer({ ...runner, pose: 'jump', jumpH: JUMP_APEX }, virus)).toBe(false);
 
-    expect(overlapsPlayer(runner, firewall)).toBe(true);
+    expect(overlapsPlayer(runner, firewall)).toBe(false);
     expect(overlapsPlayer({ ...runner, pose: 'jump', jumpH: JUMP_APEX }, firewall)).toBe(true);
     expect(overlapsPlayer({ ...runner, pose: 'duck' }, firewall)).toBe(false);
 
     expect(overlapsPlayer(runner, circuit)).toBe(true);
     expect(overlapsPlayer({ ...runner, pose: 'duck' }, circuit)).toBe(true);
-    expect(overlapsPlayer({ ...runner, pose: 'jump', jumpH: JUMP_APEX }, circuit)).toBe(true);
-    expect(overlapsPlayer({ ...runner, lane: 0 }, circuit)).toBe(false);
+    expect(overlapsPlayer({ ...runner, pose: 'jump', jumpH: JUMP_APEX }, circuit)).toBe(false);
   });
 
-  it('keeps the runner inside the three lanes', () => {
-    expect(clampLane(-4)).toBe(0);
-    expect(clampLane(1)).toBe(1);
-    expect(clampLane(9)).toBe(2);
+  it('anchors the runner at 22 percent of the playfield', () => {
+    expect(playerCenterFor(1000)).toBe(220);
+    expect(playerCenterFor(800) / 800).toBeCloseTo(0.22, 5);
+    const box = playfieldBox(1600, 900);
+    expect(box.width / box.height).toBeCloseTo(16 / 9, 2);
+    expect(box.groundY).toBe(Math.round(box.height * 0.8));
+    const tall = playfieldBox(800, 2000);
+    expect(tall.height).toBeLessThanOrEqual(2000);
+    expect(tall.width / tall.height).toBeCloseTo(16 / 9, 2);
   });
 
   it('cycles the run poses and holds jump, duck, and hurt', () => {
@@ -129,6 +136,7 @@ describe('keyboard', () => {
     expect(keyAction(' ')).toBe('jump');
     expect(keyAction('ArrowUp')).toBe('jump');
     expect(keyAction('arrowdown')).toBe('duck');
+    expect(keyAction('arrowleft')).toBeNull();
     expect(keyAction('p')).toBe('pause');
     expect(keyAction('m')).toBe('mute');
     expect(keyAction('Enter')).toBe('confirm');
@@ -148,7 +156,7 @@ describe('the run loop', () => {
     const result = tick(started, 16, { jump: true, lane: 1 }, zero);
     expect(result.events.map((event) => event.type)).toContain('jump');
     expect(result.state.pose).toBe('jump');
-    expect(result.state.lane).toBe(2);
+    expect(result.state.lane).toBe(1);
     expect(result.state.distance).toBeGreaterThan(0);
     expect(result.state.score).toBe(distancePoints(result.state.distance));
   });
@@ -169,7 +177,7 @@ describe('the run loop', () => {
       state = {
         ...state,
         entities: [{
-          id: i, kind: 'coin', group: 'pickup', lane: 1, x: PLAYER_X, points: 10, factId: null, resolved: false,
+          id: i, kind: 'coin', group: 'pickup', x: playerXFor(state.viewWidth), points: 10, factId: null, resolved: false,
         }],
       };
       const result = tick(state, 16, {}, zero);
@@ -184,7 +192,7 @@ describe('the run loop', () => {
   it('ends the run on the third hit and ignores hits while invincible', () => {
     let state = quietRun();
     const smack = () => {
-      state = { ...state, entities: [virusAt(state.lane, PLAYER_X)] };
+      state = { ...state, entities: [virusAt(playerXFor(state.viewWidth))] };
       const result = tick(state, 0, {}, zero);
       state = result.state;
       return result;
@@ -204,7 +212,13 @@ describe('the run loop', () => {
     expect(after.state).toBe(last.state);
   });
 
-  it('leaves a safe lane in every obstacle wave', () => {
+  it('names a blank leaderboard row and keeps real names', () => {
+    expect(runnerDisplayName('Lutho Student', 200, 0)).toBe('Lutho Student');
+    expect(runnerDisplayName('Player', 2063, 0)).toMatch(/^Player #\d{4}$/);
+    expect(runnerDisplayName('', 10, 1)).not.toBe(runnerDisplayName('Player', 10, 0));
+  });
+
+  it('leaves a way through every obstacle wave', () => {
     for (let i = 0; i < 240; i += 1) {
       const run = createRun(800);
       run.distance = i * 80;

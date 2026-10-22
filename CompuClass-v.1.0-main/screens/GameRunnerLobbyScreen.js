@@ -143,7 +143,7 @@ export default function GameRunnerLobbyScreen({ navigation }) {
 
           {isHost && (
             <TouchableOpacity
-              style={[s.actionBtn, { backgroundColor: theme.primary }, players.length < 2 && s.startBtnDisabled]}
+              style={[s.actionBtn, players.length < 2 && s.startBtnDisabled]}
               onPress={handleStart}
               disabled={players.length < 2}
               accessibilityRole="button"
@@ -179,29 +179,30 @@ export default function GameRunnerLobbyScreen({ navigation }) {
           <View style={{ width: 44 }} />
         </View>
 
-        <View style={s.heroWrap}>
-          <View style={[s.heroMark, { backgroundColor: theme.tint }]}>
-            <Image source={runnerArt.player.idle} style={s.heroSprite} resizeMode="contain" accessibilityElementsHidden />
-          </View>
-          <Text style={[s.heroTitle, { color: theme.text }, font(theme, 'h1')]}>CompuRunner</Text>
-          <Text style={[s.heroSub, { color: theme.textSecondary }, font(theme, 'body')]}>Jump viruses, duck firewalls, grab chips,{'\n'}and race classmates to the best score.</Text>
+        <View style={s.banner}>
+          <Image source={runnerArt.bg.cloud1} style={s.bannerCloudLeft} resizeMode="contain" accessibilityElementsHidden />
+          <Image source={runnerArt.bg.cloud5} style={s.bannerCloudRight} resizeMode="contain" accessibilityElementsHidden />
+          <Image source={runnerArt.ground} style={s.bannerGround} resizeMode="stretch" accessibilityElementsHidden />
+          <Image source={runnerArt.player.idle} style={s.bannerRunner} resizeMode="contain" accessibilityElementsHidden />
+          <Text style={[s.bannerTitle, font(theme, 'display')]}>COMPURUNNER</Text>
+          <Text style={[s.bannerSub, font(theme, 'body')]}>Jump viruses, duck firewalls, grab chips, and race classmates.</Text>
         </View>
 
         <View style={s.modesWrap}>
           <TouchableOpacity
-            style={[s.modeCard, { backgroundColor: theme.tint, borderColor: theme.border }]}
+            style={[s.modeCard, s.modeSolo]}
             onPress={() => navigation.navigate('Game')}
             activeOpacity={0.85}
             accessibilityRole="button"
             accessibilityLabel="Solo Run"
           >
             <Image source={runnerArt.ui.solo} style={s.modeIcon} accessibilityElementsHidden />
-            <Text style={[s.modeTitle, { color: theme.text }, font(theme, 'h3')]}>Solo Run</Text>
-            <Text style={[s.modeDesc, { color: theme.textSecondary }, font(theme, 'body')]}>Practice alone, chase{'\n'}your high score</Text>
+            <Text style={[s.modeTitle, s.modeTitleOn, font(theme, 'h3')]}>Solo Run</Text>
+            <Text style={[s.modeDesc, s.modeDescOn, font(theme, 'body')]}>Practice alone and chase your high score</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[s.modeCard, { backgroundColor: theme.secondary, borderColor: theme.border }]}
+            style={[s.modeCard, s.modeHost]}
             onPress={handleHost}
             activeOpacity={0.85}
             disabled={loading}
@@ -209,8 +210,8 @@ export default function GameRunnerLobbyScreen({ navigation }) {
             accessibilityLabel="Host Race"
           >
             <Image source={runnerArt.ui.multi} style={s.modeIcon} accessibilityElementsHidden />
-            <Text style={[s.modeTitle, { color: theme.text }, font(theme, 'h3')]}>Host Race</Text>
-            <Text style={[s.modeDesc, { color: theme.textSecondary }, font(theme, 'body')]}>Create a room and invite{'\n'}classmates with a code</Text>
+            <Text style={[s.modeTitle, s.modeTitleOn, font(theme, 'h3')]}>Host Race</Text>
+            <Text style={[s.modeDesc, s.modeDescOn, font(theme, 'body')]}>Create a room and invite classmates with a code</Text>
           </TouchableOpacity>
         </View>
 
@@ -228,7 +229,7 @@ export default function GameRunnerLobbyScreen({ navigation }) {
               accessibilityLabel="Room code"
             />
             <TouchableOpacity
-              style={[s.joinBtn, { backgroundColor: theme.primary }]}
+              style={s.joinBtn}
               onPress={handleJoin}
               disabled={loading}
               accessibilityRole="button"
@@ -251,21 +252,31 @@ const s = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, paddingBottom: 8, paddingHorizontal: 20, width: '100%', maxWidth: 720, alignSelf: 'center' },
   backBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, color: '#0B1B3A' },
-  heroWrap: { alignItems: 'center', paddingVertical: 12, paddingHorizontal: 20 },
-  heroMark: { width: 96, height: 112, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  heroSprite: { width: 78, height: 100 },
-  modeIcon: { width: 32, height: 32 },
-  heroTitle: { fontSize: 28, marginBottom: 8 },
-  heroSub: { fontSize: 15, textAlign: 'center', lineHeight: 22 },
+  banner: {
+    alignSelf: 'center', marginHorizontal: 20, marginBottom: 20,
+    height: 220, borderRadius: 20, overflow: 'hidden', backgroundColor: '#10203A',
+    borderWidth: 4, borderColor: '#041018', maxWidth: 720, width: '92%',
+  },
+  bannerCloudLeft: { position: 'absolute', left: 24, top: 18, width: 140, height: 72 },
+  bannerCloudRight: { position: 'absolute', right: 28, top: 28, width: 130, height: 68 },
+  bannerGround: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 56, width: '100%' },
+  bannerRunner: { position: 'absolute', left: 36, bottom: 40, width: 80, height: 110 },
+  bannerTitle: { position: 'absolute', left: 140, right: 16, top: 48, color: '#fff', fontSize: 32, letterSpacing: 1 },
+  bannerSub: { position: 'absolute', left: 140, right: 20, top: 100, color: '#F7FBFD', fontSize: 15, lineHeight: 22 },
+  modeIcon: { width: 36, height: 36, tintColor: '#fff' },
   modesWrap: { flexDirection: 'row', gap: 12, marginBottom: 24, width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 20 },
-  modeCard: { flex: 1, borderRadius: 16, borderWidth: 1, padding: 18, alignItems: 'center', minHeight: 148 },
-  modeTitle: { fontSize: 16, marginTop: 10, marginBottom: 4 },
-  modeDesc: { fontSize: 13, textAlign: 'center', lineHeight: 18 },
+  modeCard: { flex: 1, borderRadius: 16, borderWidth: 4, borderColor: '#041018', padding: 18, alignItems: 'flex-start', justifyContent: 'flex-end', minHeight: 168, minWidth: 160 },
+  modeSolo: { backgroundColor: '#0A66FF' },
+  modeHost: { backgroundColor: '#10203A' },
+  modeTitle: { fontSize: 20, marginTop: 12, marginBottom: 4 },
+  modeTitleOn: { color: '#fff' },
+  modeDesc: { fontSize: 14, lineHeight: 20 },
+  modeDescOn: { color: '#F7FBFD' },
   joinLabel: { fontSize: 14, marginBottom: 8 },
-  joinWrap: { marginBottom: 24, width: '100%', maxWidth: 400, alignSelf: 'center', paddingHorizontal: 20 },
-  joinRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  joinInput: { flex: 1, borderRadius: 14, paddingHorizontal: 16, minHeight: 48, height: 48, fontSize: 18, letterSpacing: 4, borderWidth: 1 },
-  joinBtn: { height: 48, minWidth: 88, paddingHorizontal: 20, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  joinWrap: { marginBottom: 24, width: '100%', maxWidth: 480, alignSelf: 'center', paddingHorizontal: 20 },
+  joinRow: { gap: 10 },
+  joinInput: { width: '100%', borderRadius: 14, paddingHorizontal: 16, minHeight: 56, height: 56, fontSize: 18, letterSpacing: 4, borderWidth: 1 },
+  joinBtn: { height: 56, minWidth: 240, width: '100%', paddingHorizontal: 22, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0A66FF', borderWidth: 4, borderColor: '#041018' },
   joinBtnText: { fontSize: 15, color: '#fff' },
   errorText: { fontSize: 13, marginTop: 8 },
   codeBox: { borderRadius: 16, padding: 20, alignItems: 'center', marginBottom: 24, borderWidth: 1 },
@@ -279,7 +290,7 @@ const s = StyleSheet.create({
   playerInitial: { fontSize: 16 },
   playerName: { flex: 1, fontSize: 15 },
   hostBadge: { fontSize: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-  actionBtn: { height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 16, width: '100%', maxWidth: 400, alignSelf: 'center' },
+  actionBtn: { height: 56, minWidth: 240, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 16, width: '100%', maxWidth: 400, alignSelf: 'center', backgroundColor: '#0A66FF', borderWidth: 4, borderColor: '#041018' },
   startBtnDisabled: { opacity: 0.45 },
   actionBtnText: { fontSize: 15, color: '#fff' },
   waitingWrap: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingBottom: 16, minHeight: 48 },

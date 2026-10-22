@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, useWindowDimensions, Pressable, Image, ImageBackground,
+  View, Text, StyleSheet, useWindowDimensions, Pressable, Image,
   Animated, PanResponder, StatusBar, Platform, ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,20 +12,20 @@ import { supabase } from '../config/supabase';
 import { saveRunnerScore } from '../utils/gameScore';
 import { authService } from '../services/authService';
 import { gameRunnerService } from '../services/gameRunnerService';
-import { useTheme } from '../context/ThemeContext';
-import { useShellBack } from '../context/ChromeContext';
-import { leaveScreen } from '../utils/screenNav';
 import { font } from '../components/ui/kit';
+import { useTheme } from '../context/ThemeContext';
 import { runnerArt } from '../assets/runner/art';
 import { createRunnerAudio } from '../utils/runnerAudio';
 import {
   INITIAL_SPEED,
   JUMP_APEX,
-  PLAYER_X,
   createRun,
   factById,
   factForRun,
   keyAction,
+  playfieldBox,
+  playerCenterFor,
+  runnerDisplayName,
   runnerFrame,
   tick,
 } from '../utils/runnerEngine';
@@ -33,14 +33,17 @@ import {
 const MUTE_KEY = 'compurunner_muted';
 const SPRITE_W = 80;
 const SPRITE_H = 110;
+const INK = '#041018';
+const FILL = '#0A66FF';
+const PANEL = '#10203A';
 
 const KIND_SIZE = {
   virus: { w: 58, h: 58, lift: 0 },
-  firewall: { w: 62, h: 70, lift: 58 },
-  circuit: { w: 64, h: 92, lift: 0 },
-  coin: { w: 40, h: 40, lift: 22 },
-  gem: { w: 36, h: 36, lift: 28 },
-  chip: { w: 46, h: 46, lift: 24 },
+  firewall: { w: 62, h: 70, lift: 78 },
+  circuit: { w: 64, h: 72, lift: 0 },
+  coin: { w: 40, h: 40, lift: 36 },
+  gem: { w: 36, h: 36, lift: 48 },
+  chip: { w: 52, h: 52, lift: 28 },
 };
 
 function buzz(kind) {
@@ -50,54 +53,50 @@ function buzz(kind) {
   } catch { /* haptics are optional on web */ }
 }
 
-function PixelButton({ label, onPress, variant = 'primary', icon, disabled }) {
+function useCoarsePointer() {
+  const [coarse, setCoarse] = useState(Platform.OS !== 'web');
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const query = window.matchMedia('(pointer: coarse)');
+    const apply = () => setCoarse(query.matches);
+    apply();
+    query.addEventListener?.('change', apply);
+    return () => query.removeEventListener?.('change', apply);
+  }, []);
+  return coarse;
+}
+
+function GameButton({ label, onPress, icon }) {
   const { theme } = useTheme();
-  const secondary = variant === 'secondary';
   return (
     <Pressable
       onPress={onPress}
-      disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => [styles.pixelPress, { opacity: disabled ? 0.45 : pressed ? 0.9 : 1 }]}
+      style={({ pressed }) => [styles.gameBtn, { opacity: pressed ? 0.88 : 1 }]}
     >
-      <ImageBackground
-        source={secondary ? runnerArt.ui.secondary : runnerArt.ui.primary}
-        resizeMode="stretch"
-        style={styles.pixelBtn}
-        imageStyle={styles.pixelBtnImage}
-      >
-        {icon ? <Image source={icon} style={[styles.pixelIcon, !secondary && styles.pixelIconOn]} accessibilityElementsHidden /> : null}
-        <Text style={[styles.pixelLabel, { color: secondary ? theme.text : '#fff' }, font(theme, 'semibold')]}>{label}</Text>
-      </ImageBackground>
+      {icon ? <Image source={icon} style={styles.gameBtnIcon} /> : null}
+      <Text style={[styles.gameBtnText, font(theme, 'semibold')]} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
 }
 
-function Floater({ text, color }) {
-  const rise = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    rise.setValue(0);
-    Animated.timing(rise, { toValue: 1, duration: 720, useNativeDriver: true }).start();
-  }, [rise, text]);
+function Outlined({ children, size, color = '#fff', align = 'center' }) {
+  const { theme } = useTheme();
+  const text = [styles.outlined, { fontSize: size, color, textAlign: align }, font(theme, 'display')];
   return (
-    <Animated.Text
-      style={[styles.floater, {
-        color,
-        opacity: rise.interpolate({ inputRange: [0, 0.65, 1], outputRange: [1, 1, 0] }),
-        transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [0, -40] }) }],
-      }]}
-    >
-      {text}
-    </Animated.Text>
+    <View>
+      <Text style={[text, styles.outlinedInk]}>{children}</Text>
+      <Text style={text}>{children}</Text>
+    </View>
   );
 }
 
-function Scroller({ distance, factor, width, style, children }) {
+function Scroller({ distance, factor, width, children }) {
   const span = Math.max(width, 320);
   const shift = -((distance * factor) % span);
   return (
-    <View style={[StyleSheet.absoluteFill, style]} pointerEvents="none">
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <View style={[styles.span, { left: shift, width: span }]}>{children}</View>
       <View style={[styles.span, { left: shift + span, width: span }]}>{children}</View>
     </View>
@@ -105,53 +104,41 @@ function Scroller({ distance, factor, width, style, children }) {
 }
 
 function Sky({ distance, width, height }) {
-  const star = (source, x, y, size) => (
-    <Image source={source} style={{ position: 'absolute', left: x * width, top: y * height * 0.55, width: size, height: size }} resizeMode="contain" />
-  );
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <LinearGradient colors={['#E7F4FB', '#F7FBFD', '#F7FBFD']} style={StyleSheet.absoluteFill} />
-      <Scroller distance={distance} factor={0.08} width={width}>
-        <Image source={runnerArt.bg.moon} style={[styles.moon, { left: width * 0.72 }]} resizeMode="contain" />
-        {star(runnerArt.bg.starTiny, 0.08, 0.12, 18)}
-        {star(runnerArt.bg.starSmall, 0.2, 0.22, 16)}
-        {star(runnerArt.bg.starTiny, 0.36, 0.08, 14)}
-        {star(runnerArt.bg.starSmall, 0.52, 0.18, 18)}
-        {star(runnerArt.bg.starTiny, 0.9, 0.14, 16)}
-      </Scroller>
-      <Scroller distance={distance} factor={0.2} width={width}>
-        <Image source={runnerArt.bg.satellite} style={{ position: 'absolute', left: width * 0.18, top: height * 0.16, width: 42, height: 42 }} resizeMode="contain" />
-        <Image source={runnerArt.bg.meteor} style={{ position: 'absolute', left: width * 0.58, top: height * 0.28, width: 36, height: 36 }} resizeMode="contain" />
-      </Scroller>
-      <Scroller distance={distance} factor={0.42} width={width}>
-        <Image source={runnerArt.bg.cloud1} style={{ position: 'absolute', left: width * 0.05, top: height * 0.2, width: 150, height: 78 }} resizeMode="contain" />
-        <Image source={runnerArt.bg.cloud3} style={{ position: 'absolute', left: width * 0.4, top: height * 0.34, width: 130, height: 70 }} resizeMode="contain" />
-        <Image source={runnerArt.bg.cloud5} style={{ position: 'absolute', left: width * 0.72, top: height * 0.14, width: 160, height: 80 }} resizeMode="contain" />
+      <LinearGradient colors={['#D7ECFA', '#F7FBFD']} style={StyleSheet.absoluteFill} />
+      <Scroller distance={distance} factor={0.35} width={width}>
+        <Image source={runnerArt.bg.cloud1} style={{ position: 'absolute', left: width * 0.08, top: height * 0.12, width: 180, height: 90 }} resizeMode="contain" />
+        <Image source={runnerArt.bg.cloud3} style={{ position: 'absolute', left: width * 0.48, top: height * 0.28, width: 160, height: 84 }} resizeMode="contain" />
+        <Image source={runnerArt.bg.cloud5} style={{ position: 'absolute', left: width * 0.78, top: height * 0.08, width: 170, height: 88 }} resizeMode="contain" />
       </Scroller>
     </View>
   );
 }
 
-function Ground({ distance, width, groundY }) {
-  const tile = 440;
-  const shift = -(distance % tile);
-  const copies = Math.ceil(width / tile) + 2;
-  return (
-    <View style={[styles.groundWrap, { top: groundY - 30 }]} pointerEvents="none">
-      {Array.from({ length: copies }, (_, index) => (
+function Ground({ distance, width, groundY, height }) {
+  const tileW = 256;
+  const tileH = 64;
+  const shift = -((distance % tileW) + tileW) % tileW;
+  const cols = Math.ceil(width / tileW) + 2;
+  const rows = Math.max(1, Math.ceil((height - groundY) / tileH));
+  const tiles = [];
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      tiles.push(
         <Image
-          key={index}
+          key={`${row}-${col}`}
           source={runnerArt.ground}
           resizeMode="stretch"
-          style={{ position: 'absolute', left: shift + index * tile, top: 18, width: tile + 1, height: 110 }}
+          style={{ position: 'absolute', left: shift + col * tileW, top: groundY + row * tileH, width: tileW + 1, height: tileH }}
         />
-      ))}
-      <View style={styles.horizon} />
-    </View>
-  );
+      );
+    }
+  }
+  return <View style={StyleSheet.absoluteFill} pointerEvents="none">{tiles}</View>;
 }
 
-function entityNode(entity, laneY) {
+function entityNode(entity, groundY) {
   const spec = KIND_SIZE[entity.kind];
   if (!spec) return null;
   const source = entity.group === 'pickup' ? runnerArt.items[entity.kind] : runnerArt.obstacles[entity.kind];
@@ -162,8 +149,8 @@ function entityNode(entity, laneY) {
       resizeMode="contain"
       style={{
         position: 'absolute',
-        left: entity.x - 6,
-        top: laneY - spec.h - spec.lift,
+        left: entity.x,
+        top: groundY - spec.h - spec.lift,
         width: spec.w,
         height: spec.h,
       }}
@@ -171,35 +158,58 @@ function entityNode(entity, laneY) {
   );
 }
 
+const POSES = ['run1', 'run2', 'jump', 'duck', 'hurt', 'idle'];
+
+function RunnerSprite({ pose, center, groundY, lift }) {
+  return (
+    <View style={{ position: 'absolute', left: center - SPRITE_W / 2, top: groundY - SPRITE_H - lift, width: SPRITE_W, height: SPRITE_H }}>
+      {POSES.map((name) => (
+        <Image
+          key={name}
+          source={runnerArt.player[name]}
+          resizeMode="contain"
+          style={[styles.playerSprite, { opacity: pose === name ? 1 : 0 }]}
+        />
+      ))}
+    </View>
+  );
+}
+
 export default function GameScreen({ navigation, route }) {
   const isMulti = route?.params?.multiplayer === true;
   const roomId = route?.params?.roomId || null;
   const { theme } = useTheme();
-  const shellBack = useShellBack();
   const insets = useSafeAreaInsets();
+  const coarse = useCoarsePointer();
   const { width, height } = useWindowDimensions();
-  const groundY = Math.round(height * 0.66);
+  const field = playfieldBox(Math.max(320, width), Math.max(180, height - insets.top));
+  const groundY = field.groundY;
 
   const [phase, setPhase] = useState('start');
   const [paused, setPaused] = useState(false);
+  const [count, setCount] = useState(0);
   const [muted, setMuted] = useState(false);
   const [run, setRun] = useState(() => createRun(800));
+  const [menuDistance, setMenuDistance] = useState(0);
   const [highScore, setHighScore] = useState(0);
   const [isNewBest, setIsNewBest] = useState(false);
   const [summary, setSummary] = useState(null);
+  const [shownScore, setShownScore] = useState(0);
+  const [overStep, setOverStep] = useState(0);
   const [leaderboard, setLeaderboard] = useState([]);
   const [finishRank, setFinishRank] = useState(null);
   const [otherPlayers, setOtherPlayers] = useState([]);
   const [floater, setFloater] = useState(null);
   const [toast, setToast] = useState(null);
-  const [milestone, setMilestone] = useState(null);
+  const [myName, setMyName] = useState('');
+  const [bits, setBits] = useState([]);
 
-  const world = useRef(createRun(width || 800));
-  const inputRef = useRef({ jump: false, duck: false, lane: 0 });
+  const world = useRef(createRun(field.width || 800));
+  const inputRef = useRef({ jump: false, duck: false });
   const audioRef = useRef(null);
   if (!audioRef.current) audioRef.current = createRunnerAudio();
   const phaseRef = useRef(phase);
-  const widthRef = useRef(width);
+  const widthRef = useRef(field.width);
   const highRef = useRef(0);
   const overRef = useRef(false);
   const myIdRef = useRef(null);
@@ -211,12 +221,37 @@ export default function GameScreen({ navigation, route }) {
   const beginRef = useRef(() => {});
   const togglePauseRef = useRef(() => {});
   const toggleMuteRef = useRef(() => {});
+  const resumeRef = useRef(false);
+  const requestResumeRef = useRef(() => {});
+  const overStepRef = useRef(0);
+  const pulse = useRef(new Animated.Value(1)).current;
   phaseRef.current = phase;
-  widthRef.current = width;
+  widthRef.current = field.width;
   multiRef.current = isMulti;
   roomRef.current = roomId;
+  overStepRef.current = overStep;
 
-  const laneY = useCallback((lane) => groundY + 10 + lane * 34, [groundY]);
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(pulse, { toValue: 0.4, duration: 680, useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 1, duration: 680, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  useEffect(() => {
+    if (phase !== 'start') return undefined;
+    let raf = 0;
+    let last = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const frame = (time) => {
+      setMenuDistance((value) => value + Math.min(40, time - last) * 0.12);
+      last = time;
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [phase]);
 
   useEffect(() => {
     progressService.get(PROGRESS_KEYS.compuRunner).then(async (saved) => {
@@ -234,6 +269,10 @@ export default function GameScreen({ navigation, route }) {
         setMuted(true);
       }
     });
+    authService.getCurrentUser().then((user) => {
+      myIdRef.current = user?.id || null;
+      setMyName(user?.profile?.full_name || user?.user_metadata?.full_name || '');
+    }).catch(() => {});
     gameRunnerService.getLeaderboard().then(setLeaderboard).catch(() => setLeaderboard([]));
   }, []);
 
@@ -245,10 +284,7 @@ export default function GameScreen({ navigation, route }) {
       if (cancelled) return;
       setOtherPlayers(players.filter((player) => player.user_id !== myIdRef.current));
     };
-    authService.getCurrentUser().then((user) => {
-      myIdRef.current = user?.id || null;
-      refreshOthers();
-    });
+    refreshOthers();
     roomChannelRef.current = gameRunnerService.subscribeToRoom(roomId, refreshOthers, () => {});
     return () => {
       cancelled = true;
@@ -283,34 +319,68 @@ export default function GameScreen({ navigation, route }) {
     } catch { /* keep the score on this device if the account write fails */ }
   }, []);
 
-  const finish = useCallback(async (run) => {
+  const finish = useCallback(async (finishedRun) => {
     if (overRef.current) return;
     overRef.current = true;
-    const fact = factForRun(run.chips, Math.random);
+    const fact = factForRun(finishedRun.chips, Math.random);
     setSummary({
-      score: run.score,
+      score: finishedRun.score,
       fact,
-      chips: run.chips.slice(),
-      bestStreak: run.bestStreak,
+      chips: finishedRun.chips.slice(),
+      bestStreak: finishedRun.bestStreak,
+      coins: finishedRun.coinCount || 0,
     });
-    setIsNewBest(run.score > highRef.current && run.score > 0);
-    if (run.score > highRef.current) {
-      highRef.current = run.score;
-      setHighScore(run.score);
+    setShownScore(0);
+    setOverStep(0);
+    setIsNewBest(finishedRun.score > highRef.current && finishedRun.score > 0);
+    if (finishedRun.score > highRef.current) {
+      highRef.current = finishedRun.score;
+      setHighScore(finishedRun.score);
     }
     setPhase('gameover');
     audioRef.current.play('over');
-    saveScore(run.score, run.chips);
+    saveScore(finishedRun.score, finishedRun.chips);
     if (isMulti && roomId && myIdRef.current) {
       try {
         const rank = await gameRunnerService.getFinishRank(roomId);
         setFinishRank(rank);
         await gameRunnerService.pushPlayerState(roomId, myIdRef.current, {
-          lane: run.lane, score: run.score, lives: run.lives, finished: true, finishRank: rank,
+          lane: 1, score: finishedRun.score, lives: finishedRun.lives, finished: true, finishRank: rank,
         });
       } catch { /* rank is optional if the room read fails */ }
     }
   }, [isMulti, roomId, saveScore]);
+
+  useEffect(() => {
+    if (phase !== 'gameover' || !summary) return undefined;
+    if (shownScore >= summary.score) {
+      const timer = setTimeout(() => setOverStep(1), 280);
+      return () => clearTimeout(timer);
+    }
+    const step = Math.max(1, Math.round(summary.score / 24));
+    const timer = setTimeout(() => setShownScore((value) => Math.min(summary.score, value + step)), 32);
+    return () => clearTimeout(timer);
+  }, [phase, summary, shownScore]);
+
+  useEffect(() => {
+    if (phase !== 'gameover' || overStep !== 1) return undefined;
+    if (isNewBest) {
+      setBits(Array.from({ length: 18 }, (_, index) => ({
+        id: index,
+        left: 12 + ((index * 37) % 76),
+        delay: (index % 6) * 40,
+        color: ['#FFC83D', '#0A66FF', '#3BB8C4', '#FF3B5C'][index % 4],
+      })));
+    }
+    const timer = setTimeout(() => setOverStep(2), isNewBest ? 700 : 200);
+    return () => clearTimeout(timer);
+  }, [phase, overStep, isNewBest]);
+
+  useEffect(() => {
+    if (phase !== 'gameover' || overStep !== 2) return undefined;
+    const timer = setTimeout(() => setOverStep(3), 360);
+    return () => clearTimeout(timer);
+  }, [phase, overStep]);
 
   onEventsRef.current = (events) => {
     events.forEach((event) => {
@@ -325,12 +395,10 @@ export default function GameScreen({ navigation, route }) {
       } else if (event.type === 'collect') {
         audioRef.current.play(event.kind === 'chip' ? 'chip' : 'coin');
         const label = event.multiplier > 1 ? `+${event.points}  x${event.multiplier}` : `+${event.points}`;
-        setFloater({ id: `${event.kind}-${event.points}-${world.current.elapsed}`, text: label });
+        setFloater({ id: `${event.kind}-${world.current.elapsed}`, text: label, scale: 1 + Math.min(1.2, (event.streak || 1) * 0.12) });
         if (event.kind === 'chip' && event.line) {
           setToast({ id: world.current.elapsed, title: event.title, line: event.line });
         }
-      } else if (event.type === 'milestone') {
-        setMilestone(event.score);
       } else if (event.type === 'dead') {
         finish(world.current);
       }
@@ -344,12 +412,6 @@ export default function GameScreen({ navigation, route }) {
   }, [toast]);
 
   useEffect(() => {
-    if (!milestone) return undefined;
-    const timer = setTimeout(() => setMilestone(null), 1400);
-    return () => clearTimeout(timer);
-  }, [milestone]);
-
-  useEffect(() => {
     if (phase !== 'playing' || paused) return undefined;
     let raf = 0;
     let last = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -358,7 +420,7 @@ export default function GameScreen({ navigation, route }) {
       const dt = time - last;
       last = time;
       const input = inputRef.current;
-      inputRef.current = { jump: false, duck: false, lane: 0 };
+      inputRef.current = { jump: false, duck: false };
       world.current.viewWidth = widthRef.current || world.current.viewWidth;
       const result = tick(world.current, dt, input, Math.random);
       world.current = result.state;
@@ -369,7 +431,7 @@ export default function GameScreen({ navigation, route }) {
         if (nowMs - lastPushRef.current > 250) {
           lastPushRef.current = nowMs;
           gameRunnerService.pushPlayerState(roomRef.current, myIdRef.current, {
-            lane: world.current.lane,
+            lane: 1,
             score: world.current.score,
             lives: world.current.lives,
             finished: false,
@@ -382,17 +444,33 @@ export default function GameScreen({ navigation, route }) {
     return () => cancelAnimationFrame(raf);
   }, [phase, paused]);
 
+  useEffect(() => {
+    if (!resumeRef.current || phase !== 'playing') return undefined;
+    if (count <= 0) {
+      resumeRef.current = false;
+      world.current.paused = false;
+      setPaused(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setCount((value) => value - 1), 650);
+    return () => clearTimeout(timer);
+  }, [count, phase]);
+
   const begin = useCallback(() => {
     overRef.current = false;
+    resumeRef.current = false;
     const next = createRun(widthRef.current || 800);
     world.current = next;
     setRun(next);
-    inputRef.current = { jump: false, duck: false, lane: 0 };
+    inputRef.current = { jump: false, duck: false };
     setSummary(null);
     setFinishRank(null);
     setFloater(null);
     setToast(null);
-    setMilestone(null);
+    setBits([]);
+    setShownScore(0);
+    setOverStep(0);
+    setCount(0);
     setPaused(false);
     setPhase('playing');
     audioRef.current.play('click');
@@ -400,15 +478,23 @@ export default function GameScreen({ navigation, route }) {
   beginRef.current = begin;
 
   const togglePause = useCallback(() => {
-    if (phaseRef.current !== 'playing') return;
+    if (phaseRef.current !== 'playing' || resumeRef.current) return;
     setPaused((value) => {
       const next = !value;
       world.current.paused = next;
-      if (!next) audioRef.current.play('click');
+      if (next) setCount(0);
       return next;
     });
   }, []);
   togglePauseRef.current = togglePause;
+
+  const requestResume = () => {
+    if (!paused) return;
+    resumeRef.current = true;
+    setCount(3);
+    audioRef.current.play('click');
+  };
+  requestResumeRef.current = requestResume;
 
   const toggleMute = useCallback(() => {
     const next = audioRef.current.toggleMuted();
@@ -417,6 +503,16 @@ export default function GameScreen({ navigation, route }) {
     if (!next) audioRef.current.play('click');
   }, []);
   toggleMuteRef.current = toggleMute;
+
+  const exitToLobby = () => {
+    world.current.paused = true;
+    audioRef.current.stopAll();
+    if (roomChannelRef.current) {
+      gameRunnerService.unsubscribe(roomChannelRef.current);
+      roomChannelRef.current = null;
+    }
+    navigation.navigate('GameRunnerLobby');
+  };
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
@@ -429,7 +525,7 @@ export default function GameScreen({ navigation, route }) {
         beginRef.current();
         return;
       }
-      if (current === 'gameover' && (action === 'confirm' || action === 'jump')) {
+      if (current === 'gameover' && overStepRef.current >= 3 && (action === 'confirm' || event.key === 'r' || event.key === 'R')) {
         event.preventDefault();
         beginRef.current();
         return;
@@ -437,7 +533,9 @@ export default function GameScreen({ navigation, route }) {
       if (current !== 'playing') return;
       if (action === 'pause') {
         event.preventDefault();
-        togglePauseRef.current();
+        if (resumeRef.current) return;
+        if (world.current.paused) requestResumeRef.current();
+        else togglePauseRef.current();
         return;
       }
       if (action === 'mute') {
@@ -449,8 +547,6 @@ export default function GameScreen({ navigation, route }) {
       event.preventDefault();
       if (action === 'jump') inputRef.current.jump = true;
       if (action === 'duck') inputRef.current.duck = true;
-      if (action === 'lane-left') inputRef.current.lane = -1;
-      if (action === 'lane-right') inputRef.current.lane = 1;
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -459,358 +555,299 @@ export default function GameScreen({ navigation, route }) {
   const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => false,
     onMoveShouldSetPanResponder: (_, gesture) => (
-      phaseRef.current === 'playing' && (Math.abs(gesture.dx) > 14 || Math.abs(gesture.dy) > 14)
+      phaseRef.current === 'playing' && Math.abs(gesture.dy) > 14
     ),
     onPanResponderRelease: (_, gesture) => {
       if (phaseRef.current !== 'playing' || world.current.paused) return;
-      const { dx, dy } = gesture;
-      if (Math.abs(dy) > Math.abs(dx)) {
-        if (dy < -24) inputRef.current.jump = true;
-        else if (dy > 24) inputRef.current.duck = true;
-      } else if (dx > 24) inputRef.current.lane = 1;
-      else if (dx < -24) inputRef.current.lane = -1;
+      if (gesture.dy < -24) inputRef.current.jump = true;
+      else if (gesture.dy > 24) inputRef.current.duck = true;
     },
   })).current;
 
-  const press = (patch) => {
-    if (phaseRef.current !== 'playing' || world.current.paused) return;
-    inputRef.current = { ...inputRef.current, ...patch };
+  const distance = phase === 'playing' || phase === 'gameover' ? run.distance : menuDistance;
+  const pose = phase === 'start' ? 'idle' : runnerFrame(run.pose, run.elapsed);
+  const lift = phase === 'playing' && run.pose === 'jump' ? run.jumpH : 0;
+  const center = playerCenterFor(field.width);
+  const frameTop = Math.max(0, (height - field.height) / 2);
+  const frameStyle = {
+    width: field.width,
+    height: field.height,
+    marginTop: frameTop,
   };
 
-  const quit = () => {
-    world.current.paused = true;
-    audioRef.current.stopAll();
-    if (roomChannelRef.current) {
-      gameRunnerService.unsubscribe(roomChannelRef.current);
-      roomChannelRef.current = null;
-    }
-    navigation.goBack();
-  };
+  const worldView = (
+    <View style={[styles.frame, frameStyle]} {...(phase === 'playing' ? panResponder.panHandlers : {})}>
+      <Sky distance={distance} width={field.width} height={field.height} />
+      <Ground distance={distance} width={field.width} groundY={groundY} height={field.height} />
+      {phase !== 'start' ? run.entities.map((entity) => entityNode(entity, groundY)) : null}
+      {phase !== 'start' && isMulti ? otherPlayers.map((player, index) => (
+        <View key={player.user_id} style={[styles.ghost, { left: center - 120 - index * 18, top: groundY - 96 }]}>
+          <Text style={styles.ghostName}>{(player.full_name || 'Player').split(' ')[0]}</Text>
+          <Image source={runnerFrame('run', run.elapsed) === 'run1' ? runnerArt.ghost.run1 : runnerArt.ghost.run2} style={styles.ghostSprite} resizeMode="contain" />
+        </View>
+      )) : null}
+      <RunnerSprite pose={pose} center={center} groundY={groundY} lift={lift} />
+      {floater && phase === 'playing' ? (
+        <Text style={[styles.floater, { left: center, top: groundY - SPRITE_H - lift - 36, transform: [{ scale: floater.scale || 1 }] }]}>
+          {floater.text}
+        </Text>
+      ) : null}
+    </View>
+  );
 
-  if (phase === 'start') {
-    return (
-      <View style={[styles.screen, { backgroundColor: theme.background }]}>
-        <LinearGradient colors={['#E7F4FB', theme.background]} style={StyleSheet.absoluteFill} />
-        <ScrollView contentContainerStyle={[styles.startScroll, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24 }]}>
-          {shellBack ? <View style={styles.backSpacer} /> : (
-            <Pressable
-              onPress={() => leaveScreen(navigation)}
-              style={[styles.iconBtn, { backgroundColor: theme.glassFill, borderColor: theme.glassBorder }]}
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-            >
-              <Image source={runnerArt.ui.back} style={styles.iconGlyph} />
-            </Pressable>
-          )}
-          <Image source={runnerArt.player.idle} style={styles.heroSprite} resizeMode="contain" accessibilityElementsHidden />
-          <Text style={[styles.title, { color: theme.text }, font(theme, 'display')]}>CompuRunner</Text>
-          <Text style={[styles.sub, { color: theme.textSecondary }, font(theme, 'body')]}>
-            Jump the virus, duck the firewall, and switch lanes at a circuit board.
-          </Text>
-          <View style={[styles.tipCard, { backgroundColor: theme.glassFill, borderColor: theme.border }]}>
-            {[
-              [runnerArt.ui.up, 'Space, swipe up, or the jump button'],
-              [runnerArt.ui.down, 'Down arrow or swipe down to duck'],
-              [runnerArt.ui.left, 'Left and right move between lanes'],
-              [runnerArt.items.coin, 'Coins build a combo. Chips teach a hardware fact'],
-            ].map(([icon, text]) => (
-              <View key={text} style={styles.tipRow}>
-                <Image source={icon} style={styles.tipIcon} />
-                <Text style={[styles.tipText, { color: theme.text }, font(theme, 'body')]}>{text}</Text>
-              </View>
-            ))}
+  return (
+    <View style={styles.screen}>
+      <StatusBar hidden />
+      <Pressable
+        style={[styles.exit, { top: Math.max(12, insets.top + 8) }]}
+        onPress={exitToLobby}
+        accessibilityRole="button"
+        accessibilityLabel="Exit to lobby"
+      >
+        <Text style={styles.exitMark}>X</Text>
+      </Pressable>
+      {worldView}
+
+      {phase === 'start' ? (
+        <Pressable style={styles.menuScrim} onPress={begin} accessibilityRole="button" accessibilityLabel="Start run">
+          <Outlined size={42}>COMPURUNNER</Outlined>
+          <View style={styles.tipRow}>
+            <Image source={runnerArt.ui.up} style={styles.tipIcon} />
+            <Text style={[styles.tipText, font(theme, 'semibold')]}>Space or swipe up to jump</Text>
           </View>
-          {highScore > 0 ? (
-            <View style={[styles.bestPill, { backgroundColor: theme.tint }]}>
-              <Image source={runnerArt.ui.trophy} style={styles.tipIcon} />
-              <Text style={[styles.bestText, { color: theme.primary }, font(theme, 'semibold')]}>Best {highScore}</Text>
-            </View>
-          ) : null}
-          <PixelButton label="Run" onPress={begin} icon={runnerArt.ui.play} />
-          <Pressable onPress={toggleMute} style={styles.muteLink} accessibilityRole="button" accessibilityLabel={muted ? 'Unmute' : 'Mute'}>
-            <Image source={muted ? runnerArt.ui.audioOff : runnerArt.ui.audioOn} style={styles.tipIcon} />
-            <Text style={[styles.muteText, { color: theme.textSecondary }, font(theme, 'semibold')]}>{muted ? 'Sound off' : 'Sound on'}</Text>
-          </Pressable>
-        </ScrollView>
-      </View>
-    );
-  }
+          <View style={styles.tipRow}>
+            <Image source={runnerArt.ui.down} style={styles.tipIcon} />
+            <Text style={[styles.tipText, font(theme, 'semibold')]}>Down or swipe down to duck</Text>
+          </View>
+          {highScore > 0 ? <Text style={[styles.bestLine, font(theme, 'semibold')]}>Best {highScore}</Text> : null}
+          <Animated.Text style={[styles.pressHint, { opacity: pulse }, font(theme, 'display')]}>
+            {coarse ? 'TAP TO RUN' : 'PRESS SPACE'}
+          </Animated.Text>
+        </Pressable>
+      ) : null}
 
-  if (phase === 'gameover' && summary) {
-    const best = Math.max(highScore, summary.score);
-    return (
-      <View style={[styles.screen, { backgroundColor: theme.background }]}>
-        <LinearGradient colors={['#E7F4FB', theme.background]} style={StyleSheet.absoluteFill} />
-        <ScrollView contentContainerStyle={[styles.overScroll, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 28 }]}>
-          <Image source={runnerArt.player.hurt} style={styles.heroSprite} resizeMode="contain" accessibilityElementsHidden />
-          <Text style={[styles.overKicker, { color: theme.accentInk }, font(theme, 'semibold')]}>RUN OVER</Text>
+      {phase === 'playing' ? (
+        <View style={[styles.hud, { top: frameTop + 16 }]} pointerEvents="box-none">
+          <View pointerEvents="none">
+            <Outlined size={40} align="left">{run.score}</Outlined>
+            <Text style={[styles.hudSub, font(theme, 'semibold')]}>Best {Math.max(highScore, run.score)}</Text>
+            <Text style={[styles.hudSub, font(theme, 'semibold')]}>Coins {run.coinCount || 0}</Text>
+            <View style={styles.cells}>
+              {[0, 1, 2].map((index) => (
+                <View key={index} style={[styles.cell, index < run.lives ? styles.cellOn : styles.cellOff]} />
+              ))}
+            </View>
+            {run.streak > 1 ? (
+              <Text style={[styles.combo, { fontSize: 16 + Math.min(10, run.streak) }, font(theme, 'display')]}>
+                {`x${run.streak}`}
+              </Text>
+            ) : null}
+          </View>
+          <View style={styles.hudRight}>
+            <Pressable onPress={togglePause} style={styles.hudBtn} accessibilityRole="button" accessibilityLabel="Pause">
+              <Image source={runnerArt.ui.pause} style={styles.hudGlyph} />
+            </Pressable>
+            <Pressable onPress={toggleMute} style={styles.hudBtn} accessibilityRole="button" accessibilityLabel={muted ? 'Unmute' : 'Mute'}>
+              <Image source={muted ? runnerArt.ui.audioOff : runnerArt.ui.audioOn} style={styles.hudGlyph} />
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
+      {toast && phase === 'playing' ? (
+        <View style={[styles.toast, { top: frameTop + 108 }]} pointerEvents="none">
+          <Image source={runnerArt.items.chip} style={styles.tipIcon} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.toastTitle, font(theme, 'semibold')]}>{toast.title}</Text>
+            <Text style={styles.toastLine}>{toast.line}</Text>
+          </View>
+        </View>
+      ) : null}
+
+      {coarse && phase === 'playing' && !paused ? (
+        <View style={[styles.touchRow, { bottom: frameTop + 20 }]} pointerEvents="box-none">
+          <Pressable
+            onPress={() => { inputRef.current.duck = true; }}
+            style={styles.touchCircle}
+            accessibilityRole="button"
+            accessibilityLabel="Duck"
+          >
+            <Image source={runnerArt.ui.down} style={styles.touchIcon} />
+          </Pressable>
+          <Pressable
+            onPress={() => { inputRef.current.jump = true; }}
+            style={styles.touchCircle}
+            accessibilityRole="button"
+            accessibilityLabel="Jump"
+          >
+            <Image source={runnerArt.ui.up} style={styles.touchIcon} />
+          </Pressable>
+        </View>
+      ) : null}
+
+      {paused ? (
+        <View style={styles.menuScrim}>
+          {count > 0 ? <Outlined size={96}>{count}</Outlined> : (
+            <View style={styles.panel}>
+              <Outlined size={32}>Paused</Outlined>
+              <GameButton label="Resume" onPress={requestResume} icon={runnerArt.ui.play} />
+              <GameButton label="Sound" onPress={toggleMute} icon={muted ? runnerArt.ui.audioOff : runnerArt.ui.audioOn} />
+              <GameButton label="Quit to lobby" onPress={exitToLobby} icon={runnerArt.ui.home} />
+            </View>
+          )}
+        </View>
+      ) : null}
+
+      {phase === 'gameover' && summary ? (
+        <ScrollView style={styles.overLayer} contentContainerStyle={styles.overScroll}>
+          <View style={styles.overCard}>
+          <Outlined size={18}>RUN OVER</Outlined>
           {finishRank != null ? (
-            <Text style={[styles.rankText, { color: theme.primary }, font(theme, 'semibold')]}>
+            <Text style={[styles.bestLine, font(theme, 'semibold')]}>
               {['1st', '2nd', '3rd'][finishRank - 1] || `#${finishRank}`} place
             </Text>
           ) : null}
-          <Text style={[styles.scoreHuge, { color: theme.primary }, font(theme, 'display')]}>{summary.score}</Text>
-          <Text style={[styles.scoreCaption, { color: theme.textTertiary }, font(theme, 'semibold')]}>SCORE</Text>
-          {isNewBest ? (
-            <View style={[styles.bestPill, { backgroundColor: theme.yellowTint }]}>
-              <Image source={runnerArt.ui.trophy} style={styles.tipIcon} />
-              <Text style={[styles.bestText, { color: theme.yellowInk }, font(theme, 'semibold')]}>New best</Text>
-            </View>
-          ) : (
-            <Text style={[styles.bestLine, { color: theme.textSecondary }, font(theme, 'body')]}>Best {best}</Text>
-          )}
-          {summary.bestStreak > 1 ? (
-            <Text style={[styles.bestLine, { color: theme.accentInk }, font(theme, 'semibold')]}>Best combo x{summary.bestStreak}</Text>
-          ) : null}
-          <View style={[styles.factCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.factKicker, { color: theme.accentInk }, font(theme, 'semibold')]}>HARDWARE FACT</Text>
-            <Text style={[styles.factTitle, { color: theme.text }, font(theme, 'h2')]}>{summary.fact.title}</Text>
-            <Text style={[styles.factBody, { color: theme.textSecondary }, font(theme, 'body')]}>{summary.fact.body}</Text>
-          </View>
-          {summary.chips.length > 0 ? (
-            <View style={styles.chipRow}>
-              {summary.chips.map((id) => (
-                <View key={id} style={[styles.chip, { borderColor: theme.border, backgroundColor: theme.tint }]}>
-                  <Image source={runnerArt.items.chip} style={styles.chipIcon} />
-                  <Text style={[styles.chipLabel, { color: theme.primary }, font(theme, 'semibold')]}>{factById(id)?.title || id}</Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-          <PixelButton label="Play again" onPress={begin} icon={runnerArt.ui.play} />
-          <View style={{ height: 10 }} />
-          <PixelButton label="Back to dashboard" onPress={() => navigation.goBack()} variant="secondary" icon={runnerArt.ui.home} />
-          {leaderboard.length > 0 ? (
-            <View style={[styles.board, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.factKicker, { color: theme.textTertiary }, font(theme, 'semibold')]}>LEADERBOARD</Text>
-              {leaderboard.map((entry, index) => (
-                <View key={`${entry.profiles?.full_name || 'player'}-${index}`} style={styles.boardRow}>
-                  <Text style={[styles.boardRank, { color: theme.primary }, font(theme, 'semibold')]}>{index + 1}</Text>
-                  <Text style={[styles.boardName, { color: theme.text }, font(theme, 'body')]}>{entry.profiles?.full_name || 'Player'}</Text>
-                  <Text style={[styles.boardScore, { color: theme.accentInk }, font(theme, 'semibold')]}>{entry.score}</Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  const pose = runnerFrame(run.pose, run.elapsed);
-  const lift = run.pose === 'jump' ? run.jumpH : 0;
-  const shadow = 1 - Math.min(1, lift / JUMP_APEX) * 0.65;
-  const blinking = run.elapsed < run.invincibleUntil && Math.floor(run.elapsed / 90) % 2 === 0;
-
-  return (
-    <View style={[styles.screen, { backgroundColor: theme.background }]} {...panResponder.panHandlers} collapsable={false}>
-      <StatusBar hidden />
-      <Sky distance={run.distance} width={width} height={height} />
-      <Ground distance={run.distance} width={width} groundY={groundY} />
-      {[0, 1, 2].map((lane) => (
-        <View key={lane} pointerEvents="none" style={StyleSheet.absoluteFill}>
-          <View style={[styles.laneGuide, { top: laneY(lane) - 2, backgroundColor: run.lane === lane ? theme.accent : 'rgba(11,27,58,0.12)', opacity: run.lane === lane ? 0.9 : 1 }]} />
-          {run.entities.filter((entity) => entity.lane === lane).map((entity) => entityNode(entity, laneY(lane)))}
-          {isMulti && otherPlayers.filter((player) => (player.lane ?? 1) === lane).map((player) => (
-            <View key={player.user_id} style={[styles.ghost, { left: PLAYER_X - 78, top: laneY(lane) - SPRITE_H }]}>
-              <Text style={[styles.ghostName, { color: theme.text }]} numberOfLines={1}>{(player.full_name || 'Player').split(' ')[0]}</Text>
-              <Image source={runnerFrame('run', run.elapsed) === 'run1' ? runnerArt.ghost.run1 : runnerArt.ghost.run2} style={styles.ghostSprite} resizeMode="contain" />
-            </View>
-          ))}
-          {run.lane === lane ? (
-            <View style={{ position: 'absolute', left: PLAYER_X - 22, top: laneY(lane) - SPRITE_H - lift, width: SPRITE_W, height: SPRITE_H, opacity: blinking ? 0.45 : 1 }}>
-              <View style={[styles.shadow, { opacity: shadow, transform: [{ scaleX: shadow }], top: SPRITE_H - 8 + lift }]} />
-              <Image source={runnerArt.player[pose]} style={styles.playerSprite} resizeMode="contain" />
-            </View>
-          ) : null}
-        </View>
-      ))}
-
-      <View style={[styles.hud, { top: insets.top + 10 }]} pointerEvents="box-none">
-        <View style={[styles.hudCard, { backgroundColor: theme.glassFill, borderColor: theme.glassBorder }]}>
-          <Pressable onPress={togglePause} style={styles.hudIcon} accessibilityRole="button" accessibilityLabel="Pause">
-            <Image source={runnerArt.ui.pause} style={styles.hudGlyph} />
-          </Pressable>
-          <View>
-            <Text style={[styles.hudScore, { color: theme.text }, font(theme, 'h2')]}>{run.score}</Text>
-            <Text style={[styles.hudMeta, { color: theme.textTertiary }]}>SCORE</Text>
-          </View>
-          <View style={styles.pips}>
-            {[0, 1, 2].map((index) => (
-              <View key={index} style={[styles.pip, { backgroundColor: index < run.lives ? theme.primary : theme.border }]} />
-            ))}
-          </View>
-          <View style={styles.hudPace}>
-            <Text style={[styles.hudMeta, { color: theme.accentInk }, font(theme, 'semibold')]}>
-              {`${((run.speed || INITIAL_SPEED) / INITIAL_SPEED).toFixed(1)}x`}
+          <Outlined size={72}>{shownScore}</Outlined>
+          <Text style={[styles.hudSub, font(theme, 'semibold')]}>SCORE</Text>
+          {overStep >= 1 ? (
+            <Text style={[styles.bestLine, font(theme, 'semibold')]}>
+              {isNewBest ? `New best  ${summary.score}` : `Best ${Math.max(highScore, summary.score)}`}
             </Text>
-            {run.streak > 1 ? (
-              <Text style={[styles.hudMeta, { color: theme.primary }, font(theme, 'semibold')]}>{`combo ${run.streak}`}</Text>
-            ) : null}
-          </View>
-          <Pressable onPress={toggleMute} style={styles.hudIcon} accessibilityRole="button" accessibilityLabel={muted ? 'Unmute' : 'Mute'}>
-            <Image source={muted ? runnerArt.ui.audioOff : runnerArt.ui.audioOn} style={styles.hudGlyph} />
-          </Pressable>
-        </View>
-      </View>
-
-      {isMulti && otherPlayers.length > 0 ? (
-        <View style={[styles.opponents, { top: insets.top + 74 }]} pointerEvents="none">
-          {otherPlayers.map((player) => (
-            <View key={player.user_id} style={[styles.opponent, { backgroundColor: theme.glassFill, borderColor: theme.glassBorder }]}>
-              <Text style={[styles.opponentName, { color: theme.text }]} numberOfLines={1}>{(player.full_name || 'Player').split(' ')[0]}</Text>
-              <Text style={[styles.opponentScore, { color: theme.primary }]}>{player.finished ? 'done' : player.score}</Text>
+          ) : null}
+          {overStep >= 1 && summary.bestStreak > 1 ? (
+            <Text style={[styles.bestLine, font(theme, 'semibold')]}>Best combo x{summary.bestStreak}</Text>
+          ) : null}
+          {overStep >= 1 && isNewBest ? bits.map((bit) => (
+            <View key={bit.id} style={[styles.bit, { left: `${bit.left}%`, backgroundColor: bit.color, top: 80 + bit.delay }]} />
+          )) : null}
+          {overStep >= 2 ? (
+            <View style={styles.factCard}>
+              <Text style={[styles.factKicker, font(theme, 'semibold')]}>HARDWARE FACT</Text>
+              <Text style={[styles.factTitle, font(theme, 'h2')]}>{summary.fact.title}</Text>
+              <Text style={styles.factBody}>{summary.fact.body}</Text>
             </View>
-          ))}
-        </View>
-      ) : null}
-
-      {floater ? <View style={[styles.floaterWrap, { top: laneY(run.lane) - 130 }]} pointerEvents="none"><Floater key={floater.id} text={floater.text} color={theme.primary} /></View> : null}
-      {toast ? (
-        <View style={[styles.toast, { top: insets.top + 78, backgroundColor: theme.surface, borderColor: theme.accent }]} pointerEvents="none">
-          <Image source={runnerArt.items.chip} style={styles.chipIcon} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.toastTitle, { color: theme.text }, font(theme, 'semibold')]}>{toast.title}</Text>
-            <Text style={[styles.toastLine, { color: theme.textSecondary }]}>{toast.line}</Text>
+          ) : null}
+          {overStep >= 3 ? (
+            <>
+              <GameButton label="Play again" onPress={begin} icon={runnerArt.ui.play} />
+              <Text style={[styles.restartHint, font(theme, 'semibold')]}>or press R</Text>
+              <Pressable onPress={exitToLobby} accessibilityRole="button" accessibilityLabel="Back to lobby">
+                <Text style={[styles.textLink, font(theme, 'semibold')]}>Back to lobby</Text>
+              </Pressable>
+              {leaderboard.length > 0 ? (
+                <View style={styles.board}>
+                  <Text style={[styles.factKicker, font(theme, 'semibold')]}>LEADERBOARD</Text>
+                  {leaderboard.map((entry, index) => {
+                    const raw = entry.profiles?.full_name || '';
+                    const label = runnerDisplayName(raw, entry.score, index);
+                    const mine = (myName && raw === myName) || (!myName && entry.score === summary.score && index === leaderboard.findIndex((row) => row.score === summary.score));
+                    return (
+                      <View key={`${label}-${index}`} style={[styles.boardRow, mine && styles.boardMine]}>
+                        <Text style={[styles.boardRank, font(theme, 'semibold')]}>{index + 1}</Text>
+                        <Text style={[styles.boardName, font(theme, 'body')]}>{label}</Text>
+                        <Text style={[styles.boardScore, font(theme, 'semibold')]}>{entry.score}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : null}
+            </>
+          ) : null}
           </View>
-        </View>
-      ) : null}
-      {milestone ? (
-        <View style={[styles.milestone, { backgroundColor: theme.yellowTint }]} pointerEvents="none">
-          <Image source={runnerArt.ui.star} style={styles.tipIcon} />
-          <Text style={[styles.milestoneText, { color: theme.yellowInk }, font(theme, 'h3')]}>{milestone} points</Text>
-        </View>
-      ) : null}
-
-      <View style={[styles.controls, { bottom: Math.max(insets.bottom, 10) }]}>
-        <Control icon={runnerArt.ui.left} label="Lane left" onPress={() => press({ lane: -1 })} />
-        <Control icon={runnerArt.ui.down} label="Duck" onPress={() => press({ duck: true })} />
-        <Control icon={runnerArt.ui.up} label="Jump" onPress={() => press({ jump: true })} primary />
-        <Control icon={runnerArt.ui.right} label="Lane right" onPress={() => press({ lane: 1 })} />
-      </View>
-
-      {paused ? (
-        <View style={[styles.pauseScrim, { backgroundColor: theme.overlay }]}>
-          <View style={[styles.pauseCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.title, { color: theme.text }, font(theme, 'h1')]}>Paused</Text>
-            <PixelButton label="Resume" onPress={togglePause} icon={runnerArt.ui.play} />
-            <View style={{ height: 10 }} />
-            <PixelButton label={muted ? 'Unmute' : 'Mute'} onPress={toggleMute} variant="secondary" icon={muted ? runnerArt.ui.audioOff : runnerArt.ui.audioOn} />
-            <View style={{ height: 10 }} />
-            <PixelButton label="Quit" onPress={quit} variant="secondary" icon={runnerArt.ui.home} />
-          </View>
-        </View>
+        </ScrollView>
       ) : null}
     </View>
   );
 }
 
-function Control({ icon, label, onPress, primary }) {
-  const { theme } = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => [
-        styles.control,
-        { backgroundColor: primary ? theme.primary : theme.glassFill, borderColor: primary ? theme.primary : theme.border, opacity: pressed ? 0.85 : 1 },
-      ]}
-    >
-      <Image source={icon} style={[styles.controlIcon, primary && styles.controlIconOn]} />
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  screen: { flex: 1, overflow: 'hidden', backgroundColor: '#F7FBFD' },
-  startScroll: { paddingHorizontal: 24, alignItems: 'center', maxWidth: 520, width: '100%', alignSelf: 'center' },
-  overScroll: { paddingHorizontal: 24, alignItems: 'center', maxWidth: 560, width: '100%', alignSelf: 'center' },
-  backSpacer: { height: 44, alignSelf: 'flex-start' },
-  iconBtn: {
-    width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start',
-  },
-  iconGlyph: { width: 22, height: 22 },
-  heroSprite: { width: 120, height: 150, marginTop: 8 },
-  title: { fontSize: 36, color: '#0B1B3A', marginTop: 4 },
-  sub: { fontSize: 15, textAlign: 'center', lineHeight: 22, marginTop: 8, marginBottom: 16 },
-  tipCard: { width: '100%', borderRadius: 18, borderWidth: 1, padding: 14, gap: 12, marginBottom: 16 },
-  tipRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  tipIcon: { width: 22, height: 22 },
-  tipText: { flex: 1, fontSize: 14, lineHeight: 20 },
-  bestPill: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, marginBottom: 14 },
-  bestText: { fontSize: 14 },
-  pixelPress: { width: '100%', maxWidth: 420 },
-  pixelBtn: { minHeight: 54, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, paddingHorizontal: 16 },
-  pixelBtnImage: { borderRadius: 12 },
-  pixelIcon: { width: 20, height: 20 },
-  pixelIconOn: { tintColor: '#fff' },
-  hudPace: { alignItems: 'flex-end', minWidth: 54 },
-  pixelLabel: { fontSize: 16, letterSpacing: 0.3 },
-  muteLink: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, minHeight: 44, paddingHorizontal: 8 },
-  muteText: { fontSize: 14 },
+  screen: { flex: 1, backgroundColor: '#0B1026', alignItems: 'center' },
+  frame: { backgroundColor: '#07101C', overflow: 'hidden' },
   span: { position: 'absolute', top: 0, bottom: 0 },
-  moon: { position: 'absolute', top: 24, width: 64, height: 64 },
-  groundWrap: { position: 'absolute', left: 0, right: 0, height: 150 },
-  horizon: { position: 'absolute', left: 0, right: 0, top: 16, height: 3, backgroundColor: '#3BB8C4' },
-  laneGuide: { position: 'absolute', left: 0, right: 0, height: 8, borderRadius: 4 },
-  playerSprite: { width: SPRITE_W, height: SPRITE_H },
-  shadow: {
-    position: 'absolute', alignSelf: 'center', width: 46, height: 10, borderRadius: 8, backgroundColor: 'rgba(11,27,58,0.18)',
+  playerSprite: { position: 'absolute', left: 0, top: 0, width: SPRITE_W, height: SPRITE_H },
+  exit: {
+    position: 'absolute', top: 16, left: 16, zIndex: 8,
+    width: 48, height: 48, borderRadius: 12, backgroundColor: PANEL,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: INK,
   },
-  ghost: { position: 'absolute', width: 70, alignItems: 'center', opacity: 0.55 },
-  ghostName: { fontSize: 10, fontWeight: '800', backgroundColor: 'rgba(255,255,255,0.8)', borderRadius: 6, paddingHorizontal: 4, marginBottom: 2 },
-  ghostSprite: { width: 58, height: 80 },
-  hud: { position: 'absolute', left: 14, right: 14 },
-  hudCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 18, borderWidth: 1,
-    paddingHorizontal: 10, paddingVertical: 8,
+  exitMark: { color: '#fff', fontSize: 22, fontWeight: '800' },
+  hud: {
+    position: 'absolute', left: 76, right: 16, zIndex: 5,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
   },
-  hudIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  hudGlyph: { width: 22, height: 22 },
-  hudScore: { fontSize: 22, lineHeight: 24 },
-  hudMeta: { fontSize: 10, letterSpacing: 1, fontWeight: '700' },
-  pips: { flex: 1, flexDirection: 'row', gap: 5, justifyContent: 'center' },
-  pip: { width: 12, height: 12, borderRadius: 6 },
-  opponents: { position: 'absolute', left: 14, right: 14, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  opponent: { flexDirection: 'row', gap: 6, borderRadius: 10, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4 },
-  opponentName: { fontSize: 11, fontWeight: '700', maxWidth: 72 },
-  opponentScore: { fontSize: 11, fontWeight: '800' },
-  floaterWrap: { position: 'absolute', left: PLAYER_X, width: 120 },
-  floater: { fontSize: 18, fontWeight: '800' },
+  hudRight: { flexDirection: 'row', gap: 8 },
+  hudBtn: {
+    width: 48, height: 48, borderRadius: 12, backgroundColor: PANEL,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: INK,
+  },
+  hudGlyph: { width: 22, height: 22, tintColor: '#fff' },
+  hudSub: { color: '#fff', fontSize: 14, marginTop: 2 },
+  cells: { flexDirection: 'row', gap: 6, marginTop: 8 },
+  cell: { width: 28, height: 14, borderRadius: 3, borderWidth: 2, borderColor: '#fff' },
+  cellOn: { backgroundColor: '#39FFB0' },
+  cellOff: { backgroundColor: 'transparent' },
+  combo: { color: '#FFC83D', marginTop: 6 },
+  outlined: { fontWeight: '800', letterSpacing: 0.5 },
+  outlinedInk: { position: 'absolute', left: 2, top: 2, color: INK },
+  menuScrim: {
+    ...StyleSheet.absoluteFillObject, zIndex: 4,
+    alignItems: 'center', justifyContent: 'center', padding: 24,
+    backgroundColor: 'rgba(7, 16, 28, 0.45)',
+  },
+  panel: { width: '100%', maxWidth: 420, gap: 12, alignItems: 'stretch' },
+  gameBtn: {
+    width: '100%', minWidth: 240, minHeight: 56, height: 56,
+    backgroundColor: FILL, borderRadius: 12, borderWidth: 4, borderColor: INK,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 16,
+  },
+  gameBtnIcon: { width: 22, height: 22, tintColor: '#fff' },
+  gameBtnText: { color: '#fff', fontSize: 18 },
+  tipRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 },
+  tipIcon: { width: 28, height: 28 },
+  tipText: { color: '#fff', fontSize: 16 },
+  pressHint: { color: '#fff', fontSize: 28, marginTop: 22, letterSpacing: 1 },
+  bestLine: { color: '#FFC83D', fontSize: 16, marginTop: 8 },
+  floater: { position: 'absolute', color: '#fff', fontSize: 22, fontWeight: '800' },
   toast: {
-    position: 'absolute', left: 16, right: 16, borderRadius: 14, borderWidth: 1, padding: 10,
-    flexDirection: 'row', gap: 10, alignItems: 'center',
+    position: 'absolute', left: 24, right: 24, zIndex: 5,
+    backgroundColor: PANEL, borderRadius: 12, borderWidth: 3, borderColor: '#3BB8C4',
+    flexDirection: 'row', gap: 10, padding: 10, alignItems: 'center',
   },
-  toastTitle: { fontSize: 14 },
-  toastLine: { fontSize: 12, lineHeight: 16, marginTop: 2 },
-  milestone: {
-    position: 'absolute', alignSelf: 'center', top: '38%', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 10,
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+  toastTitle: { color: '#fff', fontSize: 14 },
+  toastLine: { color: '#D5E4F2', fontSize: 12, marginTop: 2 },
+  touchRow: {
+    position: 'absolute', left: 24, right: 24, zIndex: 5,
+    flexDirection: 'row', justifyContent: 'space-between',
   },
-  milestoneText: { fontSize: 16 },
-  controls: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  control: { flex: 1, height: 52, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  controlIcon: { width: 26, height: 26 },
-  controlIconOn: { tintColor: '#fff' },
-  pauseScrim: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  pauseCard: { width: '100%', maxWidth: 380, borderRadius: 24, borderWidth: 1, padding: 22 },
-  overKicker: { letterSpacing: 3, fontSize: 13, marginTop: 4 },
-  rankText: { marginTop: 6, fontSize: 15 },
-  scoreHuge: { fontSize: 72, lineHeight: 78, marginTop: 4 },
-  scoreCaption: { letterSpacing: 3, fontSize: 12, marginBottom: 8 },
-  bestLine: { fontSize: 15, marginBottom: 6 },
-  factCard: { width: '100%', borderRadius: 18, borderWidth: 1, padding: 16, marginVertical: 12 },
-  factKicker: { fontSize: 11, letterSpacing: 1.4, marginBottom: 6 },
-  factTitle: { fontSize: 20, marginBottom: 6 },
-  factBody: { fontSize: 14, lineHeight: 21 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 16 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  chipIcon: { width: 18, height: 18 },
-  chipLabel: { fontSize: 12 },
-  board: { width: '100%', borderRadius: 16, borderWidth: 1, padding: 14, marginTop: 16 },
-  boardRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, gap: 8 },
-  boardRank: { width: 22, fontSize: 14 },
-  boardName: { flex: 1, fontSize: 14 },
-  boardScore: { fontSize: 14 },
+  touchCircle: {
+    width: 84, height: 84, borderRadius: 42,
+    backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 3, borderColor: 'rgba(255,255,255,0.7)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  touchIcon: { width: 32, height: 32, tintColor: '#fff' },
+  ghost: { position: 'absolute', opacity: 0.45, alignItems: 'center' },
+  ghostName: { color: '#fff', fontSize: 10, fontWeight: '800' },
+  ghostSprite: { width: 58, height: 80 },
+  overLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 7,
+    backgroundColor: 'rgba(7, 16, 28, 0.82)',
+  },
+  overScroll: { alignItems: 'center', paddingTop: 72, paddingBottom: 48, paddingHorizontal: 24 },
+  overCard: { width: '100%', maxWidth: 480, alignItems: 'center' },
+  factCard: {
+    width: '100%', backgroundColor: '#F7FBFD', borderRadius: 16, padding: 16, marginVertical: 14,
+  },
+  factKicker: { color: '#0A6F79', fontSize: 12, letterSpacing: 1, marginBottom: 6 },
+  factTitle: { color: INK, fontSize: 22, marginBottom: 6 },
+  factBody: { color: '#24344A', fontSize: 15, lineHeight: 22 },
+  restartHint: { color: '#fff', marginTop: 8, marginBottom: 8 },
+  textLink: { color: '#fff', fontSize: 16, textDecorationLine: 'underline', paddingVertical: 10 },
+  board: { width: '100%', marginTop: 12, backgroundColor: 'rgba(16,32,58,0.9)', borderRadius: 12, padding: 12 },
+  boardRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, gap: 8 },
+  boardMine: { backgroundColor: 'rgba(10,102,255,0.35)', borderRadius: 8, paddingHorizontal: 6 },
+  boardRank: { width: 22, color: '#fff' },
+  boardName: { flex: 1, color: '#fff' },
+  boardScore: { color: '#FFC83D' },
+  bit: { position: 'absolute', width: 10, height: 14, borderRadius: 2 },
 });
