@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
+  View, Text, TouchableOpacity, StyleSheet, Image,
   TextInput, ActivityIndicator, FlatList, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +12,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useShellBack } from '../context/ChromeContext';
 import { leaveScreen } from '../utils/screenNav';
 import { font } from '../components/ui/kit';
+import { runnerArt } from '../assets/runner/art';
 
 export default function GameRunnerLobbyScreen({ navigation }) {
   const { theme } = useTheme();
@@ -180,10 +181,10 @@ export default function GameRunnerLobbyScreen({ navigation }) {
 
         <View style={s.heroWrap}>
           <View style={[s.heroMark, { backgroundColor: theme.tint }]}>
-            <Ionicons name="game-controller" size={32} color={theme.primary} />
+            <Image source={runnerArt.player.idle} style={s.heroSprite} resizeMode="contain" accessibilityElementsHidden />
           </View>
           <Text style={[s.heroTitle, { color: theme.text }, font(theme, 'h1')]}>CompuRunner</Text>
-          <Text style={[s.heroSub, { color: theme.textSecondary }, font(theme, 'body')]}>Dodge obstacles, collect PC components{'\n'}and race classmates to the finish!</Text>
+          <Text style={[s.heroSub, { color: theme.textSecondary }, font(theme, 'body')]}>Jump viruses, duck firewalls, grab chips,{'\n'}and race classmates to the best score.</Text>
         </View>
 
         <View style={s.modesWrap}>
@@ -194,7 +195,7 @@ export default function GameRunnerLobbyScreen({ navigation }) {
             accessibilityRole="button"
             accessibilityLabel="Solo Run"
           >
-            <Ionicons name="person" size={28} color={theme.primary} />
+            <Image source={runnerArt.ui.solo} style={s.modeIcon} accessibilityElementsHidden />
             <Text style={[s.modeTitle, { color: theme.text }, font(theme, 'h3')]}>Solo Run</Text>
             <Text style={[s.modeDesc, { color: theme.textSecondary }, font(theme, 'body')]}>Practice alone, chase{'\n'}your high score</Text>
           </TouchableOpacity>
@@ -207,7 +208,7 @@ export default function GameRunnerLobbyScreen({ navigation }) {
             accessibilityRole="button"
             accessibilityLabel="Host Race"
           >
-            <Ionicons name="people" size={28} color={theme.accentInk} />
+            <Image source={runnerArt.ui.multi} style={s.modeIcon} accessibilityElementsHidden />
             <Text style={[s.modeTitle, { color: theme.text }, font(theme, 'h3')]}>Host Race</Text>
             <Text style={[s.modeDesc, { color: theme.textSecondary }, font(theme, 'body')]}>Create a room and invite{'\n'}classmates with a code</Text>
           </TouchableOpacity>
@@ -251,7 +252,9 @@ const s = StyleSheet.create({
   backBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, color: '#0B1B3A' },
   heroWrap: { alignItems: 'center', paddingVertical: 12, paddingHorizontal: 20 },
-  heroMark: { width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  heroMark: { width: 96, height: 112, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  heroSprite: { width: 78, height: 100 },
+  modeIcon: { width: 32, height: 32 },
   heroTitle: { fontSize: 28, marginBottom: 8 },
   heroSub: { fontSize: 15, textAlign: 'center', lineHeight: 22 },
   modesWrap: { flexDirection: 'row', gap: 12, marginBottom: 24, width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 20 },
