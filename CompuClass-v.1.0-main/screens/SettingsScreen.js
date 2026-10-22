@@ -11,6 +11,7 @@ import { Icon } from '../components/ui/Icon';
 import {
   Page, Heading, Card, IconTile, Toggle, Skeleton, Sheet, Body, font, useLayout,
 } from '../components/ui/kit';
+import { WORLD_STORAGE_KEY, normalizeWorld } from '../utils/runnerEngine';
 
 function Row({ icon, tone = 'blue', label, subtitle, onPress, trailing }) {
   const { theme } = useTheme();
@@ -42,6 +43,7 @@ export default function SettingsScreen({ onLogout }) {
   const [ready, setReady] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [soundEffects, setSoundEffects] = useState(true);
+  const [nightCity, setNightCity] = useState(false);
   const [about, setAbout] = useState(false);
 
   useEffect(() => { loadUser(); loadSettings(); }, []);
@@ -53,11 +55,12 @@ export default function SettingsScreen({ onLogout }) {
 
   const loadSettings = async () => {
     try {
-      const vals = await AsyncStorage.multiGet(['notifications', 'soundEffects']);
+      const vals = await AsyncStorage.multiGet(['notifications', 'soundEffects', WORLD_STORAGE_KEY]);
       vals.forEach(([key, val]) => {
         if (val !== null) {
           if (key === 'notifications') setNotifications(JSON.parse(val));
           if (key === 'soundEffects') setSoundEffects(JSON.parse(val));
+          if (key === WORLD_STORAGE_KEY) setNightCity(normalizeWorld(val) === 'dark');
         }
       });
     } catch { /* keep defaults */ }
@@ -114,6 +117,9 @@ export default function SettingsScreen({ onLogout }) {
       <Heading level={2} style={{ marginBottom: 16 }}>Display</Heading>
       <Card>
         <Row icon="sun" label="Appearance" subtitle="Soft Glass light" trailing={<Text style={[{ color: theme.textSecondary, fontSize: 14 }, font(theme, 'body')]}>Light</Text>} />
+        <View style={{ height: 1, backgroundColor: theme.borderLight, marginHorizontal: 16 }} />
+        <View style={{ height: 1, backgroundColor: theme.borderLight, marginHorizontal: 16 }} />
+        <Row icon="sun" tone="teal" label="CompuRunner night city" subtitle="Dark sky for the runner" trailing={<Toggle value={nightCity} label="CompuRunner night city" onValueChange={(v) => { setNightCity(v); AsyncStorage.setItem(WORLD_STORAGE_KEY, v ? 'dark' : 'light').catch(() => {}); }} />} />
         <View style={{ height: 1, backgroundColor: theme.borderLight, marginHorizontal: 16 }} />
         <Row icon="type" tone="teal" label="Text size" subtitle="Follows your device" trailing={<Text style={[{ color: theme.textSecondary, fontSize: 14 }, font(theme, 'body')]}>Default</Text>} />
       </Card>

@@ -14,10 +14,13 @@ describe('navKeyForRoute', () => {
       .forEach((route) => expect(navKeyForRoute(route)).toBe(route));
   });
 
-  it('does not pretend a game is one of the sidebar items', () => {
+  it('highlights CompuRunner for the lobby and the run', () => {
+    expect(navKeyForRoute('Game')).toBe('GameRunnerLobby');
+    expect(navKeyForRoute('GameRunnerLobby')).toBe('GameRunnerLobby');
+  });
+
+  it('does not pretend Circuit Maze is one of the sidebar items', () => {
     expect(navKeyForRoute('CircuitMaze')).toBeNull();
-    expect(navKeyForRoute('Game')).toBeNull();
-    expect(navKeyForRoute('GameRunnerLobby')).toBeNull();
     expect(navKeyForRoute('')).toBeNull();
   });
 
