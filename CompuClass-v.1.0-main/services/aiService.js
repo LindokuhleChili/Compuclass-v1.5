@@ -8,8 +8,8 @@ import { spreadCorrectAnswer } from '../utils/quizFlow';
 import { AppError } from '../utils/errorMessages';
 
 // Every AI call goes through the gemini-proxy Edge Function. The Gemini key
-// lives in the GEMINI_API_KEY secret and is never read by the app.
-// See supabase/functions/gemini-proxy/README.md.
+// is the Supabase secret GEMINI_API_KEY, or Compuclass-gemini-new when that
+// is unset. The app never reads it. See supabase/functions/gemini-proxy/README.md.
 const PROXY_MAX_TEXT_CHARS = 100_000;
 const PROXY_MAX_MESSAGES = 30;
 

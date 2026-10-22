@@ -63,7 +63,7 @@ EXPO_PUBLIC_SUPABASE_URL=your_supabase_url_here
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
 ```
 
-Do not put a Gemini API key in `.env`. The app calls the `gemini-proxy` Edge Function, which reads the `GEMINI_API_KEY` Supabase secret.
+Do not put a Gemini API key in `.env`. The app calls the `gemini-proxy` Edge Function, which reads the Supabase secret `GEMINI_API_KEY`, or `Compuclass-gemini-new` when that is unset.
 
 ## Database Setup
 

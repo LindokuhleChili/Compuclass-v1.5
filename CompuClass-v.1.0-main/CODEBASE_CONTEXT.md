@@ -146,7 +146,7 @@ Covers all lecturer CRUD operations:
 - **AI**: `generateAIQuiz(file, title, questionCount)` — delegates to `aiService`
 
 ### `aiService.js`
-Uses Google Gemini through the `gemini-proxy` Edge Function (`GEMINI_API_KEY` secret):
+Uses Google Gemini through the `gemini-proxy` Edge Function (`GEMINI_API_KEY`, or `Compuclass-gemini-new` when that is unset):
 - `generateQuizFromFile(file, title, questionCount)` — routes to PDF or text path
 - `generateQuizFromPDF(file, title, questionCount)` — sends base64 PDF inline to Gemini
 - `generateQuizFromText(text, title, questionCount)` — sends extracted text to Gemini
@@ -277,7 +277,7 @@ Single public bucket: `documents` — used for both course files and user avatar
 ```
 EXPO_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co      # base URL only, no /rest/v1/
 EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon_key>
-# Gemini key is a Supabase secret (GEMINI_API_KEY), not an EXPO_PUBLIC_ variable
+# Gemini key is a Supabase secret (GEMINI_API_KEY, or Compuclass-gemini-new), not an EXPO_PUBLIC_ variable
 ```
 
 ---
