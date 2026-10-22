@@ -17,6 +17,7 @@ import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
 import { openStoredDocument } from '../utils/fileDownload';
 import { formatShortDate } from '../utils/quizFlow';
+import { formatFileSize } from '../utils/fileSize';
 import ClassScopePicker from '../components/ClassScopePicker';
 import { Page, Glass, Badge, font } from '../components/ui/kit';
 import { LECTURER_COLUMN, ScreenHeading, ToastBanner, confirmNamed, useUndoToast } from '../components/lecturerChrome';
@@ -153,14 +154,6 @@ export default function ContentUploadScreen({ navigation, route }) {
     if (fileType?.includes('excel') || fileType?.includes('sheet')) return 'grid';
     if (fileType?.includes('powerpoint') || fileType?.includes('presentation')) return 'easel';
     return 'document-outline';
-  };
-
-  const formatFileSize = (bytes) => {
-    if (!bytes) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   const renderDocument = (doc) => (

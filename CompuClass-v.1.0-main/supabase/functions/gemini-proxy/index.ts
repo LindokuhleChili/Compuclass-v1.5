@@ -7,8 +7,9 @@
 // (Supabase Dashboard -> Edge Functions -> gemini-proxy -> Logs); clients only
 // ever get a generic message.
 //
-// Secrets (supabase secrets set ...): GEMINI_API_KEY, optional GEMINI_MODEL.
-// SUPABASE_URL and SUPABASE_ANON_KEY are provided by the runtime.
+// Secrets: GEMINI_API_KEY, or Compuclass-gemini-new when that is unset.
+// Optional GEMINI_MODEL. SUPABASE_URL and SUPABASE_ANON_KEY come from the runtime.
+// Logged errors never include the key value.
 
 import { buildGeminiBody, createRateLimiter, extractText, parseQuiz, RequestError, validateRequest } from './logic.ts';
 
@@ -30,8 +31,13 @@ function json(status: number, body: unknown, extraHeaders: Record<string, string
   });
 }
 
-function log(level: 'info' | 'warn' | 'error', event: string, fields: Record<string, unknown>) {
-  const line = JSON.stringify({ level, event, at: new Date().toISOString(), ...fields });
+function redact(text: string, secret: string | undefined): string {
+  if (!secret) return text;
+  return text.split(secret).join('[redacted]');
+}
+
+function log(level: 'info' | 'warn' | 'error', event: string, fields: Record<string, unknown>, secret?: string) {
+  const line = redact(JSON.stringify({ level, event, at: new Date().toISOString(), ...fields }), secret);
   if (level === 'error') console.error(line);
   else if (level === 'warn') console.warn(line);
   else console.log(line);
@@ -56,6 +62,7 @@ export async function handler(req: Request): Promise<Response> {
   const requestId = crypto.randomUUID();
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   let userId: string | null = null;
+  let apiKey: string | undefined;
 
   try {
     userId = await getUserId(req.headers.get('Authorization'));
@@ -74,9 +81,9 @@ export async function handler(req: Request): Promise<Response> {
       return json(429, { error: 'Too many requests. Please wait a moment and try again.' }, { 'Retry-After': String(retryAfterSeconds) });
     }
 
-    const apiKey = Deno.env.get('GEMINI_API_KEY');
-    if (!apiKey) throw new Error('GEMINI_API_KEY secret is not set');
-    const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-1.5-flash';
+    apiKey = Deno.env.get('GEMINI_API_KEY') ?? Deno.env.get('Compuclass-gemini-new');
+    if (!apiKey) throw new Error('Gemini API key secret is not set');
+    const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash';
 
     const geminiResponse = await fetch(`${GEMINI_BASE_URL}/models/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
@@ -86,11 +93,11 @@ export async function handler(req: Request): Promise<Response> {
       signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
     });
     if (!geminiResponse.ok) {
-      throw new Error(`Gemini ${geminiResponse.status}: ${(await geminiResponse.text()).slice(0, 2000)}`);
+      throw new Error(`Gemini ${geminiResponse.status}: ${redact((await geminiResponse.text()).slice(0, 2000), apiKey)}`);
     }
 
     const text = extractText(await geminiResponse.json());
-    log('info', 'ai_request_ok', { requestId, action: request.action });
+    log('info', 'ai_request_ok', { requestId, action: request.action }, apiKey);
 
     return request.action === 'chat'
       ? json(200, { text })
@@ -100,7 +107,7 @@ export async function handler(req: Request): Promise<Response> {
       log('warn', 'invalid_request', { requestId, ip, userId, status: error.status, reason: error.message });
       return json(error.status, { error: error.message });
     }
-    log('error', 'ai_request_failed', { requestId, ip, userId, error: String((error as Error)?.stack ?? error) });
+    log('error', 'ai_request_failed', { requestId, ip, userId, error: redact(String((error as Error)?.stack ?? error), apiKey) }, apiKey);
     return json(502, { error: 'The AI service is unavailable right now. Please try again later.', requestId });
   }
 }

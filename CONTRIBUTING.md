@@ -28,7 +28,7 @@ personal branch (lindo_branch, kamo_branch, lutho_branch, thabo_branch, mila_bra
 ## Environment variables
 
 The app reads `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
-The Gemini key lives only as the Supabase secret `GEMINI_API_KEY` (see DEPLOYMENT.md Part 7).
+The Gemini key lives only as a Supabase secret: `GEMINI_API_KEY`, or `Compuclass-gemini-new` when that is unset (see DEPLOYMENT.md Part 7).
 
 **`.env` must live in `CompuClass-v.1.0-main/`** — the Expo project root, next to
 `app.json`. A `.env` at the repository root is *not* read, and the app will silently

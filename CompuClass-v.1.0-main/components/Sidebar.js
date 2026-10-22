@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { Icon } from './ui/Icon';
 import { Glass, Mark, Wordmark, Avatar, initials, font } from './ui/kit';
-import { navKeyForRoute } from '../utils/screenNav';
+import { navKeyForRoute, sidebarDestination } from '../utils/screenNav';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import {
   claimDrawerClose,
@@ -187,7 +187,7 @@ export default function Sidebar({ visible, docked, onClose, onNavigate, onHomePr
 
   const onPress = (item) => {
     if (item.screen === 'Home') onHomePress?.();
-    else onNavigate?.(item.screen);
+    else onNavigate?.(sidebarDestination(item.screen, user?.profile?.role));
     onClose?.();
   };
 

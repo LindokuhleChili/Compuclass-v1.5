@@ -6,7 +6,9 @@ validates and rate-limits the request (chat: 10/min per user, quiz: 5 per
 10 min per user), and calls Gemini with a secret key.
 
 The app always calls this function. It does not read `EXPO_PUBLIC_GEMINI_API_KEY`.
-AI chat and quiz generation fail until the function is deployed with `GEMINI_API_KEY`.
+The function reads `GEMINI_API_KEY`, then `Compuclass-gemini-new` when that is unset.
+This project stores the key under `Compuclass-gemini-new`. AI chat and quiz generation
+fail until the function is deployed where one of those secrets is set.
 
 ## Switch-over (in this order)
 
@@ -16,10 +18,12 @@ Run these from `CompuClass-v.1.0-main/`. They need the
 1. **Create a new Gemini key** in Google AI Studio / Google Cloud. The current
    key has already shipped in public builds, so treat it as compromised.
    In Google Cloud, also set a daily quota on the new key as a hard cost cap.
-2. **Store it as a function secret:**
+2. **Store it as a function secret.** `GEMINI_API_KEY` is read first.
+   `Compuclass-gemini-new` is used when `GEMINI_API_KEY` is unset. The live
+   project already uses `Compuclass-gemini-new`.
    ```sh
-   supabase secrets set GEMINI_API_KEY=<new key> --project-ref qdtbmdsssjmapodladcs
-   # optional; defaults to gemini-1.5-flash, which the app used before
+   supabase secrets set Compuclass-gemini-new=<new key> --project-ref qdtbmdsssjmapodladcs
+   # optional; defaults to gemini-2.5-flash when GEMINI_MODEL is not set
    supabase secrets set GEMINI_MODEL=<model name> --project-ref qdtbmdsssjmapodladcs
    ```
 3. **Deploy:**
@@ -36,7 +40,9 @@ Run these from `CompuClass-v.1.0-main/`. They need the
 Dashboard → Edge Functions → gemini-proxy → Logs. Each line is JSON, with
 `event` set to one of: `unauthenticated_request`, `invalid_request`,
 `rate_limited`, `ai_request_failed`, or `ai_request_ok`. Lines include the
-user id and client IP where available.
+user id and client IP where available. The Gemini key is sent in a request
+header, not the URL, and any copy of it is replaced with `[redacted]` before
+a line is written.
 
 ## Limits
 

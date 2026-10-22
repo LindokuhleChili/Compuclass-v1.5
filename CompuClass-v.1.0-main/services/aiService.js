@@ -5,19 +5,41 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../config/supabase';
 import { limiters, RateLimitError } from '../utils/rateLimiter';
 import { spreadCorrectAnswer } from '../utils/quizFlow';
+import { AppError } from '../utils/errorMessages';
 
 // Every AI call goes through the gemini-proxy Edge Function. The Gemini key
-// lives in the GEMINI_API_KEY secret and is never read by the app.
-// See supabase/functions/gemini-proxy/README.md.
+// is the Supabase secret GEMINI_API_KEY, or Compuclass-gemini-new when that
+// is unset. The app never reads it. See supabase/functions/gemini-proxy/README.md.
 const PROXY_MAX_TEXT_CHARS = 100_000;
 const PROXY_MAX_MESSAGES = 30;
+
+// supabase-js hides a non-2xx body behind FunctionsHttpError.context, which is
+// the Response. The message on the error itself is only "non-2xx status code".
+async function messageFromProxyError(error) {
+  const context = error?.context;
+  if (!context) return null;
+  if (typeof context.json === 'function') {
+    try {
+      const source = typeof context.clone === 'function' ? context.clone() : context;
+      const body = await source.json();
+      if (typeof body?.error === 'string' && body.error.trim()) return body.error.trim();
+    } catch {
+      return null;
+    }
+  }
+  if (typeof context.error === 'string' && context.error.trim()) return context.error.trim();
+  return null;
+}
 
 async function invokeAiProxy(body) {
   const { data, error } = await supabase.functions.invoke('gemini-proxy', { body });
   if (error) {
-    if (error.context?.status === 429) {
+    const status = error.context?.status ?? error.status;
+    if (status === 429) {
       throw new RateLimitError(0, 'The AI assistant is busy right now. Please wait a moment and try again.');
     }
+    const serverMessage = await messageFromProxyError(error);
+    if (serverMessage) throw new AppError(serverMessage);
     throw error;
   }
   return data;

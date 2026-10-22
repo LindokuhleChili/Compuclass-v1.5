@@ -1,4 +1,4 @@
-import { isRootRoute, leaveScreen, navKeyForRoute } from '../screenNav';
+import { isRootRoute, leaveScreen, navKeyForRoute, sidebarDestination, tabKeyForRoute } from '../screenNav';
 
 describe('navKeyForRoute', () => {
   it('highlights Home for the dashboard and lecturer pages opened from it', () => {
@@ -19,6 +19,28 @@ describe('navKeyForRoute', () => {
     expect(navKeyForRoute('Game')).toBeNull();
     expect(navKeyForRoute('GameRunnerLobby')).toBeNull();
     expect(navKeyForRoute('')).toBeNull();
+  });
+
+  it('highlights Quizzes for the lecturer quiz pages', () => {
+    expect(navKeyForRoute('QuizCreation')).toBe('Quiz');
+    expect(navKeyForRoute('QuizDetail')).toBe('Quiz');
+  });
+});
+
+describe('sidebarDestination', () => {
+  it('opens the lecturer quiz list for a lecturer and the assigned list for a student', () => {
+    expect(sidebarDestination('Quiz', 'lecturer')).toEqual({ screen: 'Lecturer', params: { screen: 'QuizCreation' } });
+    expect(sidebarDestination('Quiz', 'student')).toBe('Quiz');
+    expect(sidebarDestination('Materials', 'lecturer')).toBe('Materials');
+  });
+});
+
+describe('tabKeyForRoute', () => {
+  it('maps lecturer home and quiz pages onto the tab names', () => {
+    expect(tabKeyForRoute('LecturerDashboard', 'lecturer')).toBe('Lecturer');
+    expect(tabKeyForRoute('QuizCreation', 'lecturer')).toBe('Quiz');
+    expect(tabKeyForRoute('Dashboard', 'student')).toBe('Dashboard');
+    expect(tabKeyForRoute('Settings', 'student')).toBe('Profile');
   });
 });
 

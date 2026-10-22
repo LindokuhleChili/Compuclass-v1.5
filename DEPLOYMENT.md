@@ -221,14 +221,17 @@ From `CompuClass-v.1.0-main/`:
 
 ```bash
 supabase link --project-ref <project-ref>
-supabase secrets set GEMINI_API_KEY=<rotated key>
+supabase secrets set Compuclass-gemini-new=<rotated key>
 supabase functions deploy gemini-proxy
 ```
 
-Create a new key in Google AI Studio, put that value in the Supabase secret, deploy
-the function, then delete the old key. Remove `EXPO_PUBLIC_GEMINI_API_KEY` from
-GitHub Actions secrets and from Vercel. The app calls `supabase.functions.invoke('gemini-proxy')`
-and has no direct Gemini path. AI features fail until this function is deployed.
+`gemini-proxy` reads `GEMINI_API_KEY` first, then `Compuclass-gemini-new` when
+that is unset. This project stores the key as `Compuclass-gemini-new`. Create a
+new key in Google AI Studio, put that value in the Supabase secret, deploy the
+function, then delete the old key. Logs replace the key value with `[redacted]`.
+Remove `EXPO_PUBLIC_GEMINI_API_KEY` from GitHub Actions secrets and from Vercel.
+The app calls `supabase.functions.invoke('gemini-proxy')` and has no direct
+Gemini path. AI features fail until this function is deployed.
 
 CI and the EAS workflows use Node 20, which is what Expo SDK 57 is verified on.
 

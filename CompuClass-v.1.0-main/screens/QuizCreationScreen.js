@@ -17,6 +17,7 @@ import { useTheme } from '../context/ThemeContext';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
 import { formatShortDate, passingMark, plural, prepareQuestionsForSave, questionCount as storedQuestionCount } from '../utils/quizFlow';
+import { formatFileSize } from '../utils/fileSize';
 import { Page, Body, Glass, Button, IconTile, font } from '../components/ui/kit';
 import { LECTURER_COLUMN, ScreenHeading } from '../components/lecturerChrome';
 
@@ -32,6 +33,7 @@ export default function QuizCreationScreen({ navigation, route }) {
   const [questions, setQuestions] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState(null);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [loading, setLoading] = useState(false);
   const [questionCount, setQuestionCount] = useState(5);
@@ -136,6 +138,7 @@ export default function QuizCreationScreen({ navigation, route }) {
 
       if (!result.canceled && result.assets[0]) {
         setSelectedFile(result.assets[0]);
+        setAiError(null);
         setShowAIGenerate(true);
       }
     } catch (_error) {
@@ -145,10 +148,11 @@ export default function QuizCreationScreen({ navigation, route }) {
 
   const generateQuizWithAI = async () => {
     if (!selectedFile || !quizTitle.trim()) {
-      Alert.alert('Error', 'Please select a file and enter quiz title');
+      setAiError('Please select a file and enter a quiz title');
       return;
     }
 
+    setAiError(null);
     setAiGenerating(true);
     setGenerationProgress(15);
 
@@ -174,7 +178,7 @@ export default function QuizCreationScreen({ navigation, route }) {
       setShowAIGenerate(false);
       setShowCreateQuiz(true);
     } catch (error) {
-      Alert.alert('Error', getErrorMessage(error, { context: 'QuizCreation' }));
+      setAiError(getErrorMessage(error, { context: 'QuizCreation' }));
     } finally {
       setAiGenerating(false);
       setGenerationProgress(0);
@@ -427,7 +431,7 @@ export default function QuizCreationScreen({ navigation, route }) {
                 <View style={styles.fileDetails}>
                   <Text style={[styles.fileName, { color: theme.text }]}>{selectedFile.name}</Text>
                   <Text style={[styles.fileSize, { color: theme.textSecondary }]}>
-                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                    {formatFileSize(selectedFile.size)}
                   </Text>
                 </View>
               </View>
@@ -468,10 +472,10 @@ export default function QuizCreationScreen({ navigation, route }) {
             </View>
 
             {aiGenerating && (
-              <View style={styles.progressContainer}>
+              <View style={styles.progressContainer} accessibilityRole="progressbar" accessibilityLabel="Generating quiz">
                 <ActivityIndicator size="large" color={theme.primary} />
                 <Text style={[styles.progressText, { color: theme.textSecondary }]}>
-                  Generating quiz with AI... {generationProgress}%
+                  Generating quiz... {generationProgress}%
                 </Text>
                 <View style={[styles.progressBar, { backgroundColor: theme.borderLight }]}>
                   <View 
@@ -483,6 +487,10 @@ export default function QuizCreationScreen({ navigation, route }) {
                 </View>
               </View>
             )}
+
+            {aiError ? (
+              <Text accessibilityRole="alert" style={[styles.aiError, { color: theme.error }]}>{aiError}</Text>
+            ) : null}
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -496,8 +504,12 @@ export default function QuizCreationScreen({ navigation, route }) {
                 style={styles.generateButton}
                 onPress={generateQuizWithAI}
                 disabled={aiGenerating}
+                accessibilityRole="button"
+                accessibilityLabel="Generate quiz"
+                accessibilityState={{ disabled: aiGenerating, busy: aiGenerating }}
               >
                 <LinearGradient colors={theme.primaryGradient} style={styles.generateGradient}>
+                  {aiGenerating ? <ActivityIndicator color="#fff" /> : null}
                   <Text style={styles.generateText}>
                     {aiGenerating ? 'Generating...' : 'Generate Quiz'}
                   </Text>
@@ -727,11 +739,12 @@ const styles = StyleSheet.create({
   progressText: { fontSize: 14, marginVertical: 8 },
   progressBar: { height: 4, borderRadius: 2, width: '100%', overflow: 'hidden' },
   progressFill: { height: '100%' },
+  aiError: { fontSize: 14, lineHeight: 20, marginBottom: 16 },
   modalButtons: { flexDirection: 'row', gap: 12 },
   cancelButton: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center' },
   cancelButtonText: { fontWeight: '600' },
   generateButton: { flex: 1 },
-  generateGradient: { padding: 12, borderRadius: 8, alignItems: 'center' },
+  generateGradient: { padding: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   generateText: { color: '#fff', fontWeight: '600' },
   createModal: { borderRadius: 16, maxHeight: '90%' },
   createHeader: {
