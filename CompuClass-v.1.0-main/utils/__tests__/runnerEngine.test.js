@@ -569,6 +569,23 @@ describe('power-ups and parts', () => {
     expect(revived.state.entities).toEqual([]);
   });
 
+  it('saves tall servers for the part of a run where a high jump can clear them', () => {
+    for (let i = 0; i < 80; i += 1) {
+      const run = createRun(800);
+      run.distance = 2000;
+      const wave = planSpawn(run, () => ((i * 13) % 97) / 97);
+      expect(wave.entities.some((entity) => entity.kind === 'server')).toBe(false);
+    }
+    let seen = false;
+    for (let i = 0; i < 120; i += 1) {
+      const run = createRun(800);
+      run.distance = SPEED_RAMP_DISTANCE;
+      const wave = planSpawn(run, () => ((i * 17) % 89) / 89);
+      if (wave.entities.some((entity) => entity.kind === 'server')) seen = true;
+    }
+    expect(seen).toBe(true);
+  });
+
   it('keeps obstacle waves fair and power-ups rarer than parts', () => {
     let points = 0;
     let powers = 0;

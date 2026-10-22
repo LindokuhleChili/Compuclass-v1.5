@@ -71,12 +71,13 @@ const RUN_HIT = { y0: 10, y1: 72, w: 36 };
 const DUCK_HIT = { y0: 0, y1: 30, w: 52 };
 
 // Ground hazards are jumped. An air bug is ducked. The server is tall, so only the top of a jump clears it.
+// The cable coil is drawn wider than this box so a jump at the opening speed still clears it.
 const BUG_AIR = { y0: 86, y1: 148, w: 46, group: 'obstacle', air: true };
 const HITBOX = {
   virus: { y0: 0, y1: 44, w: 48, group: 'obstacle', air: false },
   short: { y0: 0, y1: 36, w: 56, group: 'obstacle', air: false },
-  cable: { y0: 0, y1: 34, w: 78, group: 'obstacle', air: false },
-  server: { y0: 0, y1: 100, w: 52, group: 'obstacle', air: false },
+  cable: { y0: 0, y1: 34, w: 52, group: 'obstacle', air: false },
+  server: { y0: 0, y1: 100, w: 36, group: 'obstacle', air: false },
   bug: { y0: 0, y1: 42, w: 46, group: 'obstacle', air: false },
   cpu: { y0: 16, y1: 70, w: 40, group: 'pickup', points: 10 },
   ram: { y0: 16, y1: 70, w: 40, group: 'pickup', points: 15 },
@@ -235,7 +236,8 @@ export function scorePickup({ points, streak, lastPickupAt, now }) {
 
 export function obstacleWeights(difficulty) {
   const t = clamp(difficulty, 0, 1);
-  const server = 0.06 + t * 0.1;
+  // A tall server only shows up once the run is fast enough for the top of a jump to clear it.
+  const server = t < 0.7 ? 0 : 0.1 + (t - 0.7) * 0.25;
   const cable = 0.12;
   const bug = 0.16 + t * 0.06;
   const short = 0.24;
