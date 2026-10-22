@@ -19,6 +19,7 @@ import { createRunnerAudio } from '../utils/runnerAudio';
 import {
   INITIAL_SPEED,
   JUMP_APEX,
+  answerQuiz,
   createRun,
   factById,
   factForRun,
@@ -160,6 +161,17 @@ function entityNode(entity, groundY) {
 
 const POSES = ['run1', 'run2', 'jump', 'duck', 'hurt', 'idle'];
 
+function publicRun(state) {
+  if (!state) return state;
+  const { quiz, quizBank, ...rest } = state;
+  return rest;
+}
+
+function formatMultiplier(value) {
+  const n = Number(value) || 1;
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
 function RunnerSprite({ pose, center, groundY, lift }) {
   return (
     <View style={{ position: 'absolute', left: center - SPRITE_W / 2, top: groundY - SPRITE_H - lift, width: SPRITE_W, height: SPRITE_H }}>
@@ -201,6 +213,7 @@ export default function GameScreen({ navigation, route }) {
   const [otherPlayers, setOtherPlayers] = useState([]);
   const [floater, setFloater] = useState(null);
   const [toast, setToast] = useState(null);
+  const [quizPrompt, setQuizPrompt] = useState(null);
   const [myName, setMyName] = useState('');
   const [bits, setBits] = useState([]);
 
@@ -223,6 +236,8 @@ export default function GameScreen({ navigation, route }) {
   const toggleMuteRef = useRef(() => {});
   const resumeRef = useRef(false);
   const requestResumeRef = useRef(() => {});
+  const answerRef = useRef(() => {});
+  const answeringRef = useRef(false);
   const overStepRef = useRef(0);
   const pulse = useRef(new Animated.Value(1)).current;
   phaseRef.current = phase;
@@ -319,7 +334,7 @@ export default function GameScreen({ navigation, route }) {
     } catch { /* keep the score on this device if the account write fails */ }
   }, []);
 
-  const finish = useCallback(async (finishedRun) => {
+  const finish = useCallback(async (finishedRun, miss = null) => {
     if (overRef.current) return;
     overRef.current = true;
     const fact = factForRun(finishedRun.chips, Math.random);
@@ -329,6 +344,7 @@ export default function GameScreen({ navigation, route }) {
       chips: finishedRun.chips.slice(),
       bestStreak: finishedRun.bestStreak,
       coins: finishedRun.coinCount || 0,
+      miss: miss || null,
     });
     setShownScore(0);
     setOverStep(0);
@@ -383,6 +399,7 @@ export default function GameScreen({ navigation, route }) {
   }, [phase, overStep]);
 
   onEventsRef.current = (events) => {
+    let miss = null;
     events.forEach((event) => {
       if (event.type === 'jump') {
         audioRef.current.play('jump');
@@ -399,8 +416,29 @@ export default function GameScreen({ navigation, route }) {
         if (event.kind === 'chip' && event.line) {
           setToast({ id: world.current.elapsed, title: event.title, line: event.line });
         }
+      } else if (event.type === 'quiz') {
+        setQuizPrompt({ id: event.id, question: event.question, options: (event.options || []).slice() });
+        setPaused(true);
+      } else if (event.type === 'quiz-result') {
+        if (event.correct) {
+          audioRef.current.play('coin');
+          const label = event.multiplier > 1 ? `+${event.points}  x${event.multiplier}` : `+${event.points}`;
+          setFloater({ id: `quiz-${world.current.elapsed}`, text: label, scale: 1.15 });
+          setToast({ id: world.current.elapsed, title: 'Correct', line: event.explanation, plain: true });
+        } else {
+          audioRef.current.play('hit');
+          buzz('error');
+          const answer = event.correctAnswer ? `Answer: ${event.correctAnswer}. ` : '';
+          setToast({
+            id: world.current.elapsed,
+            title: 'Wrong',
+            line: `${answer}${event.explanation || ''}`.trim(),
+            plain: true,
+          });
+          miss = { correctAnswer: event.correctAnswer, explanation: event.explanation };
+        }
       } else if (event.type === 'dead') {
-        finish(world.current);
+        finish(world.current, miss);
       }
     });
   };
@@ -424,7 +462,7 @@ export default function GameScreen({ navigation, route }) {
       world.current.viewWidth = widthRef.current || world.current.viewWidth;
       const result = tick(world.current, dt, input, Math.random);
       world.current = result.state;
-      if (result.state.phase === 'playing') setRun(result.state);
+      if (result.state.phase === 'playing') setRun(publicRun(result.state));
       onEventsRef.current(result.events);
       if (multiRef.current && roomRef.current && myIdRef.current && world.current.phase === 'playing') {
         const nowMs = Date.now();
@@ -459,6 +497,7 @@ export default function GameScreen({ navigation, route }) {
   const begin = useCallback(() => {
     overRef.current = false;
     resumeRef.current = false;
+    answeringRef.current = false;
     const next = createRun(widthRef.current || 800);
     world.current = next;
     setRun(next);
@@ -467,6 +506,7 @@ export default function GameScreen({ navigation, route }) {
     setFinishRank(null);
     setFloater(null);
     setToast(null);
+    setQuizPrompt(null);
     setBits([]);
     setShownScore(0);
     setOverStep(0);
@@ -478,7 +518,7 @@ export default function GameScreen({ navigation, route }) {
   beginRef.current = begin;
 
   const togglePause = useCallback(() => {
-    if (phaseRef.current !== 'playing' || resumeRef.current) return;
+    if (phaseRef.current !== 'playing' || resumeRef.current || world.current.quiz) return;
     setPaused((value) => {
       const next = !value;
       world.current.paused = next;
@@ -489,12 +529,25 @@ export default function GameScreen({ navigation, route }) {
   togglePauseRef.current = togglePause;
 
   const requestResume = () => {
-    if (!paused) return;
+    if (!paused || world.current.quiz) return;
     resumeRef.current = true;
     setCount(3);
     audioRef.current.play('click');
   };
   requestResumeRef.current = requestResume;
+
+  const submitAnswer = useCallback((choice) => {
+    if (answeringRef.current || !world.current.quiz) return;
+    answeringRef.current = true;
+    const result = answerQuiz(world.current, choice);
+    world.current = result.state;
+    setQuizPrompt(null);
+    setRun(publicRun(result.state));
+    if (result.state.phase === 'playing') setPaused(false);
+    onEventsRef.current(result.events);
+    answeringRef.current = false;
+  }, []);
+  answerRef.current = submitAnswer;
 
   const toggleMute = useCallback(() => {
     const next = audioRef.current.toggleMuted();
@@ -517,6 +570,23 @@ export default function GameScreen({ navigation, route }) {
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
     const onKey = (event) => {
+      if (phaseRef.current === 'playing' && world.current.quiz) {
+        const options = world.current.quiz.options || [];
+        if (/^[1-9]$/.test(event.key)) {
+          const index = Number(event.key) - 1;
+          if (index < options.length) {
+            event.preventDefault();
+            answerRef.current(index);
+          }
+          return;
+        }
+        if (keyAction(event.key) === 'mute') {
+          event.preventDefault();
+          toggleMuteRef.current();
+        }
+        event.preventDefault();
+        return;
+      }
       const action = keyAction(event.key);
       if (!action) return;
       const current = phaseRef.current;
@@ -619,6 +689,9 @@ export default function GameScreen({ navigation, route }) {
             <Image source={runnerArt.ui.down} style={styles.tipIcon} />
             <Text style={[styles.tipText, font(theme, 'semibold')]}>Down or swipe down to duck</Text>
           </View>
+          <Text style={[styles.tipText, font(theme, 'semibold')]}>
+            Questions pause the run. A right answer scores. A wrong one costs a life.
+          </Text>
           {highScore > 0 ? <Text style={[styles.bestLine, font(theme, 'semibold')]}>Best {highScore}</Text> : null}
           <Animated.Text style={[styles.pressHint, { opacity: pulse }, font(theme, 'display')]}>
             {coarse ? 'TAP TO RUN' : 'PRESS SPACE'}
@@ -637,16 +710,16 @@ export default function GameScreen({ navigation, route }) {
                 <View key={index} style={[styles.cell, index < run.lives ? styles.cellOn : styles.cellOff]} />
               ))}
             </View>
-            {run.streak > 1 ? (
-              <Text style={[styles.combo, { fontSize: 16 + Math.min(10, run.streak) }, font(theme, 'display')]}>
-                {`x${run.streak}`}
-              </Text>
-            ) : null}
+            <Text style={[styles.combo, font(theme, 'display')]}>
+              {`x${formatMultiplier(run.quizMultiplier)}`}
+            </Text>
           </View>
           <View style={styles.hudRight}>
-            <Pressable onPress={togglePause} style={styles.hudBtn} accessibilityRole="button" accessibilityLabel="Pause">
-              <Image source={runnerArt.ui.pause} style={styles.hudGlyph} />
-            </Pressable>
+            {quizPrompt ? null : (
+              <Pressable onPress={togglePause} style={styles.hudBtn} accessibilityRole="button" accessibilityLabel="Pause">
+                <Image source={runnerArt.ui.pause} style={styles.hudGlyph} />
+              </Pressable>
+            )}
             <Pressable onPress={toggleMute} style={styles.hudBtn} accessibilityRole="button" accessibilityLabel={muted ? 'Unmute' : 'Mute'}>
               <Image source={muted ? runnerArt.ui.audioOff : runnerArt.ui.audioOn} style={styles.hudGlyph} />
             </Pressable>
@@ -656,7 +729,7 @@ export default function GameScreen({ navigation, route }) {
 
       {toast && phase === 'playing' ? (
         <View style={[styles.toast, { top: frameTop + 108 }]} pointerEvents="none">
-          <Image source={runnerArt.items.chip} style={styles.tipIcon} />
+          {toast.plain ? null : <Image source={runnerArt.items.chip} style={styles.tipIcon} />}
           <View style={{ flex: 1 }}>
             <Text style={[styles.toastTitle, font(theme, 'semibold')]}>{toast.title}</Text>
             <Text style={styles.toastLine}>{toast.line}</Text>
@@ -685,7 +758,27 @@ export default function GameScreen({ navigation, route }) {
         </View>
       ) : null}
 
-      {paused ? (
+      {quizPrompt && phase === 'playing' ? (
+        <View style={styles.quizScrim}>
+          <ScrollView style={styles.quizScroll} contentContainerStyle={styles.quizCard}>
+            <Text style={[styles.quizKicker, font(theme, 'semibold')]}>COMPUCLASS</Text>
+            <Text style={[styles.quizQuestion, font(theme, 'semibold')]}>{quizPrompt.question}</Text>
+            {quizPrompt.options.map((option, index) => (
+              <Pressable
+                key={`${quizPrompt.id}-${index}`}
+                onPress={() => submitAnswer(index)}
+                accessibilityRole="button"
+                accessibilityLabel={`Answer ${index + 1}: ${option}`}
+                style={({ pressed }) => [styles.quizBtn, { opacity: pressed ? 0.88 : 1 }]}
+              >
+                <Text style={[styles.quizBtnText, font(theme, 'semibold')]}>{`${index + 1}. ${option}`}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
+
+      {paused && !quizPrompt && phase === 'playing' ? (
         <View style={styles.menuScrim}>
           {count > 0 ? <Outlined size={96}>{count}</Outlined> : (
             <View style={styles.panel}>
@@ -720,6 +813,15 @@ export default function GameScreen({ navigation, route }) {
           {overStep >= 1 && isNewBest ? bits.map((bit) => (
             <View key={bit.id} style={[styles.bit, { left: `${bit.left}%`, backgroundColor: bit.color, top: 80 + bit.delay }]} />
           )) : null}
+          {overStep >= 2 && summary.miss ? (
+            <View style={styles.factCard}>
+              <Text style={[styles.factKicker, font(theme, 'semibold')]}>LAST QUESTION</Text>
+              <Text style={[styles.factTitle, font(theme, 'h2')]}>
+                {summary.miss.correctAnswer ? `The answer was ${summary.miss.correctAnswer}.` : 'That answer was wrong.'}
+              </Text>
+              {summary.miss.explanation ? <Text style={styles.factBody}>{summary.miss.explanation}</Text> : null}
+            </View>
+          ) : null}
           {overStep >= 2 ? (
             <View style={styles.factCard}>
               <Text style={[styles.factKicker, font(theme, 'semibold')]}>HARDWARE FACT</Text>
@@ -786,7 +888,41 @@ const styles = StyleSheet.create({
   cell: { width: 28, height: 14, borderRadius: 3, borderWidth: 2, borderColor: '#fff' },
   cellOn: { backgroundColor: '#39FFB0' },
   cellOff: { backgroundColor: 'transparent' },
-  combo: { color: '#FFC83D', marginTop: 6 },
+  combo: { color: '#FFC83D', marginTop: 6, fontSize: 22 },
+  quizScrim: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(7, 16, 28, 0.72)',
+  },
+  quizScroll: { width: '100%', maxWidth: 560, maxHeight: '86%' },
+  quizCard: {
+    width: '100%',
+    backgroundColor: PANEL,
+    borderRadius: 16,
+    borderWidth: 4,
+    borderColor: INK,
+    padding: 20,
+    gap: 10,
+  },
+  quizKicker: { color: '#FFC83D', fontSize: 12, letterSpacing: 1, textAlign: 'center' },
+  quizQuestion: { color: '#fff', fontSize: 20, lineHeight: 28, textAlign: 'center', marginBottom: 4 },
+  quizBtn: {
+    width: '100%',
+    minWidth: 240,
+    minHeight: 56,
+    backgroundColor: FILL,
+    borderRadius: 12,
+    borderWidth: 4,
+    borderColor: INK,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  quizBtnText: { color: '#fff', fontSize: 16, lineHeight: 22, textAlign: 'center' },
   outlined: { fontWeight: '800', letterSpacing: 0.5 },
   outlinedInk: { position: 'absolute', left: 2, top: 2, color: INK },
   menuScrim: {

@@ -2,6 +2,8 @@
 // Units: x is pixels from the left, y is pixels above the ground line.
 // One plane: jump the ground hazards, duck the overhead ones.
 
+import { ALL_QUESTIONS } from '../data/circuitMazeQuestions';
+
 export const PLAYER_X_RATIO = 0.22;
 export const CLEAR_GAP = 200;
 
@@ -45,6 +47,10 @@ export const INVINCIBLE_MS = 1100;
 export const COMBO_WINDOW_MS = 1600;
 export const MAX_MULTIPLIER = 4;
 export const START_LIVES = 3;
+export const QUIZ_INTERVAL_MS = 12000;
+export const QUIZ_BASE_POINTS = 20;
+
+export const RUNNER_QUESTIONS = Object.values(ALL_QUESTIONS).flat();
 
 const RUN_HIT = { y0: 10, y1: 72, w: 36 };
 const DUCK_HIT = { y0: 0, y1: 30, w: 52 };
@@ -283,6 +289,16 @@ export function planSpawn(state, rng) {
   return { entities, nextId };
 }
 
+export function pickQuiz(askedIds, rng = Math.random, bank = RUNNER_QUESTIONS) {
+  const source = Array.isArray(bank) ? bank.filter(Boolean) : [];
+  if (!source.length) return null;
+  const used = askedIds || [];
+  const fresh = source.filter((question) => question.id && !used.includes(question.id));
+  const pool = fresh.length ? fresh : source;
+  const index = Math.min(pool.length - 1, Math.floor(rng() * pool.length));
+  return pool[index];
+}
+
 export function waveIsFair(entities) {
   const obstacles = (entities || []).filter((entity) => entity.group === 'obstacle');
   const circuits = obstacles.filter((entity) => entity.kind === 'circuit');
@@ -318,6 +334,12 @@ export function createRun(viewWidth = 800) {
     streak: 0,
     bestStreak: 0,
     multiplier: 1,
+    quiz: null,
+    quizStreak: 0,
+    quizMultiplier: 1,
+    nextQuizAt: QUIZ_INTERVAL_MS,
+    lastQuizId: null,
+    askedIds: [],
     lastPickupAt: -100000,
     invincibleUntil: 0,
     entities: [],
@@ -378,6 +400,7 @@ export function tick(prev, dtMs, input = {}, rng = Math.random) {
     entities: prev.entities.map((entity) => ({ ...entity })),
     chips: prev.chips.slice(),
     milestonesHit: prev.milestonesHit.slice(),
+    askedIds: (prev.askedIds || []).slice(),
   };
   const events = [];
   applyInput(state, input, events);
@@ -456,7 +479,34 @@ export function tick(prev, dtMs, input = {}, rng = Math.random) {
         events.push({ type: 'milestone', score: mark });
       }
     });
-    if (state.elapsed >= state.nextSpawnAt) {
+    const quizDue = !state.quiz && state.elapsed >= (state.nextQuizAt ?? QUIZ_INTERVAL_MS);
+    if (quizDue) {
+      const bank = state.quizBank && state.quizBank.length ? state.quizBank : RUNNER_QUESTIONS;
+      const question = pickQuiz(state.askedIds, rng, bank);
+      if (question) {
+        const options = Array.isArray(question.options) ? question.options.slice() : [];
+        state.quiz = {
+          id: question.id,
+          question: question.question,
+          options,
+          answer: question.answer,
+          explanation: question.explanation || '',
+          points: question.xp || QUIZ_BASE_POINTS,
+        };
+        state.askedIds = state.askedIds.concat(question.id);
+        state.lastQuizId = question.id;
+        state.paused = true;
+        events.push({
+          type: 'quiz',
+          id: question.id,
+          question: question.question,
+          options: options.slice(),
+        });
+      } else {
+        state.nextQuizAt = state.elapsed + QUIZ_INTERVAL_MS;
+      }
+    }
+    if (!state.quiz && state.elapsed >= state.nextSpawnAt) {
       const spawned = planSpawn(state, rng);
       state.entities = state.entities.concat(spawned.entities);
       state.nextId = spawned.nextId;
@@ -468,6 +518,65 @@ export function tick(prev, dtMs, input = {}, rng = Math.random) {
     events.forEach((event) => {
       if (event.type === 'dead') event.score = state.score;
     });
+  }
+  return { state, events };
+}
+
+export function answerQuiz(prev, choice) {
+  if (!prev || !prev.quiz) return { state: prev, events: [] };
+  const quiz = prev.quiz;
+  const correct = Number(choice) === quiz.answer;
+  const state = {
+    ...prev,
+    quiz: null,
+    paused: false,
+    nextQuizAt: prev.elapsed + QUIZ_INTERVAL_MS,
+    entities: (prev.entities || []).map((entity) => ({ ...entity })),
+    chips: (prev.chips || []).slice(),
+    milestonesHit: (prev.milestonesHit || []).slice(),
+    askedIds: (prev.askedIds || []).slice(),
+  };
+  const events = [];
+  if (correct) {
+    const streak = (prev.quizStreak || 0) + 1;
+    const multiplier = comboMultiplier(streak);
+    const gained = Math.round((quiz.points || QUIZ_BASE_POINTS) * multiplier);
+    state.quizStreak = streak;
+    state.quizMultiplier = multiplier;
+    state.pickupScore = (prev.pickupScore || 0) + gained;
+    state.score = state.pickupScore + distancePoints(state.distance);
+    events.push({
+      type: 'quiz-result',
+      correct: true,
+      points: gained,
+      streak,
+      multiplier,
+      explanation: quiz.explanation || '',
+    });
+  } else {
+    state.quizStreak = 0;
+    state.quizMultiplier = 1;
+    state.lives = (prev.lives || 0) - 1;
+    state.pose = 'hurt';
+    state.hurtT = 0;
+    state.jumpT = 0;
+    state.jumpH = 0;
+    state.duckT = 0;
+    state.invincibleUntil = prev.elapsed + INVINCIBLE_MS;
+    const options = quiz.options || [];
+    events.push({
+      type: 'quiz-result',
+      correct: false,
+      lives: state.lives,
+      streak: 0,
+      multiplier: 1,
+      correctAnswer: options[quiz.answer],
+      explanation: quiz.explanation || '',
+    });
+    if (state.lives <= 0) {
+      state.phase = 'dead';
+      events.push({ type: 'dead', score: state.score });
+    }
   }
   return { state, events };
 }
