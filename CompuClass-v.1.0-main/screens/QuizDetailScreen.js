@@ -1,139 +1,181 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, Alert, StyleSheet } from 'react-native';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
-import { appTheme, useTheme } from '../context/ThemeContext';
-import { useShellBack } from '../context/ChromeContext';
-import { leaveScreen } from '../utils/screenNav';
-
-const BLUE = appTheme.primary; const RED = appTheme.error; const GREEN = appTheme.success;
-const WHITE = appTheme.surface; const BG = appTheme.background; const TEXT = appTheme.text; const MUTED = appTheme.textSecondary; const BORDER = appTheme.border;
+import { useTheme } from '../context/ThemeContext';
+import { formatShortDate, normalizeOptions, passingMark, plural, summarizeQuizAttempts } from '../utils/quizFlow';
+import { Page, Heading, Body, Glass, Badge, Button, IconTile, Skeleton, font } from '../components/ui/kit';
+import { ActionMenu, LECTURER_COLUMN, ScreenHeading, ToastBanner, confirmNamed, useUndoToast } from '../components/lecturerChrome';
 
 export default function QuizDetailScreen({ navigation, route }) {
   const { theme } = useTheme();
-  const shellBack = useShellBack();
+  const { toast, offer } = useUndoToast();
   const { quizId } = route.params;
   const [quiz, setQuiz] = useState(null);
+  const [status, setStatus] = useState('loading');
+  const [results, setResults] = useState([]);
+  const [resultsNote, setResultsNote] = useState('');
+  const [removed, setRemoved] = useState(false);
   const loadQuizRef = useRef(() => {});
 
   useEffect(() => { loadQuizRef.current(); }, []);
 
   const loadQuiz = async () => {
-    try { const data = await lecturerService.getQuizDetail(quizId); setQuiz(data); }
-    catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'QuizDetail' })); }
+    setStatus('loading');
+    try {
+      const data = await lecturerService.getQuizDetail(quizId);
+      setQuiz(data);
+      setStatus('ready');
+      try {
+        const rows = await lecturerService.getQuizResults(quizId);
+        setResults(rows);
+        setResultsNote('');
+      } catch (error) {
+        console.error('Quiz results error:', error);
+        setResults([]);
+        setResultsNote('Results could not be loaded.');
+      }
+    } catch (error) {
+      setStatus('error');
+      Alert.alert('Error', getErrorMessage(error, { context: 'QuizDetail' }));
+    }
   };
   loadQuizRef.current = loadQuiz;
 
-  const handleDeleteQuiz = () => {
-    Alert.alert('Delete Quiz', 'Are you sure you want to delete this quiz?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
-        try { await lecturerService.deleteQuiz(quizId); navigation.goBack(); Alert.alert('Success', 'Quiz deleted'); }
-        catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'QuizDetail' })); }
-      }},
-    ]);
+  const handleDeleteQuiz = async () => {
+    const title = quiz?.title || 'this quiz';
+    const ok = await confirmNamed({
+      title: `Delete ${title}?`,
+      message: `Delete “${title}”? Students will no longer be able to take it.`,
+      confirmLabel: 'Delete quiz',
+    });
+    if (!ok) return;
+    setRemoved(true);
+    offer({
+      message: `${title} deleted`,
+      undo: () => setRemoved(false),
+      commit: async () => {
+        try {
+          await lecturerService.deleteQuiz(quizId);
+          navigation.goBack();
+        } catch (error) {
+          setRemoved(false);
+          Alert.alert('Error', getErrorMessage(error, { context: 'QuizDetail' }));
+        }
+      },
+    });
   };
 
-  if (!quiz) return (
-    <View style={[styles.centered, { backgroundColor: theme.background }]}>
-      <ActivityIndicator size="large" color={theme.primary} />
-      <Text style={styles.loadingText}>Loading quiz...</Text>
-    </View>
-  );
+  const summary = summarizeQuizAttempts(results);
+  const passMark = passingMark(quiz);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        {shellBack ? <View style={styles.backBtn} /> : (
-          <TouchableOpacity onPress={() => leaveScreen(navigation)} style={[styles.backBtn, { backgroundColor: theme.tint }]} accessibilityRole="button" accessibilityLabel="Go back">
-            <Ionicons name="arrow-back" size={20} color={theme.text} />
-          </TouchableOpacity>
-        )}
-        <Text style={[styles.headerTitle, { color: TEXT }]} accessibilityRole="header">Quiz Details</Text>
-        <TouchableOpacity onPress={handleDeleteQuiz} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete quiz">
-          <Ionicons name="trash" size={18} color={RED} />
-        </TouchableOpacity>
-      </View>
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <Page maxWidth={LECTURER_COLUMN}>
+        <ScreenHeading
+          navigation={navigation}
+          title="Quiz details"
+          subtitle={quiz?.title || 'Questions and scores'}
+          trailing={quiz ? (
+            <ActionMenu
+              label={`Actions for ${quiz.title}`}
+              items={[{ label: `Delete ${quiz.title}`, destructive: true, onPress: handleDeleteQuiz }]}
+            />
+          ) : null}
+        />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.quizHeaderCard}>
-          <View style={styles.quizIconWrap}>
-            <Ionicons name="document-text" size={28} color={BLUE} />
+        {status === 'loading' ? (
+          <View accessibilityRole="progressbar">
+            <Skeleton height={120} radius={24} />
+            <Skeleton height={88} radius={16} style={{ marginTop: 12 }} />
           </View>
-          <Text style={styles.quizTitle}>{quiz.title}</Text>
-          <View style={styles.metaRow}>
-            <View style={styles.metaBadge}>
-              <Ionicons name="help-circle" size={14} color={BLUE} />
-              <Text style={styles.metaText}>{quiz.quiz_questions?.length || 0} Questions</Text>
-            </View>
-            <View style={[styles.metaBadge, { backgroundColor: GREEN + '15' }]}>
-              <Ionicons name="checkmark-circle" size={14} color={GREEN} />
-              <Text style={[styles.metaText, { color: GREEN }]}>{quiz.passing_score}% to pass</Text>
-            </View>
-          </View>
-        </View>
-
-        <Text style={styles.sectionLabel}>Questions</Text>
-
-        {quiz.quiz_questions?.map((question, index) => (
-          <View key={index} style={styles.questionCard}>
-            <View style={styles.questionNumRow}>
-              <View style={styles.questionNumBadge}>
-                <Text style={styles.questionNumText}>Q{index + 1}</Text>
+        ) : null}
+        {status === 'error' ? (
+          <Glass strong style={styles.card} accessibilityRole="alert">
+            <Heading level={3}>Could not load this quiz</Heading>
+            <Button label="Try again" fit style={{ marginTop: 12 }} onPress={loadQuiz} />
+          </Glass>
+        ) : null}
+        {status === 'ready' && quiz && !removed ? (
+          <>
+            <Glass strong style={styles.card}>
+              <IconTile name="quiz" tone="blue" size={56} />
+              <Heading level={2} style={{ marginTop: 12, textAlign: 'center' }}>{quiz.title}</Heading>
+              <View style={styles.metaRow}>
+                <Badge label={plural(quiz.quiz_questions?.length || 0, 'question')} kind="neutral" />
+                <Badge label={`${passMark}% to pass`} kind="neutral" />
               </View>
-            </View>
-            <Text style={styles.questionText}>{question.question}</Text>
-            <View style={styles.optionsWrap}>
-              {question.options?.map((option, optIndex) => {
-                const isCorrect = question.correct_answer === option;
-                return (
-                  <View key={optIndex} style={[styles.optionItem, isCorrect && styles.optionCorrect]}>
-                    <View style={[styles.optionLetter, isCorrect && { backgroundColor: '#E3F5EA' }]}>
-                      <Text style={[styles.optionLetterText, isCorrect && { color: '#17743F' }]}>
-                        {String.fromCharCode(65 + optIndex)}
-                      </Text>
+            </Glass>
+
+            <Heading level={2} style={{ marginBottom: 12 }}>Results</Heading>
+            <Glass strong style={styles.block}>
+              {resultsNote ? <Body variant="caption">{resultsNote}</Body> : null}
+              {!resultsNote && summary.count === 0 ? (
+                <Body variant="caption">No attempts yet. Share this quiz with a class so students can take it.</Body>
+              ) : null}
+              {!resultsNote && summary.count > 0 ? (
+                <>
+                  <Body variant="caption" style={{ marginBottom: 12 }}>
+                    {plural(summary.count, 'attempt')} · {summary.average}% average · best {summary.best}%
+                  </Body>
+                  {results.slice(0, 8).map((attempt) => {
+                    const passed = Number(attempt.score) >= passMark;
+                    return (
+                      <View key={attempt.id || `${attempt.user_id}-${attempt.completed_at}`} style={styles.resultRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[{ color: theme.text }, font(theme, 'semibold')]}>{attempt.full_name || 'Student'}</Text>
+                          <Body variant="caption">{formatShortDate(attempt.completed_at)}</Body>
+                        </View>
+                        <View style={styles.scoreCol}>
+                          <Text style={[{ color: theme.text, fontSize: 16 }, font(theme, 'h3')]}>{attempt.score}%</Text>
+                          <Text style={[{ color: passed ? theme.successInk : theme.errorInk, fontSize: 13 }, font(theme, 'semibold')]}>
+                            {passed ? 'Passed' : 'Failed'}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </>
+              ) : null}
+            </Glass>
+
+            <Heading level={2} style={{ marginTop: 8, marginBottom: 12 }}>Questions</Heading>
+            {quiz.quiz_questions?.length ? null : <Body variant="caption">This quiz has no questions yet.</Body>}
+            {quiz.quiz_questions?.map((question, index) => (
+              <Glass key={question.id || index} strong style={styles.block}>
+                <Badge label={`Question ${index + 1}`} kind="neutral" />
+                <Text style={[{ color: theme.text, marginTop: 10, marginBottom: 12 }, font(theme, 'semibold')]}>{question.question}</Text>
+                {normalizeOptions(question.options).map((option, optIndex) => {
+                  const isCorrect = question.correct_answer === option;
+                  return (
+                    <View key={optIndex} style={[styles.option, { borderColor: isCorrect ? theme.success : theme.border, backgroundColor: isCorrect ? theme.successWash : 'transparent' }]}>
+                      <Text style={[{ width: 24, color: theme.text }, font(theme, 'semibold')]}>{String.fromCharCode(65 + optIndex)}</Text>
+                      <Text style={[{ flex: 1, color: theme.text, fontSize: 15 }, font(theme, 'body')]}>{option}</Text>
+                      {isCorrect ? <Text style={[{ color: theme.successInk, fontSize: 13 }, font(theme, 'semibold')]}>Correct</Text> : null}
                     </View>
-                    <Text style={[styles.optionText, isCorrect && styles.optionTextCorrect]}>{option}</Text>
-                    {isCorrect && <Ionicons name="checkmark-circle" size={18} color={GREEN} />}
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-        ))}
-        <View style={{ height: 32 }} />
-      </ScrollView>
+                  );
+                })}
+              </Glass>
+            ))}
+          </>
+        ) : null}
+        {removed ? (
+          <Glass strong style={styles.card}>
+            <Heading level={3}>{quiz?.title || 'Quiz'} deleted</Heading>
+            <Body variant="caption" style={{ marginTop: 6 }}>Undo is at the bottom of the screen.</Body>
+          </Glass>
+        ) : null}
+      </Page>
+      <ToastBanner toast={toast} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
-  centered: { flex: 1, backgroundColor: BG, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { color: MUTED, fontSize: 14, marginTop: 12, fontWeight: '600' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingTop: 52, paddingBottom: 16, paddingHorizontal: 16, gap: 12, backgroundColor: WHITE, borderBottomWidth: 1, borderBottomColor: BORDER },
-  backBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EDF4FF', alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, fontSize: 18, fontWeight: '900' },
-  deleteBtn: { width: 44, height: 44, borderRadius: 10, backgroundColor: RED + '20', alignItems: 'center', justifyContent: 'center' },
-  content: { flex: 1, padding: 16 },
-  quizHeaderCard: { backgroundColor: WHITE, borderRadius: 16, padding: 20, marginBottom: 20, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 3 },
-  quizIconWrap: { width: 60, height: 60, borderRadius: 18, backgroundColor: '#EDF4FF', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  quizTitle: { fontSize: 20, fontWeight: '900', color: TEXT, marginBottom: 14, textAlign: 'center' },
-  metaRow: { flexDirection: 'row', gap: 10 },
-  metaBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: BLUE + '15', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, gap: 5 },
-  metaText: { fontSize: 13, color: BLUE, fontWeight: '700' },
-  sectionLabel: { fontSize: 13, fontWeight: '800', color: MUTED, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
-  questionCard: { backgroundColor: WHITE, borderRadius: 16, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  questionNumRow: { marginBottom: 10 },
-  questionNumBadge: { backgroundColor: BLUE, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start' },
-  questionNumText: { fontSize: 11, fontWeight: '900', color: WHITE, letterSpacing: 0.5 },
-  questionText: { fontSize: 15, fontWeight: '700', color: TEXT, marginBottom: 14, lineHeight: 22 },
-  optionsWrap: { gap: 8 },
-  optionItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 2, borderColor: BORDER, backgroundColor: BG, gap: 10 },
-  optionCorrect: { borderColor: GREEN, backgroundColor: GREEN + '10' },
-  optionLetter: { width: 30, height: 30, borderRadius: 8, backgroundColor: BORDER, alignItems: 'center', justifyContent: 'center' },
-  optionLetterText: { fontSize: 13, fontWeight: '900', color: TEXT },
-  optionText: { fontSize: 13, color: MUTED, flex: 1, fontWeight: '500' },
-  optionTextCorrect: { color: GREEN, fontWeight: '700' },
+  card: { alignItems: 'center', padding: 24, marginBottom: 20 },
+  metaRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  block: { padding: 16, marginBottom: 12 },
+  resultRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  scoreCol: { width: 72, alignItems: 'flex-end' },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8 },
 });

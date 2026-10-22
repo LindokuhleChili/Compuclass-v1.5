@@ -4,15 +4,15 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { lecturerService } from '../services/lecturerService';
 import { useTheme } from '../context/ThemeContext';
-import { useShellBack } from '../context/ChromeContext';
-import { leaveScreen } from '../utils/screenNav';
 import { getErrorMessage } from '../utils/errorMessages';
 import { openStoredDocument } from '../utils/fileDownload';
 import ClassScopePicker from '../components/ClassScopePicker';
+import { prepareQuestionsForSave, plural } from '../utils/quizFlow';
+import { Page, Heading, Body, Glass, Button, IconButton } from '../components/ui/kit';
+import { LECTURER_COLUMN, ScreenHeading } from '../components/lecturerChrome';
 
 export default function FolderContentScreen({ route, navigation }) {
   const { theme } = useTheme();
-  const shellBack = useShellBack();
   const { folder } = route.params;
   const [documents, setDocuments] = useState([]);
   const [quizzes, setQuizzes] = useState([]);
@@ -23,6 +23,7 @@ export default function FolderContentScreen({ route, navigation }) {
   const [classId, setClassId] = useState(null);
   const [quizTitle, setQuizTitle] = useState('');
   const [questions, setQuestions] = useState([{ question: '', options: ['', '', '', ''], correctAnswer: 0 }]);
+  const [status, setStatus] = useState('loading');
   const loadContentRef = useRef(() => {});
 
   useEffect(() => {
@@ -31,6 +32,7 @@ export default function FolderContentScreen({ route, navigation }) {
   }, []);
 
   const loadContent = async () => {
+    setStatus('loading');
     try {
       const [docs, quizData] = await Promise.all([
         lecturerService.getDocuments(folder.id),
@@ -38,7 +40,9 @@ export default function FolderContentScreen({ route, navigation }) {
       ]);
       setDocuments(docs);
       setQuizzes(quizData);
+      setStatus('ready');
     } catch (error) {
+      setStatus('error');
       Alert.alert('Error', getErrorMessage(error, { context: 'FolderContent' }));
     }
   };
@@ -73,8 +77,13 @@ export default function FolderContentScreen({ route, navigation }) {
       Alert.alert('Error', 'Please enter quiz title');
       return;
     }
+    const prepared = prepareQuestionsForSave(questions);
+    if (!prepared.ok) {
+      Alert.alert('Error', prepared.message);
+      return;
+    }
     try {
-      await lecturerService.createQuiz(folder.id, quizTitle, questions);
+      await lecturerService.createQuiz(folder.id, quizTitle, prepared.questions);
       setShowCreateQuiz(false);
       setQuizTitle('');
       setQuestions([{ question: '', options: ['', '', '', ''], correctAnswer: 0 }]);
@@ -104,47 +113,48 @@ export default function FolderContentScreen({ route, navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.card, borderBottomWidth: 1, borderBottomColor: theme.border }]}>
-        {shellBack ? <View style={styles.backSlot} /> : (
-          <TouchableOpacity onPress={() => leaveScreen(navigation)} style={styles.backSlot} accessibilityRole="button" accessibilityLabel="Go back">
-            <Ionicons name="arrow-back" size={22} color={theme.text} />
-          </TouchableOpacity>
-        )}
-        <Text style={[styles.headerTitle, { color: theme.text }]}>{folder.name}</Text>
-      </View>
-
-      <ScrollView style={styles.content}>
+      <Page maxWidth={LECTURER_COLUMN}>
+        <ScreenHeading
+          navigation={navigation}
+          title={folder.name}
+          subtitle={folder.description || 'Documents and quizzes'}
+        />
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Documents</Text>
-            <TouchableOpacity onPress={() => setShowUploadDoc(true)}>
-              <Ionicons name="add-circle" size={28} color={theme.primary} />
-            </TouchableOpacity>
+            <Heading level={2}>Documents</Heading>
+            <IconButton name="plus" label="Upload document" onPress={() => setShowUploadDoc(true)} />
           </View>
+          {status === 'loading' ? <Body variant="caption">Loading folder</Body> : null}
+          {status === 'error' ? (
+            <Button label="Try again" fit onPress={loadContent} />
+          ) : null}
+          {status === 'ready' && documents.length === 0 ? <Body variant="caption">No documents in this folder yet.</Body> : null}
           {documents.map((doc) => (
-            <TouchableOpacity key={doc.id} style={[styles.itemCard, { backgroundColor: theme.card }]} onPress={() => openDocument(doc)}>
-              <Ionicons name="document" size={24} color="#0A66FF" />
-              <Text style={[styles.itemTitle, { color: theme.text }]}>{doc.title}</Text>
-              <Ionicons name="download-outline" size={18} color={theme.primary} />
+            <TouchableOpacity key={doc.id} onPress={() => openDocument(doc)} accessibilityRole="button" accessibilityLabel={`Open ${doc.title}`}>
+              <Glass strong style={styles.itemCard}>
+                <Text style={[styles.itemTitle, { color: theme.text }]}>{doc.title}</Text>
+                <Body variant="caption">Open</Body>
+              </Glass>
             </TouchableOpacity>
           ))}
         </View>
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Quizzes</Text>
-            <TouchableOpacity onPress={() => setShowCreateQuiz(true)}>
-              <Ionicons name="add-circle" size={28} color={theme.primary} />
-            </TouchableOpacity>
+            <Heading level={2}>Quizzes</Heading>
+            <IconButton name="plus" label="Create quiz" onPress={() => setShowCreateQuiz(true)} />
           </View>
+          {status === 'ready' && quizzes.length === 0 ? <Body variant="caption">No quizzes in this folder yet.</Body> : null}
           {quizzes.map((quiz) => (
-            <View key={quiz.id} style={[styles.itemCard, { backgroundColor: theme.card }]}>
-              <Ionicons name="help-circle" size={24} color="#0A6F79" />
-              <Text style={[styles.itemTitle, { color: theme.text }]}>{quiz.title}</Text>
-            </View>
+            <TouchableOpacity key={quiz.id} onPress={() => navigation.navigate('QuizDetail', { quizId: quiz.id })} accessibilityRole="button" accessibilityLabel={`Open quiz ${quiz.title}`}>
+              <Glass strong style={styles.itemCard}>
+                <Text style={[styles.itemTitle, { color: theme.text }]}>{quiz.title}</Text>
+                <Body variant="caption">{plural(quiz.question_count ?? quiz.quiz_questions?.length ?? 0, 'question')}</Body>
+              </Glass>
+            </TouchableOpacity>
           ))}
         </View>
-      </ScrollView>
+      </Page>
 
       <Modal visible={showUploadDoc} animationType="slide" transparent>
         <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>

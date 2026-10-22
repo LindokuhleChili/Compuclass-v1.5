@@ -88,7 +88,7 @@ export function Body({ children, variant = 'body', color, style, numberOfLines }
   const sizes = {
     body: { fontSize: 16, lineHeight: 24 },
     small: { fontSize: 14, lineHeight: 20 },
-    caption: { fontSize: 12, lineHeight: 16 },
+    caption: { fontSize: 13, lineHeight: 18 },
   };
   const role = variant === 'caption' ? 'medium' : 'body';
   return (
@@ -97,7 +97,7 @@ export function Body({ children, variant = 'body', color, style, numberOfLines }
       style={[
         sizes[variant] || sizes.body,
         font(theme, role),
-        { color: color || (variant === 'body' ? theme.textSecondary : variant === 'caption' ? theme.textTertiary : theme.textSecondary) },
+        { color: color || (variant === 'caption' ? 'rgba(11,27,58,0.65)' : theme.textSecondary) },
         style,
       ]}
     >
@@ -335,10 +335,10 @@ export function SectionHeader({ title, action, onAction }) {
   );
 }
 
-export function Page({ children, scroll = true, style, refreshControl }) {
+export function Page({ children, scroll = true, style, refreshControl, maxWidth, fill = false }) {
   const { horizontal, bottom, contentMax } = useLayout();
   const content = (
-    <View style={{ width: '100%', maxWidth: contentMax, alignSelf: 'center', paddingHorizontal: horizontal, paddingBottom: bottom, paddingTop: 8 }}>
+    <View style={{ width: '100%', maxWidth: maxWidth || contentMax, alignSelf: 'center', paddingHorizontal: horizontal, paddingBottom: bottom, paddingTop: 8, flex: fill ? 1 : undefined }}>
       {children}
     </View>
   );

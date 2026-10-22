@@ -46,6 +46,7 @@ const ICONS = {
   close: ['', '<path d="M6 6l12 12M18 6 6 18"/>'],
   menu: ['', '<path d="M4 7h16M4 12h16M4 17h16"/>'],
   plus: ['', '<path d="M12 5v14M5 12h14"/>'],
+  more: ['', '<circle cx="6" cy="12" r="1.25" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.25" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.25" fill="currentColor" stroke="none"/>'],
   info: ['<circle class="tn" cx="12" cy="12" r="9"/>', '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 8h.01"/>'],
   school: ['<path class="tn" d="M3 10 12 5l9 5-9 5z"/>', '<path d="M3 10 12 5l9 5-9 5zM7 12v5c2 2 8 2 10 0v-5"/>'],
 };
@@ -56,7 +57,8 @@ export function Icon({ name = 'help', size = 24, color, tone, style }) {
   const stroke = color || theme.text;
   const fill = tone || theme.iconTone;
   const toneSvg = (spec[0] || '').replace(/class="tn"/g, `fill="${fill}" stroke="none"`);
-  const xml = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${toneSvg}${spec[1] || ''}</svg>`;
+  const line = (spec[1] || '').replace(/currentColor/g, stroke);
+  const xml = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${toneSvg}${line}</svg>`;
   return <SvgXml xml={xml} width={size} height={size} style={style} />;
 }
 

@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../config/supabase';
 import { limiters, RateLimitError } from '../utils/rateLimiter';
+import { spreadCorrectAnswer } from '../utils/quizFlow';
 
 // Every AI call goes through the gemini-proxy Edge Function. The Gemini key
 // lives in the GEMINI_API_KEY secret and is never read by the app.
@@ -40,13 +41,16 @@ async function readPickedFile(file, { base64 = false } = {}) {
 
 const toQuiz = (title, questions) => ({
   title,
-  questions: questions.map((q, index) => ({
-    id: Date.now() + index,
-    question: q.question,
-    options: q.options,
-    correctAnswer: q.correctAnswer,
-    type: 'multiple-choice',
-  })),
+  questions: questions.map((q, index) => {
+    const spread = spreadCorrectAnswer(q.options, q.correctAnswer);
+    return {
+      id: Date.now() + index,
+      question: q.question,
+      options: spread.options,
+      correctAnswer: spread.correctIndex,
+      type: 'multiple-choice',
+    };
+  }),
   aiGenerated: true,
 });
 

@@ -65,6 +65,16 @@ describe('aiService.generateQuizFromText', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
+  it('moves a correct answer off A when the model pins it there', async () => {
+    supabase.functions.invoke.mockResolvedValue({
+      data: { questions: [{ question: 'Q?', options: ['Right', 'Wrong'], correctAnswer: 0 }] },
+      error: null,
+    });
+    const quiz = await aiService.generateQuizFromText('notes', 'Notes', 1);
+    expect(quiz.questions[0]).toMatchObject({ options: ['Wrong', 'Right'], correctAnswer: 1 });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   it('throws when the Edge Function returns an error', async () => {
     supabase.functions.invoke.mockResolvedValue({ data: null, error: new Error('Gemini returned no text') });
 

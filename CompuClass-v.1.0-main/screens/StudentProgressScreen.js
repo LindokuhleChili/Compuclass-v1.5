@@ -1,30 +1,23 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  Modal,
-  TextInput,
-  FlatList,
-  Linking,
+  View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput, Linking, ScrollView,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
-import { useShellBack } from '../context/ChromeContext';
-import { leaveScreen } from '../utils/screenNav';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
-//Student progress screen for lecturer to view student progress and add students to class. Progress data is loaded from Supabase and displayed in a list of student cards. Each card shows student's name, email, quizzes completed, average score, materials viewed and last activity. Lecturer can tap on a student card to view more details in a modal. Lecturer can also add new students by entering their email in a modal form.
+import { classAverageCaption, formatShortDate, plural, summarizeClassProgress } from '../utils/quizFlow';
+import {
+  Page, Heading, Body, Glass, Badge, Button, IconButton, Avatar, initials, Field, font,
+} from '../components/ui/kit';
+import { LECTURER_COLUMN, ScreenHeading, ToastBanner, useUndoToast } from '../components/lecturerChrome';
+
 export default function StudentProgressScreen({ navigation }) {
   const { theme } = useTheme();
-  const shellBack = useShellBack();
-  const [students, setStudents] = useState([]);
+  const { toast, show } = useUndoToast();
   const [classes, setClasses] = useState([]);
+  const [roster, setRoster] = useState({});
+  const [classFilter, setClassFilter] = useState('all');
   const [selectedClassId, setSelectedClassId] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showAddStudent, setShowAddStudent] = useState(false);
@@ -32,48 +25,42 @@ export default function StudentProgressScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [progressData, setProgressData] = useState({});
+  const [status, setStatus] = useState('loading');
+  const [attempts, setAttempts] = useState([]);
+  const [attemptsStatus, setAttemptsStatus] = useState('idle');
 
   const loadData = async () => {
-    await loadStudents();
-    await loadProgressData();
-    await loadClasses();
+    setStatus((current) => (current === 'ready' ? 'ready' : 'loading'));
+    try {
+      const [people, classList, progress] = await Promise.all([
+        lecturerService.getStudents(),
+        lecturerService.getClasses(),
+        lecturerService.getStudentProgress(),
+      ]);
+      const byEmail = new Map((people || []).map((student) => [student.id, student]));
+      const nextRoster = {};
+      await Promise.all((classList || []).map(async (item) => {
+        const enrolled = await lecturerService.getClassStudents(item.id);
+        nextRoster[item.id] = (enrolled || []).map((student) => ({
+          ...student,
+          email: byEmail.get(student.id)?.email || student.email || '',
+          full_name: student.full_name || byEmail.get(student.id)?.full_name,
+        }));
+      }));
+      setClasses(classList || []);
+      setRoster(nextRoster);
+      setProgressData(progress || {});
+      setSelectedClassId((current) => current || classList?.[0]?.id || null);
+      setStatus('ready');
+    } catch (error) {
+      setStatus('error');
+      Alert.alert('Error', getErrorMessage(error, { context: 'StudentProgress' }));
+    }
   };
   const loadDataRef = useRef(loadData);
   loadDataRef.current = loadData;
 
-  useFocusEffect(
-    useCallback(() => {
-      loadDataRef.current();
-    }, [])
-  );
-
-  const loadStudents = async () => {
-    try {
-      const data = await lecturerService.getStudents();
-      setStudents(data);
-    } catch (error) {
-      Alert.alert('Error', getErrorMessage(error, { context: 'StudentProgress' }));
-    }
-  };
-
-  const loadProgressData = async () => {
-    try {
-      const data = await lecturerService.getStudentProgress();
-      setProgressData(data);
-    } catch (error) {
-      console.error('Progress data error:', error);
-    }
-  };
-
-  const loadClasses = async () => {
-    try {
-      const data = await lecturerService.getClasses();
-      setClasses(data || []);
-      setSelectedClassId((current) => current || data?.[0]?.id || null);
-    } catch (error) {
-      console.error('Classes error:', error);
-    }
-  };
+  useFocusEffect(useCallback(() => { loadDataRef.current(); }, []));
 
   const handleAddStudent = async () => {
     if (!studentEmail.trim()) {
@@ -89,8 +76,8 @@ export default function StudentProgressScreen({ navigation }) {
       await lecturerService.addStudent(studentEmail, selectedClassId);
       setShowAddStudent(false);
       setStudentEmail('');
-      loadData();
-      Alert.alert('Success', 'Student enrolled in the selected class');
+      await loadData();
+      show('Student enrolled');
     } catch (error) {
       Alert.alert('Error', getErrorMessage(error, { context: 'StudentProgress' }));
     } finally {
@@ -98,264 +85,229 @@ export default function StudentProgressScreen({ navigation }) {
     }
   };
 
-  const filteredStudents = students.filter(student =>
+  const openStudent = async (student) => {
+    setSelectedStudent(student);
+    setAttempts([]);
+    setAttemptsStatus('loading');
+    try {
+      const detail = await lecturerService.getStudentDetail(student.id);
+      setAttempts(detail?.quizAttempts || []);
+      setAttemptsStatus('ready');
+    } catch (error) {
+      console.error('Student quiz history error:', error);
+      setAttemptsStatus('error');
+    }
+  };
+
+  const enrolledStudents = () => {
+    const source = classFilter === 'all'
+      ? Object.values(roster).flat()
+      : (roster[classFilter] || []);
+    const seen = new Set();
+    return source.filter((student) => {
+      if (!student?.id || seen.has(student.id)) return false;
+      seen.add(student.id);
+      return true;
+    });
+  };
+
+  const visibleStudents = enrolledStudents().filter((student) =>
     student.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     student.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const getProgressStats = (studentId) => {
-    const progress = progressData[studentId] || {};
-    return {
-      quizzesCompleted: progress.quizzesCompleted || 0,
-      averageScore: progress.averageScore || 0,
-      materialsViewed: progress.materialsViewed || 0,
-      lastActivity: progress.lastActivity || 'Never'
-    };
+  const filteredProgress = () => {
+    const slice = {};
+    enrolledStudents().forEach((student) => {
+      slice[student.id] = progressData[student.id] || { quizzesCompleted: 0, averageScore: null };
+    });
+    return slice;
   };
 
-  const renderStudentCard = ({ item }) => {
-    const stats = getProgressStats(item.id);
-    
-    return (
-      <TouchableOpacity
-        style={[styles.studentCard, { backgroundColor: theme.card }]}
-        onPress={() => setSelectedStudent(item)}
-      >
-        <View style={styles.studentHeader}>
-          <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
-            <Text style={styles.avatarText}>
-              {item.full_name?.charAt(0)?.toUpperCase() || 'S'}
-            </Text>
-          </View>
-          <View style={styles.studentInfo}>
-            <Text style={[styles.studentName, { color: theme.text }]}>
-              {item.full_name || 'Unknown Student'}
-            </Text>
-            <Text style={[styles.studentEmail, { color: theme.textSecondary }]}>
-              {item.email}
-            </Text>
-          </View>
-          <View style={styles.progressIndicator}>
-            <Text style={[styles.scoreText, { color: theme.primary }]}>
-              {stats.averageScore}%
-            </Text>
-          </View>
-        </View>
-        
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Ionicons name="checkmark-circle" size={16} color={theme.success} />
-            <Text style={[styles.statText, { color: theme.textSecondary }]}>
-              {stats.quizzesCompleted} Quizzes
-            </Text>
-          </View>
-          <View style={styles.statItem}>
-            <Ionicons name="document-text" size={16} color={theme.info} />
-            <Text style={[styles.statText, { color: theme.textSecondary }]}>
-              {stats.materialsViewed} Materials
-            </Text>
-          </View>
-        </View>
-        
-        <Text style={[styles.lastActivity, { color: theme.textTertiary }]}>
-          Last active: {stats.lastActivity}
-        </Text>
-      </TouchableOpacity>
-    );
+  const summary = summarizeClassProgress(filteredProgress());
+  const statsFor = (studentId) => progressData[studentId] || {
+    quizzesCompleted: 0, averageScore: null, materialsViewed: 0, lastActivity: null,
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <LinearGradient colors={theme.gradient} style={styles.header}>
-        <View style={styles.headerContent}>
-          {shellBack ? <View style={styles.iconHit} /> : (
-            <TouchableOpacity onPress={() => leaveScreen(navigation)} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="Go back">
-              <Ionicons name="arrow-back" size={24} color={theme.text} />
-            </TouchableOpacity>
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <Page maxWidth={LECTURER_COLUMN}>
+        <ScreenHeading
+          navigation={navigation}
+          title="Student progress"
+          subtitle="Enrolled students and quiz scores"
+          trailing={(
+            <>
+              <IconButton name="refresh" label="Refresh student list" onPress={loadData} />
+              <IconButton name="plus" label="Add student" onPress={() => setShowAddStudent(true)} />
+            </>
           )}
-          <Text style={[styles.headerTitle, { color: theme.text }]} accessibilityRole="header">Student Progress</Text>
-          <View style={{ flexDirection: 'row', gap: 4 }}>
-            <TouchableOpacity onPress={loadData} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="Refresh">
-              <Ionicons name="refresh" size={24} color={theme.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setShowAddStudent(true)} style={styles.iconHit} accessibilityRole="button" accessibilityLabel="Add student">
-              <Ionicons name="person-add" size={24} color={theme.primary} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </LinearGradient>
+        />
 
-      <View style={styles.searchContainer}>
-        <View style={[styles.searchBox, { backgroundColor: theme.card }]}>
-          <Ionicons name="search" size={20} color={theme.textTertiary} />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+          {[{ id: 'all', name: 'All classes' }, ...classes].map((item) => {
+            const selected = classFilter === item.id;
+            return (
+              <TouchableOpacity
+                key={item.id}
+                onPress={() => setClassFilter(item.id)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`Show ${item.name}`}
+                style={[styles.filterChip, { backgroundColor: selected ? theme.primary : 'rgba(255,255,255,0.70)', borderColor: 'rgba(255,255,255,0.8)' }]}
+              >
+                <Text style={[{ color: selected ? '#fff' : theme.text, fontSize: 14 }, font(theme, 'semibold')]}>{item.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        <View style={[styles.searchBox, { borderColor: theme.border }]}>
           <TextInput
-            style={[styles.searchInput, { color: theme.text }]}
-            placeholder="Search students..."
+            style={[{ flex: 1, fontSize: 16, color: theme.text, minHeight: 44 }, font(theme, 'body')]}
+            placeholder="Search students"
             placeholderTextColor={theme.textTertiary}
             value={searchQuery}
             onChangeText={setSearchQuery}
+            accessibilityLabel="Search students"
           />
         </View>
-      </View>
 
-      <View style={styles.statsOverview}>
-        <View style={[styles.overviewCard, { backgroundColor: theme.card }]}>
-          <Text style={[styles.overviewNumber, { color: theme.primary }]}>
-            {students.length}
-          </Text>
-          <Text style={[styles.overviewLabel, { color: theme.textSecondary }]}>
-            Total Students
-          </Text>
+        <View style={styles.statRow}>
+          <Glass strong radius={16} style={styles.stat}>
+            <Text style={[{ fontSize: 28, color: theme.text }, font(theme, 'h1')]}>{enrolledStudents().length}</Text>
+            <Badge label="Students" kind="neutral" />
+          </Glass>
+          <Glass strong radius={16} style={styles.stat}>
+            <Text style={[{ fontSize: 28, color: theme.text }, font(theme, 'h1')]}>{summary.average == null ? '—' : `${summary.average}%`}</Text>
+            <Badge label="Average" kind="neutral" />
+            <Body variant="caption">{classAverageCaption(summary)}</Body>
+          </Glass>
         </View>
-        <View style={[styles.overviewCard, { backgroundColor: theme.card }]}>
-          <Text style={[styles.overviewNumber, { color: theme.success }]}>
-            {Math.round(Object.values(progressData).reduce((acc, p) => acc + (p.averageScore || 0), 0) / Math.max(Object.keys(progressData).length, 1))}%
-          </Text>
-          <Text style={[styles.overviewLabel, { color: theme.textSecondary }]}>
-            Class Average
-          </Text>
-        </View>
-      </View>
 
-      <FlatList
-        data={filteredStudents}
-        renderItem={renderStudentCard}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.studentsList}
-        showsVerticalScrollIndicator={false}
-      />
+        {status === 'loading' ? (
+          <Body variant="caption" accessibilityRole="progressbar">Loading students</Body>
+        ) : null}
+        {status === 'error' ? (
+          <Glass strong style={styles.emptyCard} accessibilityRole="alert">
+            <Heading level={3}>Could not load student progress</Heading>
+            <Button label="Try again" fit style={{ marginTop: 12 }} onPress={loadData} />
+          </Glass>
+        ) : null}
+        {status === 'ready' && visibleStudents.length === 0 ? (
+          <Glass strong style={styles.emptyCard}>
+            <Heading level={3}>{searchQuery ? 'No students match that search' : 'No students in this class'}</Heading>
+            <Body variant="caption" style={{ marginTop: 6, textAlign: 'center' }}>
+              {searchQuery ? 'Try a different name or email.' : 'Students appear here after they join with the class code.'}
+            </Body>
+          </Glass>
+        ) : null}
+        {status === 'ready' ? visibleStudents.map((item) => {
+          const stats = statsFor(item.id);
+          const attempted = (stats.quizzesCompleted || 0) > 0 && stats.averageScore != null;
+          return (
+            <TouchableOpacity key={item.id} onPress={() => openStudent(item)} accessibilityRole="button" accessibilityLabel={`Open ${item.full_name || 'student'}`}>
+              <Glass strong style={styles.studentCard}>
+                <View style={styles.studentHeader}>
+                  <Avatar label={initials(item.full_name)} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[{ color: theme.text }, font(theme, 'h3')]}>{item.full_name || 'Unknown student'}</Text>
+                    <Body variant="caption">{item.email}</Body>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={[{ fontSize: 18, color: attempted ? theme.text : 'rgba(11,27,58,0.65)' }, font(theme, 'h2')]}>
+                      {attempted ? `${stats.averageScore}%` : 'No attempts'}
+                    </Text>
+                    <Body variant="caption">{attempted ? 'Average' : 'Quiz average'}</Body>
+                  </View>
+                </View>
+                <Body variant="caption">
+                  {plural(stats.quizzesCompleted || 0, 'quiz')} · {plural(stats.materialsViewed || 0, 'material')}
+                </Body>
+                <Body variant="caption">Last active: {stats.lastActivity || 'Never'}</Body>
+              </Glass>
+            </TouchableOpacity>
+          );
+        }) : null}
+      </Page>
+      <ToastBanner toast={toast} />
 
-      {/* Add Student Modal */}
-      <Modal visible={showAddStudent} animationType="slide" transparent>
+      <Modal visible={showAddStudent} animationType="fade" transparent>
         <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
-          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Enrol student</Text>
-            <Text style={[styles.classHint, { color: theme.textSecondary }]}>
-              The student must already have a CompuClass account. Pick the class they should join.
-            </Text>
-            <ScrollView style={styles.classList} nestedScrollEnabled>
+          <Glass strong radius={24} style={styles.modalCard}>
+            <Heading level={2}>Enrol student</Heading>
+            <Body variant="caption" style={{ marginTop: 6, marginBottom: 12 }}>The student needs a CompuClass account. Pick the class they should join.</Body>
+            <ScrollView style={{ maxHeight: 160 }}>
               {classes.length === 0 ? (
-                <Text style={[styles.classHint, { color: theme.textSecondary }]}>
-                  No classes yet. Create one from Class Management first.
-                </Text>
+                <Body variant="caption">No classes yet. Create one from Classes first.</Body>
               ) : classes.map((item) => (
                 <TouchableOpacity
                   key={item.id}
-                  style={[
-                    styles.classOption,
-                    { backgroundColor: theme.borderLight, borderColor: selectedClassId === item.id ? theme.primary : 'transparent' },
-                  ]}
                   onPress={() => setSelectedClassId(item.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: selectedClassId === item.id }}
+                  accessibilityLabel={item.name}
+                  style={[styles.classOption, { borderColor: selectedClassId === item.id ? theme.primary : theme.border }]}
                 >
-                  <Text style={[styles.classOptionText, { color: theme.text }]}>{item.name}</Text>
+                  <Text style={[{ color: theme.text }, font(theme, 'semibold')]}>{item.name}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.borderLight, color: theme.text }]}
-              placeholder="Student Email"
-              placeholderTextColor={theme.textTertiary}
-              value={studentEmail}
-              onChangeText={setStudentEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.cancelButton, { backgroundColor: theme.borderLight }]}
-                onPress={() => setShowAddStudent(false)}
-              >
-                <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={handleAddStudent}
-                disabled={loading}
-              >
-                <LinearGradient colors={theme.primaryGradient} style={styles.addButtonGradient}>
-                  <Text style={styles.addButtonText}>
-                    {loading ? 'Adding...' : 'Add Student'}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
+            <Field label="Email" icon="mail" value={studentEmail} onChangeText={setStudentEmail} placeholder="name@school.edu" keyboardType="email-address" autoCapitalize="none" />
+            <View style={styles.modalBtns}>
+              <Button label="Cancel" variant="secondary" fit onPress={() => setShowAddStudent(false)} />
+              <Button label={loading ? 'Adding...' : 'Add student'} fit onPress={handleAddStudent} disabled={loading} />
             </View>
-          </View>
+          </Glass>
         </View>
       </Modal>
 
-      {/* Student Detail Modal */}
-      <Modal visible={!!selectedStudent} animationType="slide" transparent>
+      <Modal visible={!!selectedStudent} animationType="fade" transparent>
         <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
-          <View style={[styles.detailModal, { backgroundColor: theme.card }]}>
-            <View style={styles.detailHeader}>
-              <Text style={[styles.detailTitle, { color: theme.text }]}>
-                {selectedStudent?.full_name || 'Student Details'}
-              </Text>
-              <TouchableOpacity onPress={() => setSelectedStudent(null)}>
-                <Ionicons name="close" size={24} color={theme.textSecondary} />
-              </TouchableOpacity>
+          <Glass strong radius={24} style={styles.detailCard}>
+            <View style={styles.assignHeader}>
+              <Heading level={2}>{selectedStudent?.full_name || 'Student'}</Heading>
+              <IconButton name="close" label="Close student details" onPress={() => setSelectedStudent(null)} />
             </View>
-            
-            {selectedStudent && (
-              <ScrollView style={styles.detailContent}>
-                <View style={styles.detailSection}>
-                  <Text style={[styles.sectionTitle, { color: theme.text }]}>Contact Info</Text>
-                  {selectedStudent.email ? (
-                    <TouchableOpacity
-                      onPress={() => Linking.openURL(`mailto:${encodeURIComponent(selectedStudent.email).replace('%40', '@')}`).catch(() => Alert.alert('Error', 'No email app is available on this device.'))}
-                      accessibilityRole="link"
-                      accessibilityLabel={`Email ${selectedStudent.email}`}
-                      style={styles.emailLink}
-                    >
-                      <Ionicons name="mail-outline" size={16} color={theme.primary} />
-                      <Text style={[styles.detailText, { color: theme.primary, textDecorationLine: 'underline' }]}>
-                        {selectedStudent.email}
-                      </Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <Text style={[styles.detailText, { color: theme.textSecondary }]}>No email on file</Text>
-                  )}
-                </View>
-                
-                <View style={styles.detailSection}>
-                  <Text style={[styles.sectionTitle, { color: theme.text }]}>Progress Summary</Text>
-                  {(() => {
-                    const stats = getProgressStats(selectedStudent.id);
-                    return (
-                      <View style={styles.progressDetails}>
-                        <View style={styles.progressItem}>
-                          <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>
-                            Quizzes Completed
-                          </Text>
-                          <Text style={[styles.progressValue, { color: theme.text }]}>
-                            {stats.quizzesCompleted}
-                          </Text>
-                        </View>
-                        <View style={styles.progressItem}>
-                          <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>
-                            Average Score
-                          </Text>
-                          <Text style={[styles.progressValue, { color: theme.primary }]}>
-                            {stats.averageScore}%
-                          </Text>
-                        </View>
-                        <View style={styles.progressItem}>
-                          <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>
-                            Materials Viewed
-                          </Text>
-                          <Text style={[styles.progressValue, { color: theme.text }]}>
-                            {stats.materialsViewed}
-                          </Text>
-                        </View>
-                      </View>
-                    );
-                  })()}
-                </View>
+            {selectedStudent ? (
+              <ScrollView>
+                {selectedStudent.email ? (
+                  <TouchableOpacity
+                    onPress={() => Linking.openURL(`mailto:${selectedStudent.email}`).catch(() => Alert.alert('Error', 'No email app is available on this device.'))}
+                    accessibilityRole="link"
+                    accessibilityLabel={`Email ${selectedStudent.email}`}
+                    style={styles.emailLink}
+                  >
+                    <Text style={[{ color: theme.primary }, font(theme, 'semibold')]}>{selectedStudent.email}</Text>
+                  </TouchableOpacity>
+                ) : <Body variant="caption">No email on file</Body>}
+                {(() => {
+                  const stats = statsFor(selectedStudent.id);
+                  const attempted = (stats.quizzesCompleted || 0) > 0 && stats.averageScore != null;
+                  return (
+                    <View style={{ marginTop: 12, gap: 8 }}>
+                      <Body variant="caption">{plural(stats.quizzesCompleted || 0, 'quiz')} completed</Body>
+                      <Body variant="caption">{attempted ? `${stats.averageScore}% average` : 'No attempts'}</Body>
+                      <Body variant="caption">{plural(stats.materialsViewed || 0, 'material')} viewed</Body>
+                    </View>
+                  );
+                })()}
+                <Heading level={3} style={{ marginTop: 16, marginBottom: 8 }}>Quiz results</Heading>
+                {attemptsStatus === 'loading' ? <Body variant="caption">Loading quiz results</Body> : null}
+                {attemptsStatus === 'error' ? <Body variant="caption">Quiz history could not be loaded.</Body> : null}
+                {attemptsStatus === 'ready' && attempts.length === 0 ? <Body variant="caption">No quiz attempts yet.</Body> : null}
+                {attempts.map((attempt) => (
+                  <View key={attempt.id || `${attempt.quiz_id}-${attempt.completed_at}`} style={styles.resultRow}>
+                    <Text style={[{ flex: 1, color: theme.text }, font(theme, 'body')]}>{attempt.quizzes?.title || 'Quiz'}</Text>
+                    <Text style={[{ width: 108, textAlign: 'right', color: 'rgba(11,27,58,0.65)', fontSize: 13 }, font(theme, 'medium')]}>
+                      {formatShortDate(attempt.completed_at)}
+                    </Text>
+                    <Text style={[{ width: 52, textAlign: 'right', color: theme.text }, font(theme, 'semibold')]}>{attempt.score}%</Text>
+                  </View>
+                ))}
               </ScrollView>
-            )}
-          </View>
+            ) : null}
+          </Glass>
         </View>
       </Modal>
     </View>
@@ -363,135 +315,20 @@ export default function StudentProgressScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { paddingTop: 50, paddingBottom: 20 },
-  iconHit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-  },
-  headerTitle: { fontSize: 20, fontWeight: 'bold' },
-  searchContainer: { padding: 16 },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-    gap: 8,
-  },
-  searchInput: { flex: 1, fontSize: 16 },
-  statsOverview: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 12,
-    marginBottom: 16,
-  },
-  overviewCard: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  overviewNumber: { fontSize: 24, fontWeight: 'bold' },
-  overviewLabel: { fontSize: 12, marginTop: 4 },
-  studentsList: { paddingHorizontal: 16 },
-  studentCard: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  studentHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  avatarText: { color: '#fff', fontWeight: 'bold' },
-  studentInfo: { flex: 1 },
-  studentName: { fontSize: 16, fontWeight: '600' },
-  studentEmail: { fontSize: 14, marginTop: 2 },
-  progressIndicator: { alignItems: 'center' },
-  scoreText: { fontSize: 18, fontWeight: 'bold' },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 8,
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  statText: { fontSize: 12 },
-  lastActivity: { fontSize: 12 },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    borderRadius: 16,
-    padding: 20,
-  },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 8 },
-  classHint: { fontSize: 13, marginBottom: 12 },
-  classList: { maxHeight: 140, marginBottom: 8 },
-  classOption: { padding: 12, borderRadius: 8, marginBottom: 8, borderWidth: 2 },
-  classOptionText: { fontSize: 15, fontWeight: '600' },
-  input: {
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    fontSize: 16,
-  },
-  modalButtons: { flexDirection: 'row', gap: 12 },
-  cancelButton: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  cancelButtonText: { fontWeight: '600' },
-  addButton: { flex: 1 },
-  addButtonGradient: {
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  addButtonText: { color: '#fff', fontWeight: '600' },
-  detailModal: {
-    borderRadius: 16,
-    maxHeight: '80%',
-  },
-  detailHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
-  },
-  detailTitle: { fontSize: 18, fontWeight: 'bold' },
-  detailContent: { padding: 20 },
-  detailSection: { marginBottom: 20 },
-  sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
-  detailText: { fontSize: 14 },
-  emailLink: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 4 },
-  progressDetails: { gap: 12 },
-  progressItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  progressLabel: { fontSize: 14 },
-  progressValue: { fontSize: 14, fontWeight: '600' },
+  filters: { gap: 8, paddingBottom: 12 },
+  filterChip: { minHeight: 44, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  searchBox: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, marginBottom: 12, backgroundColor: 'rgba(255,255,255,0.70)' },
+  statRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  stat: { flex: 1, padding: 14, alignItems: 'flex-start', gap: 8 },
+  emptyCard: { alignItems: 'center', padding: 24, marginBottom: 16 },
+  studentCard: { padding: 16, marginBottom: 10, gap: 6 },
+  studentHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  modalOverlay: { flex: 1, justifyContent: 'center', padding: 20 },
+  modalCard: { padding: 20 },
+  modalBtns: { flexDirection: 'row', gap: 12 },
+  classOption: { minHeight: 44, justifyContent: 'center', borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, marginBottom: 8 },
+  detailCard: { padding: 20, maxHeight: '80%' },
+  assignHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  emailLink: { minHeight: 44, justifyContent: 'center' },
+  resultRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 36 },
 });

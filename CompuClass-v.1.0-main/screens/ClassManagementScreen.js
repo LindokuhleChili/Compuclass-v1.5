@@ -1,18 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput, FlatList } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput, ActivityIndicator, Clipboard } from 'react-native';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
-import { appTheme, useTheme } from '../context/ThemeContext';
-import { useShellBack } from '../context/ChromeContext';
-import { leaveScreen } from '../utils/screenNav';
-
-const BLUE = appTheme.primary; const YELLOW = appTheme.yellow; const GREEN = appTheme.success; const PURPLE = appTheme.accentInk;
-const WHITE = appTheme.surface; const BG = appTheme.background; const TEXT = appTheme.text; const MUTED = appTheme.textSecondary; const BORDER = appTheme.border;
+import { plural } from '../utils/quizFlow';
+import { useTheme } from '../context/ThemeContext';
+import {
+  Page, Heading, Body, Glass, Badge, Button, IconTile, Avatar, initials, font, IconButton,
+} from '../components/ui/kit';
+import { LECTURER_COLUMN, ScreenHeading, ToastBanner, useUndoToast } from '../components/lecturerChrome';
 
 export default function ClassManagementScreen({ navigation }) {
   const { theme } = useTheme();
-  const shellBack = useShellBack();
+  const { toast, show } = useUndoToast();
   const [classes, setClasses] = useState([]);
   const [students, setStudents] = useState([]);
   const [showCreateClass, setShowCreateClass] = useState(false);
@@ -22,18 +21,35 @@ export default function ClassManagementScreen({ navigation }) {
   const [classDescription, setClassDescription] = useState('');
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => { loadClasses(); loadStudents(); }, []);
+  const [status, setStatus] = useState('loading');
+  const [studentError, setStudentError] = useState(false);
+  const loadRef = useRef(() => {});
 
   const loadClasses = async () => {
-    try { const data = await lecturerService.getClasses(); setClasses(data); }
-    catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'ClassManagement' })); }
+    try {
+      const data = await lecturerService.getClasses();
+      setClasses(data || []);
+      setStatus('ready');
+    } catch (error) {
+      setStatus('error');
+      Alert.alert('Error', getErrorMessage(error, { context: 'ClassManagement' }));
+    }
   };
 
   const loadStudents = async () => {
-    try { const data = await lecturerService.getStudents(); setStudents(data || []); }
-    catch { setStudents([]); }
+    try {
+      const data = await lecturerService.getStudents();
+      setStudents(data || []);
+      setStudentError(false);
+    } catch {
+      setStudents([]);
+      setStudentError(true);
+    }
   };
+
+  const loadAll = () => { loadClasses(); loadStudents(); };
+  loadRef.current = loadAll;
+  useEffect(() => { loadRef.current(); }, []);
 
   const handleCreateClass = async () => {
     if (!className.trim()) { Alert.alert('Error', 'Please enter a class name'); return; }
@@ -58,126 +74,126 @@ export default function ClassManagementScreen({ navigation }) {
   };
 
   const toggleStudent = (id) => setSelectedStudents((prev) => prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]);
-
-  const renderClass = ({ item }) => (
-    <View style={styles.classCard}>
-      <View style={styles.classTop}>
-        <View style={styles.classIconWrap}>
-          <Ionicons name="school" size={20} color={WHITE} />
-        </View>
-        <View style={styles.classInfo}>
-          <Text style={styles.className}>{item.name}</Text>
-          <Text style={styles.classDesc}>{item.description || 'No description'}</Text>
-          <Text style={styles.studentCount}>{item.student_count || 0} students enrolled</Text>
-        </View>
-      </View>
-      <View style={styles.classActions}>
-        <TouchableOpacity style={styles.assignBtn} onPress={() => { setSelectedClass(item); setShowAssignStudents(true); }} activeOpacity={0.75}>
-          <Ionicons name="person-add" size={14} color={WHITE} />
-          <Text style={styles.assignBtnText}>Assign</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.viewBtn} onPress={() => navigation.navigate('ClassDetail', { classId: item.id })} activeOpacity={0.75}>
-          <Ionicons name="eye" size={14} color={BLUE} />
-          <Text style={styles.viewBtnText}>View</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  const renderStudent = ({ item }) => (
-    <TouchableOpacity
-      style={[styles.studentItem, selectedStudents.includes(item.id) && styles.studentItemSelected]}
-      onPress={() => toggleStudent(item.id)} activeOpacity={0.75}
-    >
-      <View style={[styles.studentAvatar, selectedStudents.includes(item.id) && { backgroundColor: BLUE }]}>
-        <Text style={styles.avatarText}>{item.full_name?.charAt(0)?.toUpperCase() || 'S'}</Text>
-      </View>
-      <View style={styles.studentDetails}>
-        <Text style={styles.studentName}>{item.full_name || 'Unknown Student'}</Text>
-        <Text style={styles.studentEmail}>{item.email}</Text>
-      </View>
-      {selectedStudents.includes(item.id) && <Ionicons name="checkmark-circle" size={22} color={BLUE} />}
-    </TouchableOpacity>
-  );
+  const enrolled = classes.reduce((sum, item) => sum + (Number(item.student_count) || 0), 0);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        {shellBack ? <View style={styles.backBtn} /> : (
-          <TouchableOpacity onPress={() => leaveScreen(navigation)} style={[styles.backBtn, { backgroundColor: theme.tint }]} accessibilityRole="button" accessibilityLabel="Go back">
-            <Ionicons name="arrow-back" size={20} color={theme.text} />
-          </TouchableOpacity>
-        )}
-        <Text style={styles.headerTitle} accessibilityRole="header">Class Management</Text>
-        <TouchableOpacity onPress={() => setShowCreateClass(true)} style={styles.addBtn} accessibilityRole="button" accessibilityLabel="Create class">
-          <Ionicons name="add" size={22} color={BLUE} />
-        </TouchableOpacity>
-      </View>
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <Page maxWidth={LECTURER_COLUMN}>
+        <ScreenHeading
+          navigation={navigation}
+          title="Classes"
+          subtitle="Create a class and share its code"
+          trailing={<IconButton name="plus" label="Create class" onPress={() => setShowCreateClass(true)} />}
+        />
 
-      <View style={styles.statsRow}>
-        <View style={[styles.statCard, { borderLeftColor: BLUE }]}>
-          <Text style={[styles.statValue, { color: BLUE }]}>{classes.length}</Text>
-          <Text style={styles.statLabel}>Total Classes</Text>
+        <View style={styles.statRow}>
+          <Glass strong radius={16} style={styles.stat}>
+            <Text style={[{ fontSize: 28, color: theme.text }, font(theme, 'h1')]}>{classes.length}</Text>
+            <Badge label="Classes" kind="neutral" />
+          </Glass>
+          <Glass strong radius={16} style={styles.stat}>
+            <Text style={[{ fontSize: 28, color: theme.text }, font(theme, 'h1')]}>{enrolled}</Text>
+            <Badge label="Students" kind="neutral" />
+          </Glass>
         </View>
-        <View style={[styles.statCard, { borderLeftColor: GREEN }]}>
-          <Text style={[styles.statValue, { color: GREEN }]}>{students.length}</Text>
-          <Text style={styles.statLabel}>Total Students</Text>
-        </View>
-      </View>
 
-      <FlatList
-        data={classes}
-        renderItem={renderClass}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIconWrap}>
-              <Ionicons name="school" size={36} color={WHITE} />
-            </View>
-            <Text style={styles.emptyText}>No classes yet. Tap + to create one.</Text>
+        {status === 'loading' && classes.length === 0 ? (
+          <View style={styles.empty} accessibilityRole="progressbar">
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Body variant="caption" style={{ marginTop: 8 }}>Loading classes</Body>
           </View>
-        }
-      />
+        ) : null}
+        {status === 'error' && classes.length === 0 ? (
+          <Glass strong style={styles.emptyCard} accessibilityRole="alert">
+            <Heading level={3}>Could not load classes</Heading>
+            <Button label="Try again" fit style={{ marginTop: 12 }} onPress={loadAll} />
+          </Glass>
+        ) : null}
+        {status === 'ready' && classes.length === 0 ? (
+          <Glass strong style={styles.emptyCard}>
+            <IconTile name="school" tone="teal" />
+            <Body style={{ marginTop: 10, textAlign: 'center' }}>No classes yet. Create one so students can join with a code.</Body>
+          </Glass>
+        ) : null}
+        {classes.map((item) => (
+          <Glass key={item.id} strong style={styles.classCard}>
+            <View style={styles.classTop}>
+              <IconTile name="school" tone="teal" />
+              <View style={{ flex: 1 }}>
+                <Text style={[{ color: theme.text }, font(theme, 'h3')]}>{item.name}</Text>
+                <Body variant="caption">{item.description || 'No description'}</Body>
+                <Body variant="caption">{plural(item.student_count || 0, 'student')} enrolled</Body>
+              </View>
+            </View>
+            {item.join_code ? (
+              <TouchableOpacity
+                onPress={() => { Clipboard.setString(item.join_code); show(`${item.join_code} copied`); }}
+                accessibilityRole="button"
+                accessibilityLabel={`Copy code ${item.join_code}`}
+                style={styles.copyHit}
+              >
+                <Text style={[{ color: theme.primary }, font(theme, 'semibold')]}>Copy code {item.join_code}</Text>
+              </TouchableOpacity>
+            ) : null}
+            <View style={styles.classActions}>
+              <Button label="Assign" variant="secondary" fit onPress={() => { setSelectedClass(item); setSelectedStudents([]); setShowAssignStudents(true); }} accessibilityLabel={`Assign students to ${item.name}`} />
+              <Button label="View" variant="secondary" fit onPress={() => navigation.navigate('ClassDetail', { classId: item.id })} accessibilityLabel={`View ${item.name}`} />
+            </View>
+          </Glass>
+        ))}
+      </Page>
+      <ToastBanner toast={toast} />
 
       <Modal visible={showCreateClass} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Create New Class </Text>
-            <TextInput style={styles.input} placeholder="Class Name" placeholderTextColor={MUTED} value={className} onChangeText={setClassName} />
-            <TextInput style={[styles.input, styles.textArea]} placeholder="Description (optional)" placeholderTextColor={MUTED} value={classDescription} onChangeText={setClassDescription} multiline />
+        <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
+          <Glass strong radius={24} style={styles.modalCard}>
+            <Heading level={2}>Create class</Heading>
+            <TextInput style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]} placeholder="Class Name" placeholderTextColor={theme.textTertiary} value={className} onChangeText={setClassName} />
+            <TextInput style={[styles.input, styles.textArea, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]} placeholder="Description (optional)" placeholderTextColor={theme.textTertiary} value={classDescription} onChangeText={setClassDescription} multiline />
             <View style={styles.modalBtns}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowCreateClass(false)}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleCreateClass} disabled={loading}>
-                <Text style={styles.saveBtnText}>{loading ? 'Creating...' : 'Create'}</Text>
-              </TouchableOpacity>
+              <Button label="Cancel" variant="secondary" fit onPress={() => setShowCreateClass(false)} />
+              <Button label={loading ? 'Creating...' : 'Create'} fit onPress={handleCreateClass} disabled={loading} />
             </View>
-          </View>
+          </Glass>
         </View>
       </Modal>
 
       <Modal visible={showAssignStudents} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.assignModal}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
+          <Glass strong radius={24} style={styles.assignModal}>
             <View style={styles.assignHeader}>
-              <Text style={styles.modalTitle}>Assign to {selectedClass?.name}</Text>
-              <TouchableOpacity onPress={() => setShowAssignStudents(false)} style={styles.closeBtn}>
-                <Ionicons name="close" size={20} color={MUTED} />
-              </TouchableOpacity>
+              <Heading level={2}>Assign to {selectedClass?.name}</Heading>
+              <IconButton name="close" label="Close" onPress={() => setShowAssignStudents(false)} />
             </View>
-            {students.length === 0
-              ? <Text style={[styles.emptyText, { padding: 20 }]}>No students found.</Text>
-              : <FlatList data={students} renderItem={renderStudent} keyExtractor={(item) => item.id} style={styles.studentsList} />}
+            {studentError ? (
+              <Body style={{ padding: 16 }}>Could not load the student directory. Close this and try again.</Body>
+            ) : students.length === 0 ? (
+              <Body style={{ padding: 16 }}>No registered students yet. They need a CompuClass account before you can assign them.</Body>
+            ) : students.map((item) => {
+              const selected = selectedStudents.includes(item.id);
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.studentItem, { borderColor: selected ? theme.primary : theme.border }]}
+                  onPress={() => toggleStudent(item.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`${selected ? 'Deselect' : 'Select'} ${item.full_name || 'student'}`}
+                >
+                  <Avatar label={initials(item.full_name)} tone={selected ? 'blue' : 'neutral'} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[{ color: theme.text }, font(theme, 'semibold')]}>{item.full_name || 'Unknown student'}</Text>
+                    <Body variant="caption">{item.email}</Body>
+                  </View>
+                  {selected ? <Badge label="Selected" kind="neutral" /> : null}
+                </TouchableOpacity>
+              );
+            })}
             <View style={styles.assignFooter}>
-              <Text style={styles.selectedCount}>{selectedStudents.length} selected</Text>
-              <TouchableOpacity style={[styles.saveBtn, { flex: 1 }]} onPress={handleAssignStudents} disabled={loading || selectedStudents.length === 0}>
-                <Text style={styles.saveBtnText}>{loading ? 'Assigning...' : 'Assign Students'}</Text>
-              </TouchableOpacity>
+              <Body variant="caption">{plural(selectedStudents.length, 'student')} selected</Body>
+              <Button label={loading ? 'Assigning...' : 'Assign students'} fit onPress={handleAssignStudents} disabled={loading || selectedStudents.length === 0} />
             </View>
-          </View>
+          </Glass>
         </View>
       </Modal>
     </View>
@@ -185,52 +201,21 @@ export default function ClassManagementScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
-  header: { flexDirection: 'row', alignItems: 'center', paddingTop: 52, paddingBottom: 16, paddingHorizontal: 16, gap: 12, backgroundColor: WHITE, borderBottomWidth: 1, borderBottomColor: '#DCE6EF' },
-  backBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EDF4FF', alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, fontSize: 18, fontWeight: '800', color: TEXT },
-  addBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EDF4FF', alignItems: 'center', justifyContent: 'center' },
-  statsRow: { flexDirection: 'row', padding: 16, gap: 12 },
-  statCard: { flex: 1, backgroundColor: WHITE, borderRadius: 14, padding: 16, alignItems: 'center', borderLeftWidth: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  statValue: { fontSize: 26, fontWeight: '900' },
-  statLabel: { fontSize: 12, color: MUTED, marginTop: 4, fontWeight: '600' },
-  list: { paddingHorizontal: 16, paddingBottom: 24 },
-  classCard: { backgroundColor: WHITE, borderRadius: 16, padding: 16, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  classTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  classIconWrap: { width: 44, height: 44, borderRadius: 12, backgroundColor: PURPLE, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  classInfo: { flex: 1 },
-  className: { fontSize: 15, fontWeight: '800', color: TEXT },
-  classDesc: { fontSize: 12, color: MUTED, marginTop: 2 },
-  studentCount: { fontSize: 11, color: MUTED, marginTop: 3, fontWeight: '600' },
-  classActions: { flexDirection: 'row', gap: 8 },
-  assignBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: GREEN, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, gap: 5 },
-  assignBtnText: { fontSize: 12, fontWeight: '800', color: WHITE },
-  viewBtn: { flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderColor: BLUE, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, gap: 5 },
-  viewBtnText: { fontSize: 12, fontWeight: '800', color: BLUE },
-  emptyState: { alignItems: 'center', paddingVertical: 48 },
-  emptyIconWrap: { width: 68, height: 68, borderRadius: 20, backgroundColor: PURPLE, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  emptyText: { fontSize: 13, color: MUTED, fontWeight: '500', textAlign: 'center' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
-  modalCard: { backgroundColor: WHITE, borderRadius: 20, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 10 },
-  modalTitle: { fontSize: 17, fontWeight: '900', color: TEXT, marginBottom: 18 },
-  input: { backgroundColor: BG, borderWidth: 2, borderColor: BORDER, borderRadius: 12, padding: 12, marginBottom: 12, fontSize: 14, color: TEXT, fontWeight: '600' },
+  statRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  stat: { flex: 1, padding: 14, alignItems: 'flex-start', gap: 8 },
+  empty: { alignItems: 'center', paddingVertical: 40 },
+  emptyCard: { alignItems: 'center', padding: 24, marginBottom: 16 },
+  classCard: { padding: 16, marginBottom: 12 },
+  classTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  copyHit: { minHeight: 44, justifyContent: 'center', marginTop: 8 },
+  classActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
+  modalOverlay: { flex: 1, justifyContent: 'center', padding: 20 },
+  modalCard: { padding: 24 },
+  input: { borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 12, fontSize: 15 },
   textArea: { height: 80, textAlignVertical: 'top' },
-  modalBtns: { flexDirection: 'row', gap: 12, marginTop: 4 },
-  cancelBtn: { flex: 1, padding: 14, borderRadius: 12, borderWidth: 2, borderColor: BORDER, alignItems: 'center' },
-  cancelBtnText: { color: MUTED, fontWeight: '700' },
-  saveBtn: { padding: 14, borderRadius: 12, backgroundColor: BLUE, alignItems: 'center' },
-  saveBtnText: { color: WHITE, fontWeight: '800' },
-  assignModal: { backgroundColor: WHITE, borderRadius: 20, maxHeight: '80%', overflow: 'hidden' },
-  assignHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: BORDER },
-  closeBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
-  studentsList: { maxHeight: 300, padding: 16 },
-  studentItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: BG, borderWidth: 2, borderColor: BORDER, borderRadius: 12, padding: 12, marginBottom: 8 },
-  studentItemSelected: { borderColor: BLUE, backgroundColor: BLUE + '08' },
-  studentAvatar: { width: 44, height: 44, borderRadius: 12, backgroundColor: YELLOW, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  avatarText: { color: TEXT, fontSize: 14, fontWeight: '900' },
-  studentDetails: { flex: 1 },
-  studentName: { fontSize: 13, fontWeight: '700', color: TEXT },
-  studentEmail: { fontSize: 11, color: MUTED, marginTop: 2 },
-  assignFooter: { flexDirection: 'row', alignItems: 'center', padding: 16, borderTopWidth: 1, borderTopColor: BORDER, gap: 12 },
-  selectedCount: { fontSize: 13, color: MUTED, fontWeight: '600' },
+  modalBtns: { flexDirection: 'row', gap: 12, marginTop: 16 },
+  assignModal: { padding: 16, maxHeight: '80%' },
+  assignHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  studentItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
+  assignFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 8 },
 });
