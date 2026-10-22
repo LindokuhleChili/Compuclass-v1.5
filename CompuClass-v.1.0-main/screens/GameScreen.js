@@ -428,6 +428,7 @@ export default function GameScreen({ navigation, route }) {
         } else {
           audioRef.current.play('hit');
           buzz('error');
+          setFloater(null);
           const answer = event.correctAnswer ? `Answer: ${event.correctAnswer}. ` : '';
           setToast({
             id: world.current.elapsed,
