@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
+  View, Text, TouchableOpacity, StyleSheet, Image,
   TextInput, ActivityIndicator, FlatList, ScrollView,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { gameRunnerService } from '../services/gameRunnerService';
@@ -12,6 +13,8 @@ import { useTheme } from '../context/ThemeContext';
 import { useShellBack } from '../context/ChromeContext';
 import { leaveScreen } from '../utils/screenNav';
 import { font } from '../components/ui/kit';
+import { runnerArt } from '../assets/runner/art';
+import { WORLD_STORAGE_KEY, normalizeWorld } from '../utils/runnerEngine';
 
 export default function GameRunnerLobbyScreen({ navigation }) {
   const { theme } = useTheme();
@@ -25,6 +28,19 @@ export default function GameRunnerLobbyScreen({ navigation }) {
   const [myId, setMyId] = useState(null);
   const channelRef = useRef(null);
   const launchedRef = useRef(false);
+  const [city, setCity] = useState('light');
+
+  useEffect(() => {
+    AsyncStorage.getItem(WORLD_STORAGE_KEY).then((value) => {
+      setCity(normalizeWorld(value));
+    }).catch(() => {});
+  }, []);
+
+  const chooseCity = (next) => {
+    const world = normalizeWorld(next);
+    setCity(world);
+    AsyncStorage.setItem(WORLD_STORAGE_KEY, world).catch(() => {});
+  };
 
   const teardownChannel = () => {
     if (!channelRef.current) return;
@@ -142,7 +158,7 @@ export default function GameRunnerLobbyScreen({ navigation }) {
 
           {isHost && (
             <TouchableOpacity
-              style={[s.actionBtn, { backgroundColor: theme.primary }, players.length < 2 && s.startBtnDisabled]}
+              style={[s.actionBtn, players.length < 2 && s.startBtnDisabled]}
               onPress={handleStart}
               disabled={players.length < 2}
               accessibilityRole="button"
@@ -178,38 +194,60 @@ export default function GameRunnerLobbyScreen({ navigation }) {
           <View style={{ width: 44 }} />
         </View>
 
-        <View style={s.heroWrap}>
-          <View style={[s.heroMark, { backgroundColor: theme.tint }]}>
-            <Ionicons name="game-controller" size={32} color={theme.primary} />
-          </View>
-          <Text style={[s.heroTitle, { color: theme.text }, font(theme, 'h1')]}>CompuRunner</Text>
-          <Text style={[s.heroSub, { color: theme.textSecondary }, font(theme, 'body')]}>Dodge obstacles, collect PC components{'\n'}and race classmates to the finish!</Text>
+        <View style={s.banner}>
+          <Image source={city === 'dark' ? runnerArt.world.nightSky : runnerArt.world.sky} style={s.bannerSky} resizeMode="cover" accessibilityElementsHidden />
+          <Image source={city === 'dark' ? runnerArt.world.nightBuildings : runnerArt.world.buildings} style={s.bannerBuildings} resizeMode="cover" accessibilityElementsHidden />
+          <Image source={runnerArt.plate} style={s.bannerPlate} resizeMode="repeat" accessibilityElementsHidden />
+          <Image source={runnerArt.player.idle} style={s.bannerRunner} resizeMode="contain" accessibilityElementsHidden />
+          <Text style={[s.bannerTitle, font(theme, 'display')]}>COMPURUNNER</Text>
+          <Text style={[s.bannerSub, font(theme, 'body')]}>Grab a computer part, answer the question, and race classmates.</Text>
+        </View>
+
+        <View style={s.worldRow}>
+          <TouchableOpacity
+            onPress={() => chooseCity('light')}
+            style={[s.worldBtn, city === 'light' && s.worldOn]}
+            accessibilityRole="button"
+            accessibilityLabel="Light city"
+            accessibilityState={{ selected: city === 'light' }}
+          >
+            <Text style={[s.worldText, font(theme, 'semibold')]}>Light city</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => chooseCity('dark')}
+            style={[s.worldBtn, city === 'dark' && s.worldOn]}
+            accessibilityRole="button"
+            accessibilityLabel="Night city"
+            accessibilityState={{ selected: city === 'dark' }}
+          >
+            <Text style={[s.worldText, font(theme, 'semibold')]}>Night city</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={s.modesWrap}>
           <TouchableOpacity
-            style={[s.modeCard, { backgroundColor: theme.tint, borderColor: theme.border }]}
+            style={[s.modeCard, s.modeSolo]}
             onPress={() => navigation.navigate('Game')}
             activeOpacity={0.85}
             accessibilityRole="button"
             accessibilityLabel="Solo Run"
           >
-            <Ionicons name="person" size={28} color={theme.primary} />
-            <Text style={[s.modeTitle, { color: theme.text }, font(theme, 'h3')]}>Solo Run</Text>
-            <Text style={[s.modeDesc, { color: theme.textSecondary }, font(theme, 'body')]}>Practice alone, chase{'\n'}your high score</Text>
+            <Image source={runnerArt.ui.solo} style={s.modeIcon} accessibilityElementsHidden />
+            <Text style={[s.modeTitle, s.modeTitleOn, font(theme, 'h3')]}>Solo Run</Text>
+            <Text style={[s.modeDesc, s.modeDescOn, font(theme, 'body')]}>Practice alone and chase your high score</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[s.modeCard, { backgroundColor: theme.secondary, borderColor: theme.border }]}
+            style={[s.modeCard, s.modeHost]}
             onPress={handleHost}
             activeOpacity={0.85}
             disabled={loading}
             accessibilityRole="button"
             accessibilityLabel="Host Race"
           >
-            <Ionicons name="people" size={28} color={theme.accentInk} />
-            <Text style={[s.modeTitle, { color: theme.text }, font(theme, 'h3')]}>Host Race</Text>
-            <Text style={[s.modeDesc, { color: theme.textSecondary }, font(theme, 'body')]}>Create a room and invite{'\n'}classmates with a code</Text>
+            <Image source={runnerArt.ui.multi} style={s.modeIcon} accessibilityElementsHidden />
+            <Text style={[s.modeTitle, s.modeTitleOn, font(theme, 'h3')]}>Host Race</Text>
+            <Text style={[s.modeDesc, s.modeDescOn, font(theme, 'body')]}>Create a room and invite classmates with a code</Text>
           </TouchableOpacity>
         </View>
 
@@ -227,7 +265,7 @@ export default function GameRunnerLobbyScreen({ navigation }) {
               accessibilityLabel="Room code"
             />
             <TouchableOpacity
-              style={[s.joinBtn, { backgroundColor: theme.primary }]}
+              style={s.joinBtn}
               onPress={handleJoin}
               disabled={loading}
               accessibilityRole="button"
@@ -250,19 +288,35 @@ const s = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, paddingBottom: 8, paddingHorizontal: 20, width: '100%', maxWidth: 720, alignSelf: 'center' },
   backBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, color: '#0B1B3A' },
-  heroWrap: { alignItems: 'center', paddingVertical: 12, paddingHorizontal: 20 },
-  heroMark: { width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  heroTitle: { fontSize: 28, marginBottom: 8 },
-  heroSub: { fontSize: 15, textAlign: 'center', lineHeight: 22 },
+  banner: {
+    alignSelf: 'center', marginHorizontal: 20, marginBottom: 20,
+    height: 220, borderRadius: 20, overflow: 'hidden', backgroundColor: '#10203A',
+    borderWidth: 4, borderColor: '#041018', maxWidth: 720, width: '92%',
+  },
+  bannerSky: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, width: '100%', height: '100%' },
+  bannerBuildings: { position: 'absolute', left: 0, right: 0, bottom: 36, height: 120, width: '100%' },
+  bannerPlate: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 40, width: '100%' },
+  bannerRunner: { position: 'absolute', left: 36, bottom: 28, width: 80, height: 110 },
+  worldRow: { flexDirection: 'row', gap: 12, width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 20, marginBottom: 16 },
+  worldBtn: { flex: 1, minHeight: 56, borderRadius: 14, borderWidth: 4, borderColor: '#041018', backgroundColor: '#10203A', alignItems: 'center', justifyContent: 'center' },
+  worldOn: { backgroundColor: '#0A66FF' },
+  worldText: { color: '#fff', fontSize: 16 },
+  bannerTitle: { position: 'absolute', left: 140, right: 16, top: 48, color: '#fff', fontSize: 32, letterSpacing: 1 },
+  bannerSub: { position: 'absolute', left: 140, right: 20, top: 100, color: '#F7FBFD', fontSize: 15, lineHeight: 22 },
+  modeIcon: { width: 36, height: 36, tintColor: '#fff' },
   modesWrap: { flexDirection: 'row', gap: 12, marginBottom: 24, width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 20 },
-  modeCard: { flex: 1, borderRadius: 16, borderWidth: 1, padding: 18, alignItems: 'center', minHeight: 148 },
-  modeTitle: { fontSize: 16, marginTop: 10, marginBottom: 4 },
-  modeDesc: { fontSize: 13, textAlign: 'center', lineHeight: 18 },
+  modeCard: { flex: 1, borderRadius: 16, borderWidth: 4, borderColor: '#041018', padding: 18, alignItems: 'flex-start', justifyContent: 'flex-end', minHeight: 168, minWidth: 160 },
+  modeSolo: { backgroundColor: '#0A66FF' },
+  modeHost: { backgroundColor: '#10203A' },
+  modeTitle: { fontSize: 20, marginTop: 12, marginBottom: 4 },
+  modeTitleOn: { color: '#fff' },
+  modeDesc: { fontSize: 14, lineHeight: 20 },
+  modeDescOn: { color: '#F7FBFD' },
   joinLabel: { fontSize: 14, marginBottom: 8 },
-  joinWrap: { marginBottom: 24, width: '100%', maxWidth: 400, alignSelf: 'center', paddingHorizontal: 20 },
-  joinRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  joinInput: { flex: 1, borderRadius: 14, paddingHorizontal: 16, minHeight: 48, height: 48, fontSize: 18, letterSpacing: 4, borderWidth: 1 },
-  joinBtn: { height: 48, minWidth: 88, paddingHorizontal: 20, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  joinWrap: { marginBottom: 24, width: '100%', maxWidth: 480, alignSelf: 'center', paddingHorizontal: 20 },
+  joinRow: { gap: 10 },
+  joinInput: { width: '100%', borderRadius: 14, paddingHorizontal: 16, minHeight: 56, height: 56, fontSize: 18, letterSpacing: 4, borderWidth: 1 },
+  joinBtn: { height: 56, minWidth: 240, width: '100%', paddingHorizontal: 22, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0A66FF', borderWidth: 4, borderColor: '#041018' },
   joinBtnText: { fontSize: 15, color: '#fff' },
   errorText: { fontSize: 13, marginTop: 8 },
   codeBox: { borderRadius: 16, padding: 20, alignItems: 'center', marginBottom: 24, borderWidth: 1 },
@@ -276,7 +330,7 @@ const s = StyleSheet.create({
   playerInitial: { fontSize: 16 },
   playerName: { flex: 1, fontSize: 15 },
   hostBadge: { fontSize: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-  actionBtn: { height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 16, width: '100%', maxWidth: 400, alignSelf: 'center' },
+  actionBtn: { height: 56, minWidth: 240, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 16, width: '100%', maxWidth: 400, alignSelf: 'center', backgroundColor: '#0A66FF', borderWidth: 4, borderColor: '#041018' },
   startBtnDisabled: { opacity: 0.45 },
   actionBtnText: { fontSize: 15, color: '#fff' },
   waitingWrap: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingBottom: 16, minHeight: 48 },

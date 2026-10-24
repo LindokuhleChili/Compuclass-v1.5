@@ -32,6 +32,7 @@ export const EXPLORE_NAV = [
   { icon: 'windows', title: 'Windows 11', screen: 'Windows 11' },
   { icon: 'wrench', title: 'Troubleshooting', screen: 'Troubleshoot' },
   { icon: 'bot', title: 'CompuBot', screen: 'Chatbot' },
+  { icon: 'gamepad', title: 'CompuRunner', screen: 'GameRunnerLobby' },
 ];
 
 function animateDrawer(value, toValue, reduced, onEnd) {

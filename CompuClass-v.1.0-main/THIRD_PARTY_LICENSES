@@ -1,0 +1,119 @@
+Third-party assets used by CompuRunner
+=========================================
+
+Only the files under assets/runner/ are shipped. Each one is traced below.
+
+Kenney (CC0 1.0)
+----------------
+Platformer Characters, Generic Items, Background Elements, Simple Space,
+UI Pack, Game Icons, Digital Audio, Impact Sounds, and Interface Sounds.
+By Kenney Vleugels, https://kenney.nl
+License: Creative Commons Zero 1.0, https://creativecommons.org/publicdomain/zero/1.0/
+Credit is not required. The runner, buttons, and sound effects come from these packs.
+
+Platformer Pack Industrial (CC0 1.0), also by Kenney:
+https://kenney.nl/assets/platformer-pack-industrial
+File used: platformIndustrial_065.png, the riveted metal plate in
+assets/runner/ground/plate.png. The charcoal fill under the plate is a flat colour.
+
+Pixel Platformer (CC0 1.0), also by Kenney, 1.2, 07-10-2023:
+https://kenney.nl/assets/pixel-platformer
+File used: tile_0014.png, the heart in assets/runner/icons/heart.png, with a white rim added.
+
+Urban Landscape (CC0 1.0)
+-------------------------
+By Luis Zuno (@ansimuz), https://opengameart.org/content/urban-landscape
+Files used: Sky-layer.png and buildings-layer.png, scaled as crisp pixels in
+assets/runner/world/sky.png and buildings.png.
+License: Creative Commons Zero 1.0. Credit is not required. A link back to
+OpenGameArt.org is appreciated.
+The night city is the same two layers tinted darker (assets/runner/world/night-sky.png
+and night-buildings.png). A separate night-cloud composite was not usable as a
+clean layer, so no extra sky pack is shipped.
+
+Sci-fi platformer tiles (CC0 1.0)
+----------------------------------
+"Sci-fi platformer tiles (32x32)" by bart, 2 January 2014.
+https://opengameart.org/content/sci-fi-platformer-tiles-32x32
+File kept: techblocks2.png, the older ground strip in assets/runner/ground/strip.png.
+The current run draws the industrial plate instead of this strip.
+License: Creative Commons Zero 1.0. Attribution is optional. A link back to
+OpenGameArt.org is appreciated.
+
+Tabler Icons (MIT)
+-------------------
+virus and firewall-flame (the shield), from https://github.com/tabler/tabler-icons
+Drawn as outline icons in assets/runner/icons/virus.png and shield.png.
+Copyright (c) 2020-2026 Paweł Kuna
+
+MIT License
+
+Copyright (c) 2020-2026 Paweł Kuna
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Lucide (ISC)
+------------
+Outline icons in assets/runner/icons/, from https://github.com/lucide-icons/lucide
+(lucide-static). The runner uses cpu, ram (memory-stick), hard-drive, usb,
+keyboard, mouse, database, code-xml, braces, gpu (microchip), floppy (save),
+router, wifi, plug, battery, cloud, lock, key, magnet, monitor, terminal,
+lightbulb, circuit-board (the short), server, cable, and bug.
+These are Lucide drawings under the ISC license. The Lucide project license
+also keeps the MIT text for icons that were derived from Feather. Both texts
+are included so the upstream notice stays intact. The heart and the shield
+are not Lucide: the heart is Kenney and the shield is Tabler, listed above.
+
+ISC License
+
+Copyright (c) 2026 Lucide Icons and Contributors
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+The MIT License (MIT) (for Feather-derived Lucide icons, not used here)
+
+Copyright (c) 2013-present Cole Bemis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

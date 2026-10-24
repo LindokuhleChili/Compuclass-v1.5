@@ -438,6 +438,7 @@ function AppContent() {
   }
 
   const hideChrome = HIDE_TOP_ROUTES.includes(routeName);
+  const runnerTakeover = routeName === 'Game';
   const shellBack = Boolean(routeName) && !isRootRoute(routeName);
   const handleBack = () => {
     if (drawer.open || drawer.dragging) {
@@ -453,7 +454,7 @@ function AppContent() {
         <ColourField />
         <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }} edges={['left', 'right']}>
           <View style={{ flex: 1, flexDirection: 'row', zIndex: 1 }}>
-            {laptop && (
+            {laptop && !runnerTakeover && (
               <Sidebar
                 docked
                 onNavigate={handleNavigate}
@@ -492,7 +493,7 @@ function AppContent() {
                     onBell={() => setShowAnnouncements(true)}
                     onAvatar={() => handleNavigate('Profile')}
                   />
-                  <BackBar routeName={routeName} onBack={handleBack} />
+                  {runnerTakeover ? null : <BackBar routeName={routeName} onBack={handleBack} />}
                   <View style={styles.stage}>
                   <Tab.Navigator
                     backBehavior="history"
@@ -523,10 +524,10 @@ function AppContent() {
                     <Tab.Screen name="CircuitMaze" component={CircuitMazeScreen} />
                     <Tab.Screen name="CircuitMazeLobby" component={CircuitMazeLobbyScreen} />
                     <Tab.Screen name="CircuitMazeTopic" component={CircuitMazeTopicScreen} />
-                    <Tab.Screen name="Game" component={GameScreen} />
-                    <Tab.Screen name="GameRunnerLobby" component={GameRunnerLobbyScreen} />
+                    <Tab.Screen name="Game" component={GameScreen} options={{ unmountOnBlur: true }} />
+                    <Tab.Screen name="GameRunnerLobby" component={GameRunnerLobbyScreen} options={{ unmountOnBlur: true }} />
                   </Tab.Navigator>
-                  {drawer.phone && (
+                  {drawer.phone && !runnerTakeover && (
                     <Sidebar
                       retain
                       visible={drawer.open || drawer.dragging}
