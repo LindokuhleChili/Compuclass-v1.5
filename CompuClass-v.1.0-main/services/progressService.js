@@ -6,6 +6,7 @@ import { mergeTroubleshootingProgress } from '../utils/troubleshootingLab';
 // AsyncStorage keys already cleared on sign-out.
 export const PROGRESS_KEYS = {
   pcAssembly: 'pc_assembly',
+  pcAssembly3d: 'pc_assembly_3d',
   pcLab: 'pc_lab',
   circuitMaze: 'circuitMazeProgress:v1',
   compuRunner: 'compurunner',

@@ -8,6 +8,7 @@ export const PER_USER_STORAGE_KEYS = [
   'compurunner_highscore',
   'compurunner',
   'pc_assembly',
+  'pc_assembly_3d',
   'pc_lab',
   'troubleshooting_lab',
   'progress_updated_at',

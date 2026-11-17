@@ -8,6 +8,8 @@ import { lecturerService } from '../services/lecturerService';
 import { classService } from '../services/classService';
 import { progressFromAttempts } from '../utils/quizFlow';
 import LecturerDashboardScreen from '../screens/LecturerDashboardScreen';
+import DashboardScreen from '../screens/DashboardScreen';
+import PCAssemblyScreen from '../screens/PCAssemblyScreen';
 import ClassManagementScreen from '../screens/ClassManagementScreen';
 import ClassDetailScreen from '../screens/ClassDetailScreen';
 import StudentProgressScreen from '../screens/StudentProgressScreen';
@@ -218,6 +220,11 @@ export function ScreenPreview() {
   const [params, setParams] = useState(initial === 'quiz-play' ? { quizId: 'quiz-cpu' } : {});
   const navigation = {
     navigate(name, next) {
+      if (name === 'PC Assembly') {
+        setParams(next || {});
+        setScreen(next?.mode === 'ar' ? 'ar' : 'assembly');
+        return;
+      }
       if (name === 'Quiz' && next?.quizId) {
         setParams(next);
         setScreen('quiz-play');
@@ -260,6 +267,15 @@ export function ScreenPreview() {
   else if (screen === 'folder') body = <FolderContentScreen navigation={navigation} route={route} />;
   else if (screen === 'quizzes') body = <QuizScreen navigation={navigation} route={{ params: {} }} />;
   else if (screen === 'quiz-play') body = <QuizScreen navigation={navigation} route={{ params: { quizId: 'quiz-cpu' } }} />;
+  else if (screen === 'home') body = <DashboardScreen navigation={navigation} />;
+  else if (screen === 'assembly' || screen === 'ar') {
+    body = (
+      <PCAssemblyScreen
+        navigation={navigation}
+        route={{ params: screen === 'ar' ? { mode: 'ar', entry: 1 } : {} }}
+      />
+    );
+  }
   else body = <LecturerDashboardScreen navigation={navigation} />;
 
   return (

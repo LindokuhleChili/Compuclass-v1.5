@@ -13,9 +13,8 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { Icon } from '../components/ui/Icon';
 import { GameArt } from '../components/ui/art';
-import {
-  Page, Heading, Body, Card, Glass, Badge, Button, IconTile, SectionHeader, Skeleton, Mark, useLayout, font,
-} from '../components/ui/kit';
+import { Page, Body, Button, Card, Glass, Badge, Heading, IconTile, SectionHeader, Skeleton, Mark, useLayout, font } from '../components/ui/kit';
+import { beginFrontCamera } from '../components/assembly/camera';
 
 const PASS_SCORE = 70;
 
@@ -326,6 +325,25 @@ export default function DashboardScreen({ navigation }) {
         <Heading level={1}>{loading && !firstName ? 'Good day' : `${getGreeting()}${firstName ? `, ${firstName}` : ''}`}</Heading>
         {enrolledClass ? <Body variant="small" style={{ marginTop: 4 }}>{enrolledClass}</Body> : null}
       </View>
+      <Pressable
+        testID="ar-gesture-entry"
+        onPress={() => {
+          beginFrontCamera();
+          navigation.navigate('PC Assembly', { mode: 'ar', entry: Date.now() });
+        }}
+        accessibilityRole="button"
+        accessibilityLabel="AR / Gesture mode"
+        style={{ marginBottom: 24 }}
+      >
+        <Glass strong radius={20} style={{ padding: 16, gap: 8 }}>
+          <Text style={[{ fontSize: 12, color: theme.accentInk }, font(theme, 'semibold')]}>Hands-on</Text>
+          <Text style={[{ fontSize: 22, color: theme.text }, font(theme, 'h2')]}>AR / Gesture mode</Text>
+          <Body variant="small">Build the PC with your hands. The front camera stays on and the parts float over the room.</Body>
+          <View style={{ alignSelf: 'flex-start', marginTop: 4, backgroundColor: theme.primary, borderRadius: 14, minHeight: 44, paddingHorizontal: 16, justifyContent: 'center' }}>
+            <Text style={[{ color: '#fff', fontSize: 15 }, font(theme, 'semibold')]}>Start AR build</Text>
+          </View>
+        </Glass>
+      </Pressable>
       {laptop ? (
         <View style={{ flexDirection: 'row', gap: 40, alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>{hero}{statRow}{quick}{games}</View>
