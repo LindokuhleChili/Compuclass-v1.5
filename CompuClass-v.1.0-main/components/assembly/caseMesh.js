@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CASE } from './seats';
 
 // Original procedural mid-tower. Same axes as the part slots:
 // rear is -X, front is +X, tray is -Z, the open side faces the camera (+Z).
@@ -88,7 +89,7 @@ export function buildCase() {
   addBox(group, 0.03, 0.7, 0.85, mesh, -W / 2 - 0.02, 1.15, 0.05);
   addBox(group, 0.02, 0.62, 0.72, metal(0x0c1018, { roughness: 0.8 }), -W / 2 - 0.03, 1.15, 0.05);
   for (let i = 0; i < 7; i += 1) {
-    const y = 0.15 - i * 0.16;
+    const y = CASE.topSlotY - i * 0.16;
     addBox(group, 0.025, 0.1, 0.62, edge, -W / 2 - 0.01, y, 0.08);
     addBox(group, 0.02, 0.04, 0.08, metal(0xc5ccd6, { metalness: 0.9, roughness: 0.2 }), -W / 2 - 0.02, y, 0.32);
   }
@@ -109,9 +110,9 @@ export function buildCase() {
   }
 
   // PSU shroud with a cable grommet. Open toward the camera so the supply shows.
-  addBox(group, 2.35, 0.05, 1.55, dark, -0.95, -1.02, -0.12);
-  addBox(group, 2.35, 0.85, 0.05, paint, -0.95, -1.46, -0.86);
-  addBox(group, 0.05, 0.85, 1.5, paint, 0.2, -1.46, -0.12);
+  addBox(group, 2.15, 0.05, 1.45, dark, CASE.shroud.x, -1.18, CASE.shroud.z);
+  addBox(group, 2.15, 0.9, 0.05, paint, CASE.shroud.x, -1.62, -0.92);
+  addBox(group, 0.05, 0.9, 1.4, paint, CASE.shroud.x + 1.05, -1.62, CASE.shroud.z);
   const grommet = new THREE.Mesh(
     new THREE.TorusGeometry(0.16, 0.035, 8, 20),
     metal(RUBBER, { roughness: 0.8, metalness: 0.1 }),
@@ -120,21 +121,11 @@ export function buildCase() {
   grommet.userData.kind = 'case';
   group.add(grommet);
 
-  // Drive cage beside the shroud, where the SSD step mounts.
-  addBox(group, 0.72, 0.04, 0.5, edge, 1.48, -0.12, -0.32);
-  addBox(group, 0.72, 0.04, 0.5, edge, 1.48, -0.58, -0.32);
-  addBox(group, 0.04, 0.62, 0.5, edge, 1.82, -0.35, -0.32);
-  addBox(group, 0.04, 0.62, 0.5, edge, 1.14, -0.35, -0.32);
-
-  // Brass standoffs on the tray. The motherboard covers them once seated.
-  const brass = metal(BRASS, { metalness: 0.8, roughness: 0.28 });
-  [[-0.75, 1.4], [0.75, 1.4], [-0.75, -0.5], [0.75, -0.5], [0, 0.45], [-0.75, 0.45], [0.75, 0.45]].forEach(([x, y]) => {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 0.07, 10), brass);
-    post.rotation.x = Math.PI / 2;
-    post.position.set(x, y, -0.96);
-    post.userData.kind = 'case';
-    group.add(post);
-  });
+  // Drive cage in front of the board, where the SSD step mounts.
+  addBox(group, 0.78, 0.04, 0.52, edge, CASE.cage.x, CASE.cage.y + 0.28, CASE.cage.z);
+  addBox(group, 0.78, 0.04, 0.52, edge, CASE.cage.x, CASE.cage.y - 0.28, CASE.cage.z);
+  addBox(group, 0.04, 0.6, 0.52, edge, CASE.cage.x + 0.37, CASE.cage.y, CASE.cage.z);
+  addBox(group, 0.04, 0.6, 0.52, edge, CASE.cage.x - 0.37, CASE.cage.y, CASE.cage.z);
 
   // Feet.
   [[-1.7, -0.55], [1.7, -0.55], [-1.7, 0.7], [1.7, 0.7]].forEach(([x, z]) => {
@@ -153,6 +144,20 @@ export function buildCase() {
   const glow = new THREE.PointLight(0xfff4e0, 0.55, 8, 2);
   glow.position.set(0.2, 0.4, 0.15);
   group.add(glow);
+  return group;
+}
+
+export function buildStandoffs(points) {
+  const group = new THREE.Group();
+  group.name = 'standoffs';
+  const brass = metal(BRASS, { metalness: 0.8, roughness: 0.28 });
+  points.forEach(([x, y]) => {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, CASE.standoff, 10), brass);
+    post.rotation.x = Math.PI / 2;
+    post.position.set(x, y, CASE.trayFace + CASE.standoff / 2);
+    post.userData.kind = 'case';
+    group.add(post);
+  });
   return group;
 }
 

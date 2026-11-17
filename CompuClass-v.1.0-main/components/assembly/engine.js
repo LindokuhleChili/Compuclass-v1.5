@@ -2,13 +2,15 @@ import * as THREE from 'three';
 import { ASSEMBLY_PARTS } from './catalog';
 import { judgeDrop, nextPartId, sanitizeInstalled } from './rules';
 import { framePart, muteRaycast } from './framePart';
-import { buildCase, buildShelf } from './caseMesh';
+import { buildCase, buildShelf, buildStandoffs } from './caseMesh';
 import { buildPlaceholder } from './placeholders';
+import { attachSlotAnchors, buildSeatPlan, classifyBoard, meshRecords } from './seats';
 
 // Pointer dragging follows the plane method in three.js DragControls
 // (MIT, mrdoob/three.js examples/jsm/controls/DragControls.js):
 // the ray hits a camera-facing plane through the part, and an offset keeps
-// the grab point under the pointer. Snap then uses the slot's real depth.
+// the grab point under the pointer. The part stays on that point until the
+// pointer is released; a drop near the matching slot is what snaps it in.
 
 const ACCENT = 0x3bb8c4;
 const PRIMARY = 0x0a66ff;
@@ -70,6 +72,7 @@ function makeLabel(text) {
   canvas.width = 256;
   canvas.height = 64;
   const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
   ctx.fillStyle = 'rgba(255,255,255,0.94)';
   roundRect(ctx, 6, 10, 244, 44, 14);
   ctx.fill();
@@ -197,6 +200,11 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
     };
   });
   const byId = Object.fromEntries(parts.map((part) => [part.spec.id, part]));
+  const seatGroup = new THREE.Group();
+  seatGroup.name = 'board-seat';
+  scene.add(seatGroup);
+  let standoffs = null;
+  let plan = buildSeatPlan(null, {});
 
   let viewW = width;
   let viewH = height;
@@ -335,6 +343,7 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
   }
 
   function pickDraggable(x, y) {
+    scene.updateMatrixWorld(true);
     rayFrom(x, y);
     const hits = raycaster.intersectObjects(parts.filter((part) => !part.installed).map((part) => part.hit), false);
     const id = hits[0]?.object?.userData?.partId;
@@ -372,23 +381,60 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
     return true;
   }
 
-  function reachRadius() {
-    return Math.max(160, viewW * 0.18);
+  function extentOf(object) {
+    object.updateMatrixWorld(true);
+    const size = new THREE.Box3().setFromObject(object).getSize(new THREE.Vector3());
+    const parentScale = new THREE.Vector3(1, 1, 1);
+    object.parent?.getWorldScale(parentScale);
+    return size.divide(parentScale);
+  }
+
+  function refreshPlan(animate) {
+    const features = classifyBoard(meshRecords(byId.motherboard.content));
+    const extents = {};
+    parts.forEach((part) => { extents[part.spec.id] = extentOf(part.content); });
+    plan = buildSeatPlan(features, extents);
+    parts.forEach((part) => {
+      const pose = plan[part.spec.id];
+      part.slot.position.copy(pose.position);
+      part.slot.quaternion.copy(pose.quaternion);
+      part.slot.scale.copy(pose.scale);
+      const size = plan.sizes[part.spec.id];
+      const fit = new THREE.Vector3(
+        size.x / part.spec.guide[0],
+        size.y / part.spec.guide[1],
+        Math.max(0.35, size.z / part.spec.guide[2]),
+      );
+      part.guide.userData.fitScale = fit;
+      part.guide.position.copy(pose.position);
+      part.guide.scale.copy(fit);
+    });
+    const board = byId.motherboard;
+    const halfW = plan.sizes.motherboard.x * 0.42;
+    const halfH = plan.sizes.motherboard.y * 0.42;
+    if (standoffs) scene.remove(standoffs);
+    standoffs = buildStandoffs([
+      [board.slot.position.x - halfW, board.slot.position.y - halfH],
+      [board.slot.position.x + halfW, board.slot.position.y - halfH],
+      [board.slot.position.x - halfW, board.slot.position.y + halfH],
+      [board.slot.position.x + halfW, board.slot.position.y + halfH],
+      [board.slot.position.x, board.slot.position.y],
+    ]);
+    scene.add(standoffs);
+    attachSlotAnchors(board.root, seatGroup, plan, board.installed);
+    parts.forEach((part) => {
+      if (part !== drag) seat(part, animate ? duration(0.25) : 0);
+    });
+  }
+
+  function snapRadius() {
+    return Math.min(92, Math.max(68, viewW * 0.07));
   }
 
   function moveDrag(x, y) {
     if (!drag || !rayFrom(x, y).intersectPlane(plane, hit)) return;
     drag.root.position.copy(hit.clone().sub(offset).applyMatrix4(inverse));
-    if (drag.spec.id === nextPartId(installedIds)) {
-      const here = projectOf(drag.root.position);
-      const slot = projectOf(drag.slot.position);
-      const distance = Math.hypot(here.x - slot.x, here.y - slot.y);
-      const reach = reachRadius();
-      if (distance < reach) {
-        const pull = (1 - distance / reach) * 0.55;
-        drag.root.position.lerp(drag.slot.position, pull);
-      }
-    }
+    drag.root.quaternion.copy(drag.slot.quaternion);
   }
 
   function finishDrag(x, y) {
@@ -399,7 +445,11 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
     if (!part) return;
     const aimed = slotUnder(x, y, part.spec.id);
     const slotPoint = projectOf(part.slot.position);
-    const nearOwn = Math.hypot(slotPoint.x - x, slotPoint.y - y) <= reachRadius();
+    const partPoint = projectOf(part.root.position);
+    const nearOwn = Math.min(
+      Math.hypot(slotPoint.x - x, slotPoint.y - y),
+      Math.hypot(slotPoint.x - partPoint.x, slotPoint.y - partPoint.y),
+    ) <= snapRadius();
     const onOwn = nearOwn || (aimed && aimed.spec.id === part.spec.id);
     const wrong = aimed && aimed.spec.id !== part.spec.id && !onOwn;
     const decision = onOwn || wrong
@@ -416,7 +466,11 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
       part.installed = true;
       if (part.label) part.label.visible = false;
       focusedId = nextPartId(installedIds);
-      tweenTo(part.root, displayPose(part), duration(0.28), false, () => paint());
+      const seated = () => {
+        if (part.spec.id === 'motherboard') attachSlotAnchors(part.root, seatGroup, plan, true);
+        paint();
+      };
+      tweenTo(part.root, displayPose(part), duration(0.28), false, seated);
       callbacks.onFeedback?.({ kind: 'ok', text: decision.text });
       publish();
       if (focusedId) tellInfo(focusedId, 'focus');
@@ -435,7 +489,7 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
     if (drag && drag.spec.id === next) {
       const here = projectOf(drag.root.position);
       const slot = projectOf(byId[next].slot.position);
-      nearNext = Math.hypot(here.x - slot.x, here.y - slot.y) <= reachRadius();
+      nearNext = Math.hypot(here.x - slot.x, here.y - slot.y) <= snapRadius();
     }
     const pointerSlot = drag ? slotUnder(projectOf(drag.root.position).x, projectOf(drag.root.position).y, drag.spec.id) : null;
     parts.forEach((part) => {
@@ -449,11 +503,14 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
       part.guide.material.opacity = isHot ? 0.62 : isWrong ? 0.4 : isNext ? pulse : 0;
       part.guide.children[0].material.color.set(isWrong ? ERROR : PRIMARY);
       const pop = isHot ? 1.08 : 1;
-      part.guide.scale.setScalar(pop);
+      const fit = part.guide.userData.fitScale;
+      if (fit) part.guide.scale.copy(fit).multiplyScalar(pop);
+      else part.guide.scale.setScalar(pop);
     });
   }
 
   applyInstalledFlags();
+  refreshPlan(false);
   layout(phone, false);
   parts.forEach((part) => {
     if (part.installed) writePose(part.root, displayPose(part));
@@ -492,6 +549,7 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
       part.root.add(framed);
       part.hit.parent.remove(part.hit);
       part.root.add(part.hit);
+      refreshPlan(false);
       paint();
     },
     orbitBy(dx, dy) {
@@ -530,6 +588,20 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
       const point = projectOf(part.root.position);
       if (point.behind) return null;
       return { id, x: point.x, y: point.y };
+    },
+    project(id) {
+      return projectOf(byId[id].root.position);
+    },
+    partPosition(id) {
+      return byId[id].root.position.clone();
+    },
+    slotPosition(id) {
+      return byId[id].slot.position.clone();
+    },
+    slotAnchor(id) {
+      return byId.motherboard.root.getObjectByName(`${id}-slot`)
+        || seatGroup.getObjectByName(`${id}-slot`)
+        || null;
     },
     pinch(x, y, phase) {
       if (phase === 'start') {
@@ -600,6 +672,7 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
       exploded = false;
       installedIds = [];
       applyInstalledFlags();
+      attachSlotAnchors(byId.motherboard.root, seatGroup, plan, false);
       focusedId = nextPartId([]);
       parts.forEach((part) => seat(part, duration(0.35)));
       paint();

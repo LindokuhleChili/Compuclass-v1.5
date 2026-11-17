@@ -127,7 +127,7 @@ export default function GestureStage({ stream, viewportRef, onGesture, onError }
       if (target) {
         ctx.save();
         ctx.setLineDash([7, 7]);
-        ctx.strokeStyle = '#F5C518';
+        ctx.strokeStyle = '#3BB8C4';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(point.x, point.y);
@@ -141,7 +141,7 @@ export default function GestureStage({ stream, viewportRef, onGesture, onError }
         ctx.restore();
       }
       ctx.beginPath();
-      ctx.fillStyle = '#F5C518';
+      ctx.fillStyle = '#3BB8C4';
       ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
       ctx.fill();
       ctx.lineWidth = 2;
@@ -172,8 +172,8 @@ export default function GestureStage({ stream, viewportRef, onGesture, onError }
             }
             const ctx = bones.getContext('2d');
             ctx.clearRect(0, 0, bones.width, bones.height);
-            drawing?.drawConnectors(found, connections, { color: '#F5C518', lineWidth: 4 });
-            drawing?.drawLandmarks(found, { color: '#FFE56A', fillColor: '#F5C518', radius: 5, lineWidth: 2 });
+            drawing?.drawConnectors(found, connections, { color: '#3BB8C4', lineWidth: 4 });
+            drawing?.drawLandmarks(found, { color: '#DDF3F4', fillColor: '#3BB8C4', radius: 5, lineWidth: 2 });
           } else {
             missing += 1;
             if (missing > 6) latest = null;

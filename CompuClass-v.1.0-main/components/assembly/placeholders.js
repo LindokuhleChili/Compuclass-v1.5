@@ -46,10 +46,13 @@ export function buildFan(radius) {
 export function buildPlaceholder(id) {
   const group = new THREE.Group();
   if (id === 'motherboard') {
-    addBox(group, 0.82, 1, 0.04, 0x1f6b45, 0, 0, 0);
-    addBox(group, 0.18, 0.18, 0.03, 0xd7c07a, -0.16, 0.22, 0.03);
-    addBox(group, 0.06, 0.42, 0.03, 0x111111, 0.22, 0.18, 0.03);
-    addBox(group, 0.06, 0.42, 0.03, 0x1a1a1a, 0.3, 0.18, 0.03);
+    addBox(group, 1, 0.8, 0.02, 0x1f6b45, 0, 0, 0);
+    addBox(group, 0.16, 0.16, 0.04, 0xd7c07a, -0.16, 0.14, 0.03);
+    addBox(group, 0.04, 0.28, 0.03, 0x111111, 0.12, 0.14, 0.025);
+    addBox(group, 0.04, 0.28, 0.03, 0x151515, 0.18, 0.14, 0.025);
+    addBox(group, 0.04, 0.28, 0.03, 0x1a1a1a, 0.24, 0.14, 0.025);
+    addBox(group, 0.42, 0.03, 0.025, 0x2c3340, -0.05, -0.1, 0.02);
+    addBox(group, 0.04, 0.22, 0.05, 0xd5dbe3, -0.48, 0.02, 0.02);
   } else if (id === 'cpu') {
     addBox(group, 1, 1, 0.12, 0x2f6b45, 0, 0, 0);
     addBox(group, 0.72, 0.72, 0.04, 0xe2c98a, 0, 0, 0.08);
