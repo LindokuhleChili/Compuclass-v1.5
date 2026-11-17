@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -35,6 +35,7 @@ export default function AssemblyExperience({ navigation, onExit }) {
   const [webglFailed, setWebglFailed] = useState(false);
   const [hint, setHint] = useState(false);
   const [mistakes, setMistakes] = useState(0);
+  const [legendOpen, setLegendOpen] = useState(!phone);
   const gestures = frontCameraSupported();
 
   useEffect(() => {
@@ -188,53 +189,55 @@ export default function AssemblyExperience({ navigation, onExit }) {
           </Glass>
         )}
 
+        {!gestures ? (
+          <Text style={[{ color: theme.text, fontSize: 13, marginTop: 6 }, font(theme, 'semibold')]}>Drag with your finger. Hand tracking runs in the browser.</Text>
+        ) : null}
+        {gestures && !stream ? (
+          <Pressable onPress={enableCamera} accessibilityRole="button" accessibilityLabel="Enable front camera">
+            <Text style={[{ color: theme.text, fontSize: 13, marginTop: 6 }, font(theme, 'semibold')]}>
+              {cameraError || 'Front camera is off. Tap to enable. Drag still works.'}
+            </Text>
+          </Pressable>
+        ) : null}
+
         <View style={{ flex: 1 }} pointerEvents="none" />
 
-        {!gestures && (
-          <Glass strong radius={16} style={styles.note}>
-            <Body variant="small">Hand gestures run in the browser, using the front camera. On this phone app, drag each part with your finger. The same build is on the CompuClass website.</Body>
-          </Glass>
-        )}
-        {gestures && !stream && (
-          <Glass strong radius={16} style={styles.note}>
-            <Body variant="small">{cameraError || 'Turn on the front camera. The parts float over what the camera sees.'}</Body>
-            <Button label="Enable front camera" onPress={enableCamera} fit />
-          </Glass>
-        )}
-
         {infoPart && (
-          <View testID="part-info">
-            <Glass strong radius={18} style={styles.info}>
-            <View style={{ flex: 1 }}>
-              <Text style={[{ fontSize: 12, color: theme.textTertiary }, font(theme, 'semibold')]}>
-                {info?.reason === 'hold' ? 'Holding' : info?.reason === 'point' ? 'Selected' : `Step ${Math.min(step + 1, ASSEMBLY_ORDER.length)}`}
+          <View testID="part-info" style={{ marginBottom: 8 }}>
+            <Glass strong radius={16} style={styles.info}>
+              <Text style={[{ flex: 1, fontSize: 15, color: theme.text }, font(theme, 'h3')]} numberOfLines={1}>
+                {(info?.reason === 'hold' ? 'Holding' : info?.reason === 'point' ? 'Selected' : `Step ${Math.min(step + 1, ASSEMBLY_ORDER.length)}`) + ' · ' + infoPart.name}
               </Text>
-              <Text style={[{ fontSize: 16, color: theme.text }, font(theme, 'h3')]}>{infoPart.name}</Text>
-              <Body variant="small">{hint || info?.reason === 'point' || info?.reason === 'hold' ? infoPart.tip : 'Point at a part, or use peace and three fingers to move through the steps.'}</Body>
-            </View>
-            {!hint && info?.reason !== 'point' && info?.reason !== 'hold' && (
-              <Pressable onPress={() => setHint(true)} accessibilityRole="button" accessibilityLabel="Show part info" style={styles.hintBtn}>
-                <Text style={[{ color: theme.primary, fontSize: 14 }, font(theme, 'semibold')]}>Info</Text>
-              </Pressable>
-            )}
+              {!hint && info?.reason !== 'point' && info?.reason !== 'hold' ? (
+                <Pressable onPress={() => setHint(true)} accessibilityRole="button" accessibilityLabel="Show part info" style={styles.hintBtn}>
+                  <Text style={[{ color: theme.primary, fontSize: 14 }, font(theme, 'semibold')]}>Info</Text>
+                </Pressable>
+              ) : (
+                <Text style={[{ flex: 1.4, fontSize: 13, color: theme.textSecondary }, font(theme, 'body')]} numberOfLines={2}>{infoPart.tip}</Text>
+              )}
             </Glass>
           </View>
         )}
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: phone ? 78 : 92 }} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
-          <View testID="gesture-legend" style={styles.legend}>
-            {GESTURE_LEGEND.map((item) => (
-              <View key={item.gesture} style={[styles.legendItem, { backgroundColor: 'rgba(255,255,255,0.92)', borderColor: theme.border }]}>
-                <Text style={[{ fontSize: 12, color: theme.text }, font(theme, 'semibold')]}>{item.gesture}</Text>
-                <Text style={[{ fontSize: 12, color: theme.textSecondary }, font(theme, 'body')]}>{item.action}</Text>
-              </View>
-            ))}
-            <View style={[styles.legendItem, { backgroundColor: 'rgba(255,255,255,0.92)', borderColor: theme.border }]}>
-              <Text style={[{ fontSize: 12, color: theme.text }, font(theme, 'semibold')]}>Mouse or touch</Text>
-              <Text style={[{ fontSize: 12, color: theme.textSecondary }, font(theme, 'body')]}>Drag a part, or drag empty space to rotate</Text>
+        <View testID="gesture-legend">
+          {phone ? (
+            <Pressable onPress={() => setLegendOpen((open) => !open)} accessibilityRole="button" accessibilityLabel="Gestures" style={[styles.stepsBtn, { alignSelf: 'flex-start', marginBottom: 6, backgroundColor: theme.surface }]}>
+              <Text style={[{ color: theme.text, fontSize: 14 }, font(theme, 'semibold')]}>{legendOpen ? 'Hide gestures' : 'Gestures'}</Text>
+            </Pressable>
+          ) : null}
+          {!phone || legendOpen ? (
+            <View style={styles.legend}>
+              {GESTURE_LEGEND.map((item) => (
+                <Text key={item.gesture} style={[styles.chip, font(theme, 'semibold'), { color: theme.text, backgroundColor: 'rgba(255,255,255,0.94)', borderColor: theme.border }]}>
+                  {item.gesture + ': ' + item.action}
+                </Text>
+              ))}
+              <Text style={[styles.chip, font(theme, 'semibold'), { color: theme.text, backgroundColor: 'rgba(255,255,255,0.94)', borderColor: theme.border }]}>
+                Mouse or touch: drag a part, or empty space to rotate
+              </Text>
             </View>
-          </View>
-        </ScrollView>
+          ) : null}
+        </View>
       </View>
 
       {done && (
@@ -265,10 +268,10 @@ const styles = StyleSheet.create({
   pill: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6, minHeight: 44, justifyContent: 'center' },
   toast: { marginTop: 8, padding: 12, flexDirection: 'row', gap: 8, alignItems: 'center', borderWidth: 1 },
   note: { padding: 14, gap: 10, marginBottom: 8 },
-  info: { padding: 14, flexDirection: 'row', gap: 12, alignItems: 'center', marginBottom: 8 },
+  info: { paddingHorizontal: 14, paddingVertical: 8, flexDirection: 'row', gap: 12, alignItems: 'center' },
   hintBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
-  legend: { flexDirection: 'row', gap: 8 },
-  legendItem: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8, maxWidth: 220 },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: { fontSize: 12, lineHeight: 16, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, overflow: 'hidden' },
   completeWrap: { ...StyleSheet.absoluteFillObject, zIndex: 5, alignItems: 'center', justifyContent: 'center', padding: 24 },
   complete: { padding: 20, gap: 8, maxWidth: 420, width: '100%' },
 });

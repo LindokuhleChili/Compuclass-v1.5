@@ -80,8 +80,8 @@ function makeLabel(text) {
   ctx.fillText(text, 128, 32);
   const map = new THREE.CanvasTexture(canvas);
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map, transparent: true, depthTest: false }));
-  sprite.scale.set(1.2, 0.3, 1);
-  sprite.position.y = 0.82;
+  sprite.scale.set(0.78, 0.16, 1);
+  sprite.center.set(0.5, 1);
   sprite.raycast = () => {};
   return sprite;
 }
@@ -125,17 +125,14 @@ function setGlow(root, color, intensity) {
   });
 }
 
-function trayPosition(index, count, wide) {
-  if (wide) {
-    const col = index % 2;
-    const row = Math.floor(index / 2);
-    return [3.15 + col * 0.98, 1.35 - row * 0.92, 0.2];
-  }
-  const col = index % 4;
-  const row = Math.floor(index / 4);
-  const cols = row === 0 ? Math.min(4, count) : count - 4;
-  const x = (col - (cols - 1) / 2) * 0.98;
-  return [x, row === 0 ? -0.15 : -1.05, row === 0 ? 1.75 : 1.95];
+function trayPosition(index, count, phone) {
+  const scale = phone ? 0.46 : 0.5;
+  const col = index % 2;
+  const row = Math.floor(index / 2);
+  const y = (phone ? 1.7 : 1.25) - row * (phone ? 0.74 : 0.78);
+  const x = phone ? (col === 0 ? -1.15 : 1.15) : (col === 0 ? 2.15 : 2.85);
+  const z = phone ? 1.35 : 0.35;
+  return { x, y, z, scale };
 }
 
 export function createAssembly({ renderer, width, height, installed, reducedMotion = false, callbacks = {} }) {
@@ -155,9 +152,12 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
   const key = new THREE.DirectionalLight(0xffffff, 1.15);
   key.position.set(4, 7, 5);
   scene.add(key);
-  const fill = new THREE.DirectionalLight(0xddf3f4, 0.45);
-  fill.position.set(-4, 2, 3);
+  const fill = new THREE.DirectionalLight(0xddf3f4, 0.55);
+  fill.position.set(-5, 3, 4);
   scene.add(fill);
+  const rim = new THREE.DirectionalLight(0xffffff, 0.35);
+  rim.position.set(0, 2, -6);
+  scene.add(rim);
 
   if ('outputEncoding' in renderer && THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -179,7 +179,7 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
     hitMesh.userData.partId = spec.id;
     root.add(hitMesh);
     const label = makeLabel(spec.name);
-    if (label) root.add(label);
+    if (label) scene.add(label);
     const guide = makeGuide(spec.guide);
     guide.position.set(spec.position[0], spec.position[1], spec.position[2]);
     scene.add(root, guide);
@@ -202,7 +202,7 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
   let viewH = height;
   let reduced = reducedMotion;
   let exploded = false;
-  let wide = width >= 900;
+  let phone = width < 900 || height < 720;
   let shelves = [];
   let installedIds = sanitizeInstalled(installed);
   let drag = null;
@@ -212,8 +212,8 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
   let heldId = null;
   let tweens = [];
   let clock = 0;
-  let orbit = { theta: wide ? 0.22 : 0.16, phi: 1.08, radius: wide ? 9.6 : 8.2 };
-  const target = new THREE.Vector3(wide ? 0.4 : 0, 0.12, 0.15);
+  let orbit = { theta: phone ? 0.05 : 0.28, phi: 1.05, radius: phone ? 10.4 : 10.6 };
+  const target = new THREE.Vector3(0, 0.2, 0.35);
   let disposed = false;
 
   function duration(seconds) {
@@ -248,26 +248,39 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
     tweens.push({ root, from: takePose(root), to: pose, elapsed: 0, seconds, wiggle, onDone });
   }
 
-  function layout(nextWide, animate) {
-    wide = nextWide;
+  function layout(nextPhone, animate) {
+    phone = nextPhone;
+    camera.fov = phone ? 40 : 38;
+    camera.updateProjectionMatrix();
+    orbit.radius = phone ? 10.4 : 10.6;
+    orbit.theta = phone ? 0.05 : 0.28;
     shelves.forEach((shelf) => {
       scene.remove(shelf);
       shelf.geometry?.dispose?.();
     });
     shelves = [];
-    if (wide) shelves.push(buildShelf(3.55, -1.62, 0.15, 2.3, 2.6));
-    else {
-      shelves.push(buildShelf(0, -0.62, 1.78, 4.3, 0.85));
-      shelves.push(buildShelf(0, -1.52, 1.98, 3.3, 0.85));
+    if (phone) {
+      shelves.push(buildShelf(-1.15, -1.55, 1.35, 1.15, 1.3));
+      shelves.push(buildShelf(1.15, -1.55, 1.35, 1.15, 1.3));
+    } else {
+      shelves.push(buildShelf(2.5, -1.7, 0.35, 1.7, 2.2));
     }
     shelves.forEach((shelf) => scene.add(shelf));
     parts.forEach((part, index) => {
-      const [x, y, z] = trayPosition(index, parts.length, wide);
-      part.tray.position.set(x, y, z);
+      const spot = trayPosition(index, parts.length, phone);
+      part.tray.position.set(spot.x, spot.y, spot.z);
+      part.tray.scale.setScalar(spot.scale);
       if (!part.installed && drag !== part) seat(part, animate ? duration(0.25) : 0);
     });
-    target.x = wide ? 0.45 : 0;
-    orbit.radius = THREE.MathUtils.clamp(orbit.radius, 5.4, 12.5);
+  }
+
+  function placeLabels() {
+    parts.forEach((part) => {
+      if (!part.label) return;
+      part.label.visible = !part.installed && drag !== part;
+      const drop = (part.tray?.scale?.x || 0.5) * 0.55;
+      part.label.position.set(part.root.position.x, part.root.position.y - drop, part.root.position.z + 0.08);
+    });
   }
 
   function updateCamera() {
@@ -309,8 +322,8 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
         part.slot.position.y + part.spec.guide[1] / 2,
         part.slot.position.z,
       ));
-      const halfW = Math.max(28, Math.abs(edge.x - center.x));
-      const halfH = Math.max(28, Math.abs(edge.y - center.y));
+      const halfW = Math.max(48, Math.abs(edge.x - center.x) * 1.55);
+      const halfH = Math.max(48, Math.abs(edge.y - center.y) * 1.55);
       if (Math.abs(x - center.x) <= halfW && Math.abs(y - center.y) <= halfH) {
         hits.push({ part, area: halfW * halfH });
       }
@@ -326,11 +339,6 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
     const hits = raycaster.intersectObjects(parts.filter((part) => !part.installed).map((part) => part.hit), false);
     const id = hits[0]?.object?.userData?.partId;
     return id ? byId[id] : null;
-  }
-
-  function overCase(x, y) {
-    rayFrom(x, y);
-    return raycaster.intersectObject(caseGroup, true).length > 0;
   }
 
   function paint() {
@@ -364,9 +372,23 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
     return true;
   }
 
+  function reachRadius() {
+    return Math.max(160, viewW * 0.18);
+  }
+
   function moveDrag(x, y) {
     if (!drag || !rayFrom(x, y).intersectPlane(plane, hit)) return;
     drag.root.position.copy(hit.clone().sub(offset).applyMatrix4(inverse));
+    if (drag.spec.id === nextPartId(installedIds)) {
+      const here = projectOf(drag.root.position);
+      const slot = projectOf(drag.slot.position);
+      const distance = Math.hypot(here.x - slot.x, here.y - slot.y);
+      const reach = reachRadius();
+      if (distance < reach) {
+        const pull = (1 - distance / reach) * 0.55;
+        drag.root.position.lerp(drag.slot.position, pull);
+      }
+    }
   }
 
   function finishDrag(x, y) {
@@ -375,14 +397,20 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
     heldId = null;
     lock = null;
     if (!part) return;
-    const slot = slotUnder(x, y, part.spec.id);
-    const decision = judgeDrop({
-      partId: part.spec.id,
-      installed: installedIds,
-      slotId: slot ? slot.spec.id : null,
-      onTarget: !!slot,
-      overCase: overCase(x, y),
-    });
+    const aimed = slotUnder(x, y, part.spec.id);
+    const slotPoint = projectOf(part.slot.position);
+    const nearOwn = Math.hypot(slotPoint.x - x, slotPoint.y - y) <= reachRadius();
+    const onOwn = nearOwn || (aimed && aimed.spec.id === part.spec.id);
+    const wrong = aimed && aimed.spec.id !== part.spec.id && !onOwn;
+    const decision = onOwn || wrong
+      ? judgeDrop({
+        partId: part.spec.id,
+        installed: installedIds,
+        slotId: onOwn ? part.spec.id : aimed.spec.id,
+        onTarget: true,
+        overCase: true,
+      })
+      : { outcome: 'return' };
     if (decision.outcome === 'install') {
       installedIds = [...installedIds, part.spec.id];
       part.installed = true;
@@ -403,22 +431,30 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
 
   function updateGuides() {
     const next = nextPartId(installedIds);
+    let nearNext = false;
+    if (drag && drag.spec.id === next) {
+      const here = projectOf(drag.root.position);
+      const slot = projectOf(byId[next].slot.position);
+      nearNext = Math.hypot(here.x - slot.x, here.y - slot.y) <= reachRadius();
+    }
     const pointerSlot = drag ? slotUnder(projectOf(drag.root.position).x, projectOf(drag.root.position).y, drag.spec.id) : null;
     parts.forEach((part) => {
       const id = part.spec.id;
       const isNext = id === next && !part.installed;
-      const isHot = pointerSlot === part && drag?.spec.id === id && id === next;
+      const isHot = isNext && (nearNext || pointerSlot === part);
       const isWrong = pointerSlot === part && drag && drag.spec.id !== id;
-      part.guide.visible = isNext || isWrong || id === focusedId;
-      const pulse = 0.16 + Math.sin(clock * 5) * 0.06;
+      part.guide.visible = isNext || isWrong;
+      const pulse = 0.22 + Math.sin(clock * 5) * 0.08;
       part.guide.material.color.set(isWrong ? ERROR : ACCENT);
-      part.guide.material.opacity = isHot ? 0.5 : isWrong ? 0.34 : isNext ? pulse : 0.12;
+      part.guide.material.opacity = isHot ? 0.62 : isWrong ? 0.4 : isNext ? pulse : 0;
       part.guide.children[0].material.color.set(isWrong ? ERROR : PRIMARY);
+      const pop = isHot ? 1.08 : 1;
+      part.guide.scale.setScalar(pop);
     });
   }
 
   applyInstalledFlags();
-  layout(wide, false);
+  layout(phone, false);
   parts.forEach((part) => {
     if (part.installed) writePose(part.root, displayPose(part));
   });
@@ -434,8 +470,8 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
       viewH = Math.max(1, h);
       camera.aspect = viewW / viewH;
       camera.updateProjectionMatrix();
-      const nextWide = viewW >= 900;
-      if (nextWide !== wide) layout(nextWide, true);
+      const nextPhone = viewW < 900 || viewH < 720;
+      if (nextPhone !== phone) layout(nextPhone, true);
     },
     setReduced(value) { reduced = !!value; },
     setVideoBackdrop(on) {
@@ -456,7 +492,6 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
       part.root.add(framed);
       part.hit.parent.remove(part.hit);
       part.root.add(part.hit);
-      if (part.label) part.root.add(part.label);
       paint();
     },
     orbitBy(dx, dy) {
@@ -589,6 +624,7 @@ export function createAssembly({ renderer, width, height, installed, reducedMoti
         return false;
       });
       updateCamera();
+      placeLabels();
       updateGuides();
     },
     dispose() {
