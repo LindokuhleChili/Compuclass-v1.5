@@ -11,6 +11,8 @@ import { useTheme } from '../context/ThemeContext';
 import { useShellBack } from '../context/ChromeContext';
 import { leaveScreen } from '../utils/screenNav';
 import { Glass, IconButton, Heading, Body, font, useLayout } from '../components/ui/kit';
+import AssemblyExperience from '../components/assembly/AssemblyExperience';
+import { beginFrontCamera } from '../components/assembly/camera';
 
 const CASE_IMG = require('../assets/pc-assembly/case-open.png');
 const CASE_RATIO = 712 / 548; // width / height of case-open.png
@@ -156,12 +158,13 @@ function PartCard({ part, lifted, handlers }) {
   );
 }
 
-export default function PCAssemblyScreen({ navigation }) {
+export default function PCAssemblyScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const shellBack = useShellBack();
   const { width } = useWindowDimensions();
   const { laptop, horizontal, bottom } = useLayout();
+  const [mode, setMode] = useState(route?.params?.mode === 'ar' ? 'ar' : 'steps');
   const [columnWidth, setColumnWidth] = useState(0);
   const column = columnWidth || Math.max(320, width - (laptop ? 256 : 0));
   const isWide = column >= 880;
@@ -336,6 +339,23 @@ export default function PCAssemblyScreen({ navigation }) {
   const dragBox = dragPart ? dragSize(dragPart, caseSize.w, caseSize.h) : null;
   const backTop = shellBack ? 12 : insets.top + 12;
 
+  useEffect(() => {
+    if (route?.params?.mode === 'ar') setMode('ar');
+  }, [route?.params?.entry, route?.params?.mode]);
+
+  const openAr = () => {
+    beginFrontCamera();
+    setMode('ar');
+  };
+
+  if (mode === 'ar') {
+    return (
+      <View testID="pc-assembly-screen" style={[styles.container, { backgroundColor: theme.background }]}>
+        <AssemblyExperience navigation={navigation} onExit={() => setMode('steps')} />
+      </View>
+    );
+  }
+
   const actionBtn = (filled) => ({
     minHeight: 48,
     paddingHorizontal: 16,
@@ -371,12 +391,20 @@ export default function PCAssemblyScreen({ navigation }) {
           <View style={styles.headerRow}>
             <View style={{ flex: 1 }}>
               <Heading level={1}>PC Assembly Challenge</Heading>
-              <Body variant="small" style={{ marginTop: 4 }}>Drag the next part into the glowing spot, or use Place.</Body>
+              <Body variant="small" style={{ marginTop: 4 }}>Drag the next part into the glowing spot, or build it in AR.</Body>
             </View>
             <View style={[styles.progressPill, { backgroundColor: theme.glassPanel, borderColor: theme.glassBorder }]}>
               <Text style={[{ fontSize: 13, color: theme.text }, font(theme, 'semibold')]}>{installed.length}/{ORDER.length}</Text>
             </View>
           </View>
+
+          <Pressable testID="ar-gesture-entry" onPress={openAr} accessibilityRole="button" accessibilityLabel="AR / Gesture mode" style={{ marginBottom: 16 }}>
+            <Glass strong radius={20} style={{ padding: 16, gap: 6 }}>
+              <Text style={[{ fontSize: 12, color: theme.accentInk }, font(theme, 'semibold')]}>Hands-on</Text>
+              <Text style={[{ fontSize: 22, color: theme.text }, font(theme, 'h2')]}>AR / Gesture mode</Text>
+              <Body variant="small">Open your front camera and place each part yourself. Point, pinch, and drop it into the case.</Body>
+            </Glass>
+          </Pressable>
 
           <View style={[styles.progressTrack, { backgroundColor: theme.borderLight }]}>
             <View style={[styles.progressFill, { width: `${(installed.length / ORDER.length) * 100}%`, backgroundColor: theme.primary }]} />

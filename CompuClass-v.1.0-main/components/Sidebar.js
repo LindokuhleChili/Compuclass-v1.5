@@ -29,6 +29,7 @@ export const PRIMARY_NAV = [
 export const EXPLORE_NAV = [
   { icon: 'monitor', title: 'PC Lab', screen: 'PC Lab' },
   { icon: 'cpu', title: 'PC Assembly', screen: 'PC Assembly' },
+  { icon: 'cpu', title: 'AR / Gesture mode', screen: 'PC Assembly', params: { mode: 'ar' } },
   { icon: 'windows', title: 'Windows 11', screen: 'Windows 11' },
   { icon: 'wrench', title: 'Troubleshooting', screen: 'Troubleshoot' },
   { icon: 'bot', title: 'CompuBot', screen: 'Chatbot' },
@@ -63,7 +64,7 @@ function NavList({ currentScreen, onPress, user }) {
           const active = navKeyForRoute(currentScreen) === item.screen;
           return (
             <Pressable
-              key={item.screen}
+              key={item.title}
               onPress={() => onPress(item)}
               accessibilityRole="button"
               accessibilityLabel={item.title}
@@ -78,9 +79,9 @@ function NavList({ currentScreen, onPress, user }) {
         })}
         <Text style={[{ fontSize: 12, lineHeight: 16, color: theme.textTertiary, paddingHorizontal: 12, paddingTop: 24, paddingBottom: 8 }, font(theme, 'semibold')]}>Explore</Text>
         {EXPLORE_NAV.map((item) => {
-          const active = navKeyForRoute(currentScreen) === item.screen;
+          const active = !item.params && navKeyForRoute(currentScreen) === item.screen;
           return (
-            <Pressable key={item.screen} onPress={() => onPress(item)} accessibilityRole="button" accessibilityLabel={item.title} accessibilityState={{ selected: active }} aria-selected={active} style={[styles.nav, active && { backgroundColor: '#fff' }]}>
+            <Pressable key={item.title} onPress={() => onPress(item)} accessibilityRole="button" accessibilityLabel={item.title} accessibilityState={{ selected: active }} aria-selected={active} style={[styles.nav, active && { backgroundColor: '#fff' }]}>
               <Icon name={item.icon} size={20} color={active ? theme.primary : theme.textSecondary} />
               <Text style={[{ flex: 1, fontSize: 14, lineHeight: 20, color: active ? theme.primary : theme.textSecondary }, font(theme, 'semibold')]}>{item.title}</Text>
             </Pressable>
@@ -188,6 +189,7 @@ export default function Sidebar({ visible, docked, onClose, onNavigate, onHomePr
 
   const onPress = (item) => {
     if (item.screen === 'Home') onHomePress?.();
+    else if (item.params) onNavigate?.({ screen: item.screen, params: { ...item.params, entry: Date.now() } });
     else onNavigate?.(sidebarDestination(item.screen, user?.profile?.role));
     onClose?.();
   };
